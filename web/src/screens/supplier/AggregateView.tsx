@@ -47,7 +47,7 @@ export function AggregateView({ requests, itemOf, units }: Props) {
             onClick={() => setExpanded(expanded === total.itemId ? null : total.itemId)}>
             <span className="req-qty">{total.quantity}</span>
             <span className="req-name user-text" dir="auto">{total.item_name}</span>
-            <span className="muted">{total.byCompany.length} {t.units}</span>
+            <span className="muted">{t.companiesCount(total.byCompany.length)}</span>
           </button>
           {expanded === total.itemId && (
             <ul className="split">

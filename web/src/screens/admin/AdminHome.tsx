@@ -40,8 +40,8 @@ export function AdminHome() {
         <article key={u.id} className="card signup">
           <div className="signup-name" dir="auto">{u.first_name} {u.last_name}</div>
           <dl className="signup-fields">
-            <dt>{t.serviceNumber}</dt><dd dir="ltr">{u.service_number}</dd>
-            <dt>{t.emailLabel}</dt><dd dir="ltr">{u.email}</dd>
+            <dt>{t.serviceNumber}</dt><dd><bdi dir="ltr">{u.service_number}</bdi></dd>
+            <dt>{t.emailLabel}</dt><dd><bdi dir="ltr">{u.email}</bdi></dd>
             <dt>{t.side}</dt><dd>{t.roleLabels[u.role]}</dd>
             <dt>{t.unit}</dt><dd>{unitName(u.unit_id)}</dd>
           </dl>

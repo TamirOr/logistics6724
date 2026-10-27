@@ -112,6 +112,7 @@ export const t = {
   // Supplier
   byCompany: "לפי פלוגה",
   aggregate: "סיכום פריטים",
+  companiesCount: (n: number) => (n === 1 ? "פלוגה אחת" : `${n} פלוגות`),
   allEvents: "כל האירועים",
   nothingToPrepare: "אין דרישות פתוחות",
   markPartial: "חלקי",
