@@ -1,9 +1,10 @@
 // Every user-facing string in the app. Components import from here and
 // never hold Hebrew literals. Strings quoted in the spec are verbatim.
+import { APP_NAME } from "../../supabase/functions/_shared/labels.ts";
 export { STATUS_LABELS } from "../../supabase/functions/_shared/labels.ts";
 
 export const t = {
-  appName: "לוגיסטיקה גדודית",
+  appName: APP_NAME,
 
   // Sign-in
   signInTitle: "כניסה",
