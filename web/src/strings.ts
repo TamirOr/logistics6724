@@ -154,7 +154,8 @@ export const t = {
   unitKind: "סוג",
   kindCompany: "פלוגה",
   kindSupplier: "גורם אספקה",
-  sortOrder: "סדר",
+  headcount: "סד״כ",
+  headcountOf: (n: number) => `סד״כ ${n}`,
   roleLabels: { customer: "לקוח", supplier: "ספק", admin: "מנהל" } as Record<string, string>,
 
   // Export
