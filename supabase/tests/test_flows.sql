@@ -401,3 +401,20 @@ select tst.act('10000000-0000-0000-0000-000000000002');
 select close_event((select v from tst.t where k = 'bev-own'));
 reset role;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev-own')) = 'closed', 'creator closes battalion event');
+
+-- An item used in a cancelled event can still be merged ---------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'cancelled-ev', create_event('אירוע שבוטל', 'company', null, '2026-11-07');
+select add_item('00000000-0000-0000-0000-0000000000a1', 'מנורת ראש');
+insert into requests (list_id, item_id, quantity)
+values ((select id from lists where event_id = (select v from tst.t where k = 'cancelled-ev')), (select id from items where name = 'מנורת ראש'), 2);
+select cancel_event((select v from tst.t where k = 'cancelled-ev'));
+select tst.fails($$update requests set quantity = 3 where event_id = (select v from tst.t where k = 'cancelled-ev')$$,
+  'customer edits a request in a cancelled event');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select add_item('00000000-0000-0000-0000-0000000000a1', 'פנס ראש');
+select merge_item((select id from items where name = 'מנורת ראש'), (select id from items where name = 'פנס ראש'));
+reset role;
+select tst.ok((select i.name from requests r join items i on i.id = r.item_id
+               where r.event_id = (select v from tst.t where k = 'cancelled-ev')) = 'פנס ראש', 'merge moves requests of a cancelled event');
