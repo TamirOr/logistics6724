@@ -70,7 +70,7 @@ export function App() {
   return (
     <SessionProvider>
       <ToastProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Gate />
         </BrowserRouter>
       </ToastProvider>

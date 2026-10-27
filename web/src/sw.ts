@@ -8,7 +8,7 @@ declare const self: ServiceWorkerGlobalScope;
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-registerRoute(new NavigationRoute(createHandlerBoundToURL("/index.html")));
+registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`)));
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -20,15 +20,18 @@ self.addEventListener("push", (event) => {
     tag: data.tag,
     lang: "he",
     dir: "rtl",
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    icon: new URL("icon-192.png", self.registration.scope).href,
+    badge: new URL("icon-192.png", self.registration.scope).href,
     data: { url: data.url ?? "/" },
   }));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
+  // Notification URLs are app paths like /events/<id>; the app may live
+  // under a sub-path, so resolve them against the service worker scope.
+  const path = String(event.notification.data?.url ?? "/").replace(/^\//, "");
+  const url = new URL(path, self.registration.scope).href;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const open = windows[0];

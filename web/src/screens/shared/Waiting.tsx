@@ -9,7 +9,7 @@ export function Waiting() {
   return (
     <div className="page center">
       <main className="content narrow stack">
-        <img src="/icon.svg" alt="" className="logo" />
+        <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="logo" />
         <h1>{deactivated ? t.deactivatedTitle : t.waitingTitle}</h1>
         <p>{deactivated ? t.deactivatedBody : t.waitingBody}</p>
         {!deactivated && <PushPrompt />}

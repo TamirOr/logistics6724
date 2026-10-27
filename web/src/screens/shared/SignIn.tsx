@@ -34,7 +34,7 @@ export function SignIn() {
   return (
     <div className="page center">
       <main className="content narrow">
-        <img src="/icon.svg" alt="" className="logo" />
+        <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="logo" />
         <h1>{t.appName}</h1>
         {step === "email" ? (
           <form className="stack" onSubmit={requestCode}>
