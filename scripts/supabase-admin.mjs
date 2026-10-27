@@ -107,14 +107,6 @@ async function configureAuth({ api }, env) {
   const otpTemplate = await readFile(new URL("../supabase/templates/otp.html", import.meta.url), "utf8");
   const smtp = { host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, pass: env.SMTP_PASS, sender: env.SMTP_SENDER };
   await api("PATCH", "/config/auth", authSettings({ siteUrl: env.SITE_URL, otpTemplate, smtp }));
-  if (!smtp.host) {
-    warn("No SMTP secrets: sign-in emails carry a link, not a 6-digit code. See README, \"Sign-in emails\".");
-  }
-}
-
-function warn(message) {
-  console.warn(message);
-  if (process.env.GITHUB_ACTIONS) console.log(`::warning title=supabase-admin::${annotation(message)}`);
 }
 
 /** Runs every step even if one fails, then reports all failures together. */
