@@ -4,8 +4,7 @@
 #
 # Where it goes:
 #   push to main        -> staging    (STAGING_* secrets, web at /<repo>/staging/)
-#   push a tag v*       -> production (approval in the "production" environment,
-#                          a fresh backup before migrations, web at /<repo>/,
+#   push a tag v*       -> production (a fresh backup before migrations, web at /<repo>/,
 #                          health check 10 minutes later, GitHub release)
 #   Run workflow        -> either, with optional admin, cron-secret and seed actions
 #
@@ -81,27 +80,28 @@ jobs:
           else echo "::notice title=Deploy skipped::The $name project is not configured yet (README, Environments)."; fi
           { echo "name=$name"; echo "prefix=$prefix"; echo "base_path=$base"; echo "configured=$configured"; } >> "$GITHUB_OUTPUT"
 
-  # Production waits here for a reviewer's approval (Settings, Environments,
-  # production, Required reviewers). Everything after it runs only once approved.
-  gate:
-    needs: target
-    if: needs.target.outputs.configured == 'true'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.target.outputs.name }}
-    steps:
-      - run: echo "Deploying ${{ github.sha }} to ${{ needs.target.outputs.name }}"
+  # The whole CI suite (database, web, scripts, functions) on the commit
+  # being deployed. Nothing deploys unless it passes. On pushes to main this
+  # is the only CI run, so it runs even before staging is configured.
+  test:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
 
   backup:
-    needs: [target, gate]
-    if: needs.target.outputs.name == 'production' && !inputs.skip_backup
+    needs: [target, test]
+    if: needs.target.outputs.configured == 'true' && needs.target.outputs.name == 'production' && !inputs.skip_backup
     uses: ./.github/workflows/backup.yml
     secrets: inherit
 
   backend:
-    needs: [target, gate, backup]
+    needs: [target, test, backup]
     # Runs when the backup succeeded or was skipped on purpose (staging, skip_backup).
-    if: always() && needs.gate.result == 'success' && (needs.backup.result == 'success' || needs.backup.result == 'skipped')
+    if: >-
+      always() && needs.target.outputs.configured == 'true' && needs.test.result == 'success'
+      && (needs.backup.result == 'success' || needs.backup.result == 'skipped')
     runs-on: ubuntu-latest
+    # Lists each deploy under the repository's Environments; no approval needed.
+    environment: ${{ needs.target.outputs.name }}
     env:
       DEPLOY_TARGET: ${{ needs.target.outputs.name }}
       SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}

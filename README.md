@@ -49,7 +49,8 @@ There are two Supabase projects, which is what the free plan allows:
 | --- | --- | --- |
 | Supabase project | a second free project | the original project |
 | Web app | `https://<owner>.github.io/<repo>/staging/` | `https://<owner>.github.io/<repo>/` |
-| Deploys on | every push to `main` | a tag `v*`, after approval in the `production` environment |
+| Deploys on | every push to `main` | a tag `v*` |
+| Before deploying | the full CI suite | the full CI suite |
 | Before migrations | nothing | a fresh encrypted backup |
 | After deploy | nothing | health check 10 minutes later; GitHub release with notes |
 | Data | fake units and catalog (Deploy → "Seed staging") | real |
@@ -65,22 +66,21 @@ Both builds live on the `site` branch, which GitHub Pages serves. Source maps go
 3. **GitHub secrets.** In the repository, open Settings → Secrets and variables → Actions → "New repository secret" and add:
    - `SUPABASE_ACCESS_TOKEN`: the token from step 1
    - `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`: production
-   - `STAGING_SUPABASE_PROJECT_REF`, `STAGING_SUPABASE_DB_PASSWORD`: staging (until they exist, pushes to `main` deploy nothing)
-4. **Environments.** Settings → Environments → "New environment": create `production` and tick **Required reviewers** (you and a deputy), then create `staging` with no rules.
-5. **GitHub Pages.** Settings → Pages → Build and deployment → Source: **Deploy from a branch**, branch `site`, folder `/ (root)`. The branch appears after the first deploy; until then, run a deploy first and come back.
-6. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning** and **Push protection**.
-7. **Deploy.** Merge to `main` (staging), or open Actions → Deploy → "Run workflow" and pick a target.
+   - `STAGING_SUPABASE_PROJECT_REF`, `STAGING_SUPABASE_DB_PASSWORD`: staging (until they exist, pushes to `main` only run the tests)
+4. **GitHub Pages.** Settings → Pages → Build and deployment → Source: **Deploy from a branch**, branch `site`, folder `/ (root)`. The branch appears after the first deploy; until then, run a deploy first and come back.
+5. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning** and **Push protection**.
+6. **Deploy.** Merge to `main` (staging), or open Actions → Deploy → "Run workflow" and pick a target.
 
 ### Releasing to production
 
-Open Releases → "Draft a new release" → "Choose a tag" → type the next version (`v1.4.0`) → "Create new tag on publish" → Publish. The tag starts the Deploy workflow, which waits for a reviewer's approval under Actions, takes a backup, migrates, deploys, checks health after 10 minutes and writes the release notes from the commit messages. To roll back the web app, run Deploy from the previous tag (see docs/runbook.md).
+Open Releases → "Draft a new release" → "Choose a tag" → type the next version (`v1.4.0`) → "Create new tag on publish" → Publish. The tag starts the Deploy workflow, which runs every test suite, takes a backup, migrates, deploys, checks health after 10 minutes and writes the release notes from the commit messages. To roll back the web app, run Deploy from the previous tag (see docs/runbook.md).
 
 Migrations must keep working with the previous web build for one release (expand, then contract), because phones update only when the user taps the update banner. CI asks for the `db-breaking` label on a PR whose new migration drops, renames or changes a column type; see the runbook for `min_client_version`.
 
 ### First admin and units
 
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
-2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. For production this waits for approval.
+2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it.
 3. Reload the app. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
 4. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 

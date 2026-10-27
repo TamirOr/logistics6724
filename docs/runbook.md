@@ -204,7 +204,7 @@ Older builds then stop sending writes (they stay on the phone) and show "נדר�
 
 ### Rolling back
 
-- **Web**: Actions → Deploy → Run workflow → target production, from the previous tag (choose the tag in "Use workflow from"). Production deploys still need approval.
+- **Web**: Actions → Deploy → Run workflow → target production, from the previous tag (choose the tag in "Use workflow from"). The test suites run first, as on every deploy.
 - **Database**: never edit or revert an applied migration. Write a forward fix migration. Restore from a backup only after data loss.
 
 ### Deleting a user on request
