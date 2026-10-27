@@ -5,6 +5,7 @@
 //   node scripts/supabase-admin.mjs configure      server config, push keys, email-code sign-in
 //   node scripts/supabase-admin.mjs anon-key       prints the public anon key
 //   node scripts/supabase-admin.mjs make-admin     promotes ADMIN_EMAIL (signed in once already)
+//   node scripts/supabase-admin.mjs status         reports scheduled jobs, push devices and send errors
 //
 // Environment: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, and for
 // configure SITE_URL plus the optional SMTP_HOST, SMTP_PORT, SMTP_USER,
@@ -166,9 +167,56 @@ async function makeAdmin(env) {
   console.log(`${email} is now an admin`);
 }
 
-const commands = { configure, "anon-key": anonKey, "make-admin": makeAdmin };
+// What the status report checks. The repository is public and so are its
+// workflow annotations: these queries return counts and error text only,
+// never emails, names or secrets.
+export const STATUS_CHECKS = [
+  ["Extensions", "select extname from pg_extension where extname in ('pg_cron', 'pg_net') order by 1"],
+  ["Server config keys", `select key from app_config
+    where key in ('functions_url', 'site_url', 'cron_secret', 'vapid_public_key', 'vapid_private_key') order by 1`],
+  ["Scheduled jobs", "select jobname, schedule, active from cron.job order by jobname"],
+  ["Recent job runs", `select j.jobname, d.status, left(d.return_message, 120) as message, d.start_time
+    from cron.job_run_details d join cron.job j using (jobid) order by d.start_time desc limit 5`],
+  ["Recent function calls", `select status_code, left(coalesce(error_msg, content::text), 160) as detail, created
+    from net._http_response order by created desc limit 5`],
+  ["Push devices", "select count(*) as devices, count(distinct user_id) as users from push_subscriptions"],
+  ["Notifications", `select kind, count(*) filter (where sent_at is not null) as sent,
+    count(*) filter (where sent_at is null) as unsent, max(attempts) as max_attempts
+    from notification_outbox group by kind order by kind`],
+  ["Send errors", `select left(last_error, 160) as error, count(*) from notification_outbox
+    where last_error is not null group by 1 order by 2 desc limit 3`],
+];
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** One readable block per check: its rows as "key=value" lines, or its error. */
+export function formatStatus(results) {
+  return results.map(({ title, rows, error }) => {
+    if (error) return `${title}: unavailable (${error})`;
+    if (!rows.length) return `${title}: none`;
+    const lines = rows.map((r) => Object.entries(r).map(([k, v]) => `${k}=${v}`).join(", "));
+    return `${title}:\n  ${lines.join("\n  ")}`;
+  }).join("\n");
+}
+
+/** Reports what push notifications depend on, as a notice on the run page. */
+async function status(env) {
+  const { sql } = client(env);
+  const results = [];
+  for (const [title, query] of STATUS_CHECKS) {
+    try {
+      results.push({ title, rows: await sql(query) });
+    } catch (e) {
+      // A missing extension makes its tables missing; that is the finding.
+      results.push({ title, error: e.message.slice(0, 160) });
+    }
+  }
+  const report = formatStatus(results);
+  console.log(report);
+  if (env.GITHUB_ACTIONS) console.log(`::notice title=Project status::${annotation(report)}`);
+}
+
+const commands = { configure, "anon-key": anonKey, "make-admin": makeAdmin, status };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const command = commands[process.argv[2]];
   if (!command) {
     console.error(`usage: supabase-admin.mjs ${Object.keys(commands).join(" | ")}`);

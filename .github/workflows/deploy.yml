@@ -59,6 +59,13 @@ jobs:
           SMTP_SENDER: ${{ secrets.SMTP_SENDER }}
         run: node scripts/supabase-admin.mjs configure
 
+      - name: Report project status
+        # Scheduled jobs, push devices and send errors, as a notice on the
+        # run page. Counts and errors only: the repository is public.
+        if: always()
+        continue-on-error: true
+        run: node scripts/supabase-admin.mjs status
+
       - name: Make admin
         if: inputs.admin_email
         env:
