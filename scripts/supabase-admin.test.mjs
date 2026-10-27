@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { annotation, authSettings, generateVapidKeys, smtpFromEnv, sqlLiteral } from "./supabase-admin.mjs";
+import {
+  annotation, authSettings, formatStatus, generateVapidKeys, smtpFromEnv, sqlLiteral, STATUS_CHECKS,
+} from "./supabase-admin.mjs";
 
 // web-push rejects keys that are not exactly these sizes.
 test("VAPID keys have the sizes Web Push expects", () => {
@@ -55,4 +57,24 @@ test("smtpFromEnv names the secret to fix", () => {
   assert.throws(() => smtpFromEnv({ ...base, SMTP_SENDER: '"Logistics" <a@gmail.com>' }), /SMTP_SENDER/);
   assert.throws(() => smtpFromEnv({ ...base, SMTP_USER: "", SMTP_SENDER: "a@gmail.com" }), /SMTP_USER or SMTP_PASS/);
   assert.throws(() => smtpFromEnv({ ...base, SMTP_USER: "brevo-login", SMTP_SENDER: "" }), /SMTP_SENDER/);
+});
+
+test("formatStatus shows rows, empty checks and errors", () => {
+  const report = formatStatus([
+    { title: "Push devices", rows: [{ devices: 2, users: 1 }] },
+    { title: "Send errors", rows: [] },
+    { title: "Scheduled jobs", error: 'relation "cron.job" does not exist' },
+  ]);
+  assert.equal(report, [
+    "Push devices:\n  devices=2, users=1",
+    "Send errors: none",
+    'Scheduled jobs: unavailable (relation "cron.job" does not exist)',
+  ].join("\n"));
+});
+
+test("status checks never select personal or secret columns", () => {
+  // The report is posted on a public repository's run page.
+  for (const [, query] of STATUS_CHECKS) {
+    assert.doesNotMatch(query, /\b(email|first_name|last_name|service_number|endpoint|p256dh|auth|value|command)\b/i);
+  }
 });
