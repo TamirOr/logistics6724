@@ -20,6 +20,9 @@ export interface ExportRow {
 // deno-lint-ignore no-explicit-any
 type Worksheet = any;
 
+export const REQUEST_SHEET = "דרישות";
+export const TOTALS_SHEET = "סיכום";
+
 export const REQUEST_COLUMNS = [
   { header: "אירוע", key: "event", width: 24 },
   { header: "נדרש עד", key: "needed_by", width: 10 },

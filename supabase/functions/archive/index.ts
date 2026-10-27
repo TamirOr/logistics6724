@@ -3,7 +3,7 @@
 // An event is deleted only after the file holding it uploaded successfully.
 import ExcelJS from "npm:exceljs@4.4.0";
 import { authorized, json, serviceClient } from "../_shared/env.ts";
-import { addRequestRows, type ExportRow, setupRequestSheet } from "../_shared/excel.ts";
+import { addRequestRows, type ExportRow, REQUEST_SHEET, setupRequestSheet } from "../_shared/excel.ts";
 
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
@@ -109,9 +109,9 @@ Deno.serve(async (req) => {
       let ws;
       if (existingId) {
         await wb.xlsx.load(await download(token, existingId));
-        ws = wb.getWorksheet("דרישות");
+        ws = wb.getWorksheet(REQUEST_SHEET);
       }
-      if (!ws) ws = wb.addWorksheet("דרישות");
+      if (!ws) ws = wb.addWorksheet(REQUEST_SHEET);
       // Column keys are not stored in the file, so set them on every run.
       setupRequestSheet(ws);
       addRequestRows(ws, (rows ?? []) as ExportRow[]);
