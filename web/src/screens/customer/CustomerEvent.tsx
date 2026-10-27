@@ -102,7 +102,7 @@ export function CustomerEvent() {
 
       {editable && (
         <div className="danger-zone">
-          {event.scope === "company" && (
+          {(event.scope === "company" || event.created_by === profile.id) && (
             <button className="btn btn-secondary" onClick={() => run(() => closeEvent(event.id))}>{t.closeEvent}</button>
           )}
           {event.created_by === profile.id && (

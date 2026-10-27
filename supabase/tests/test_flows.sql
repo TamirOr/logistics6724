@@ -390,3 +390,14 @@ update requests set status = 'ready' where event_id = (select v from tst.t where
 select tst.ok((select status from requests where event_id = (select v from tst.t where k = 'quiet')) = 'ready', 'supplier undoes missing to ready');
 reset role;
 select tst.ok(close_finished_events(interval '0') = 0, 'a ready request keeps the event open');
+
+-- The creator of a battalion event can close it; another customer cannot ---------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'bev-own', create_event('מטווח', 'battalion', null, '2026-11-06');
+select tst.act('10000000-0000-0000-0000-000000000003');
+select tst.fails($$select close_event((select v from tst.t where k = 'bev-own'))$$, 'another company closes a battalion event');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select close_event((select v from tst.t where k = 'bev-own'));
+reset role;
+select tst.ok((select status from events where id = (select v from tst.t where k = 'bev-own')) = 'closed', 'creator closes battalion event');
