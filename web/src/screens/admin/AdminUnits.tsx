@@ -72,7 +72,7 @@ export function AdminUnits() {
             )}
             <label className="switch">
               <input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
-              <span>{draft.active ? t.activate : t.inactive}</span>
+              <span>{t.active}</span>
             </label>
             <button className="btn btn-primary btn-block" disabled={!draft.name.trim()}
               onClick={() => save({ ...draft, name: draft.name.trim() })}>{t.save}</button>
