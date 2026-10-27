@@ -20,7 +20,9 @@ select tst.denied($$select * from server_configs(array['cron_secret'])$$, 'anon 
 select tst.denied($$select item_names(array[]::uuid[])$$, 'anon calls item_names()');
 select tst.denied($$select drop_empty_missing_queues()$$, 'anon calls drop_empty_missing_queues()');
 select tst.denied($$select search_items(gen_random_uuid(), 'x')$$, 'anon calls search_items()');
-select tst.ok(keepalive() is not null, 'anon keepalive still works');
+select tst.ok((health() ->> 'ok')::boolean, 'anon health probe still works');
+select tst.denied($$select health_report()$$, 'anon calls health_report()');
+select tst.denied($$select ops_metrics()$$, 'anon calls ops_metrics()');
 reset role;
 
 set role authenticated;
@@ -35,6 +37,9 @@ select tst.denied($$select flush_missing_queue()$$, 'authenticated calls flush_m
 select tst.denied($$select claim_outbox(1)$$, 'authenticated calls claim_outbox()');
 select tst.denied($$select notify('x', 'y')$$, 'authenticated calls notify()');
 select tst.denied($$select item_names(array[]::uuid[])$$, 'authenticated calls item_names()');
+select tst.denied($$select health_report()$$, 'authenticated calls health_report()');
+select tst.denied($$select ops_metrics()$$, 'authenticated calls ops_metrics()');
+select tst.denied($$select purge_expired()$$, 'authenticated calls purge_expired()');
 reset role;
 
 set role service_role;
@@ -45,8 +50,8 @@ reset role;
 select tst.ok(not exists (
   select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')
-    and p.proname not in ('keepalive')
-), 'anon can execute only keepalive');
+    and p.proname not in ('health')
+), 'anon can execute only health');
 
 -- Outbox lifecycle ---------------------------------------------------------------
 truncate notification_outbox;
@@ -62,8 +67,10 @@ select tst.ok((select count(*) from claim_outbox(10)) = 0, 'a sent row is never 
 select notify('approved', 'two', p_user => '10000000-0000-0000-0000-000000000002');
 update notification_outbox set attempts = 5, created_at = now() - interval '2 days' where body = 'two';
 select tst.ok((select count(*) from claim_outbox(10)) = 0, 'a row with 5 attempts is abandoned');
-update notification_outbox set sent_at = now() - interval '8 days' where body = 'one';
-select tst.ok(purge_outbox() = 2, 'purge removes old sent and abandoned rows');
+update notification_outbox set created_at = now() - interval '8 days' where body = 'one';
+select tst.ok((purge_expired() ->> 'outbox')::int = 0, 'sent and abandoned rows are kept 14 days');
+update notification_outbox set created_at = now() - interval '15 days';
+select tst.ok((purge_expired() ->> 'outbox')::int = 2, 'purge removes sent and abandoned rows after 14 days');
 
 set role authenticated;
 select tst.denied($$select * from server_configs(array['cron_secret'])$$, 'authenticated reads server configs');
