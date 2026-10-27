@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
-import { useAction } from "../../components/Toast";
-import { addItem, mergeItem, updateItem } from "../../lib/api";
+import { useAction, useToast } from "../../components/Toast";
+import { addItem, matchItem, mergeItem, updateItem } from "../../lib/api";
+import { describeError, isItemNameTaken } from "../../lib/errors";
 import { useLiveRows } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Item } from "../../lib/types";
@@ -14,12 +15,31 @@ const nameIncludes = (i: Item, q: string) => i.name.toLowerCase().includes(q.tri
 export function Catalog() {
   const profile = useProfile();
   const runAction = useAction();
+  const showToast = useToast();
   const { rows: items, refetch } = useLiveRows<Item>("items", { column: "supplier_id", value: profile.unit_id });
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<Item | null>(null);
   const [merging, setMerging] = useState<Item | null>(null);
 
   const attempt = (action: () => Promise<unknown>) => runAction(action, refetch);
+
+  // A rename onto a name the catalog already has: offer to merge into it.
+  const saveItem = async (item: Item, patch: Partial<Item>) => {
+    try {
+      await updateItem(item.id, patch);
+      await refetch();
+    } catch (error) {
+      const existing = isItemNameTaken(error) && patch.name
+        ? (await matchItem(item.supplier_id, patch.name).catch(() => [])).find((m) => m.exact)
+        : undefined;
+      if (existing) {
+        showToast({ message: t.nameTakenMerge(existing.name), actionLabel: t.merge,
+          onAction: () => attempt(() => mergeItem(item.id, existing.id)) });
+      } else {
+        showToast({ message: describeError(error) });
+      }
+    }
+  };
 
   const shown = items.filter((i) => nameIncludes(i, filter))
     .sort((a, b) => Number(a.verified) - Number(b.verified) || a.name.localeCompare(b.name, "he"));
@@ -48,7 +68,7 @@ export function Catalog() {
 
       {editing && (
         <ItemSheet item={editing} onClose={() => setEditing(null)}
-          onSave={(patch) => attempt(() => updateItem(editing.id, patch))}
+          onSave={(patch) => saveItem(editing, patch)}
           onMerge={() => { setMerging(editing); setEditing(null); }} />
       )}
       {merging && (

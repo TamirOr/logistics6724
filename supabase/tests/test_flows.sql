@@ -86,7 +86,7 @@ select tst.ok((select name from search_items('00000000-0000-0000-0000-0000000000
   'short prefix matches');
 select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'ג''ריקן  מים')
   = (select id from items where name = 'ג׳ריקן מים'), 'exact normalized match reuses the item');
-select tst.ok((select count(*) from suggest_items('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקנים')) >= 1,
+select tst.ok((select count(*) from match_item('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקנים') where not exact) >= 1,
   'did you mean suggests a match');
 select add_item('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקנים גדולים');
 select tst.ok(not verified, 'customer item is unverified') from items where name = 'ג׳ריקנים גדולים';
@@ -433,9 +433,11 @@ select tst.ok((select count(*) from requests where event_id = (select v from tst
 -- Catalog matching ---------------------------------------------------------------
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-000000000002');
-select tst.ok((select name from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן מים')) = 'ג׳ריקן מים',
-  'exact_item matches despite the missing geresh');
-select tst.ok((select count(*) from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן')) = 0, 'exact_item is not fuzzy');
+select tst.ok((select name from match_item('00000000-0000-0000-0000-0000000000a1', 'גריקן מים') where exact) = 'ג׳ריקן מים',
+  'match_item finds the exact match despite the missing geresh');
+select tst.ok((select count(*) from match_item('00000000-0000-0000-0000-0000000000a1', 'גריקן מים')) = 1,
+  'an exact match comes alone, without suggestions');
+select tst.ok(not exists (select 1 from match_item('00000000-0000-0000-0000-0000000000a1', 'גריקן') where exact), 'exact is not fuzzy');
 select tst.ok((select bool_and(similarity <= score) from search_items('00000000-0000-0000-0000-0000000000a1', 'סול')),
   'similarity excludes the ranking boost');
 reset role;

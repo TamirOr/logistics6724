@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { readCache, writeCache } from "./cache";
+import { isFresh, readCache, writeCache } from "./cache";
 import { applyEffects, onCommitted, useQueue } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
@@ -129,9 +129,18 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
 // Id caches ------------------------------------------------------------------
 
 // Saved to storage too, so names and events still show with no signal.
+// Each row keeps when it was last seen; rows unseen for the cache's max age
+// are dropped on load, so old events do not pile up.
 function createCache<T extends { id: string }>(table: string) {
   const cacheKey = `rows:${table}`;
-  const byId = new Map<string, T>((readCache<T[]>(cacheKey) ?? []).map((r) => [r.id, r]));
+  const seenAt = new Map<string, number>();
+  const byId = new Map<string, T>();
+  for (const { row, at } of readCache<{ row: T; at: number }[]>(cacheKey) ?? []) {
+    if (isFresh(at)) {
+      byId.set(row.id, row);
+      seenAt.set(row.id, at);
+    }
+  }
   const inFlight = new Set<string>();
   const listeners = new Set<() => void>();
   let version = 0;
@@ -144,8 +153,12 @@ function createCache<T extends { id: string }>(table: string) {
   return {
     get: (id: string) => byId.get(id),
     put(rows: T[]) {
-      rows.forEach((r) => byId.set(r.id, r));
-      writeCache(cacheKey, [...byId.values()]);
+      const now = Date.now();
+      rows.forEach((r) => {
+        byId.set(r.id, r);
+        seenAt.set(r.id, now);
+      });
+      writeCache(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
       notify();
     },
     async ensure(ids: Iterable<string>) {
