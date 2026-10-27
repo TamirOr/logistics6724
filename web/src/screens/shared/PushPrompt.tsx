@@ -33,7 +33,7 @@ export function PushPrompt() {
         <ol>
           {t.installSteps.map((step, i) => (
             <li key={step}>
-              <span className="step-icon" aria-hidden>{["⬆️", "➕", "📱"][i]}</span>
+              <span className="step-icon" aria-hidden>{["⬆️", "➕", "📱", "🔔"][i]}</span>
               {step}
             </li>
           ))}
