@@ -160,6 +160,11 @@ select tst.ok(status = 'partial', 'unmark returns to partial') from requests whe
 select mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a1');
 select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'open', 'still open with kitchen ready');
 select mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a2');
+select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'open', 'done event stays open during the quiet period');
+reset role;
+select tst.ok(close_finished_events() = 0, 'the default 30-minute quiet period has not passed');
+select tst.ok(close_finished_events(interval '0') = 1, 'the job closes the finished event');
+set role authenticated;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'closed', 'event auto-closes');
 select tst.fails($$insert into requests (list_id, item_id, quantity) values ((select v from tst.t where k = 'list1'), (select id from items where name = 'סוללה AA'), 1)$$,
   'closed event is read-only');
@@ -275,6 +280,9 @@ update requests set status = 'ready' where event_id = (select v from tst.t where
 select tst.act('10000000-0000-0000-0000-000000000002');
 select mark_collected((select id from lists where event_id = (select v from tst.t where k = 'bev2')
   and company_id = '00000000-0000-0000-0000-0000000000c1'), '00000000-0000-0000-0000-0000000000a1');
+reset role;
+select close_finished_events(interval '0');
+set role authenticated;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'open',
   'battalion event stays open while company 2 list is empty');
 select tst.act('10000000-0000-0000-0000-000000000003');
@@ -286,6 +294,9 @@ update requests set status = 'ready' where event_id = (select v from tst.t where
 select tst.act('10000000-0000-0000-0000-000000000003');
 select mark_collected((select id from lists where event_id = (select v from tst.t where k = 'bev2')
   and company_id = '00000000-0000-0000-0000-0000000000c2'), '00000000-0000-0000-0000-0000000000a1');
+reset role;
+select close_finished_events(interval '0');
+set role authenticated;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'closed',
   'battalion event closes once every list is filled and done');
 
@@ -365,3 +376,17 @@ update units set active = true where id = '00000000-0000-0000-0000-0000000000a2'
 select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.fails($$select move_user('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000a1')$$, 'non-admin moves a user');
 reset role;
+
+-- Marking the last request missing keeps the event open for undo -----------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'quiet', create_event('בדיקת שקט', 'company', null, '2026-11-05');
+insert into requests (list_id, item_id, quantity)
+values ((select id from lists where event_id = (select v from tst.t where k = 'quiet')), (select id from items where name = 'סוללה AA'), 4);
+select tst.act('10000000-0000-0000-0000-000000000004');
+update requests set status = 'missing' where event_id = (select v from tst.t where k = 'quiet');
+select tst.ok((select status from events where id = (select v from tst.t where k = 'quiet')) = 'open', 'still open right after the last missing');
+update requests set status = 'ready' where event_id = (select v from tst.t where k = 'quiet');
+select tst.ok((select status from requests where event_id = (select v from tst.t where k = 'quiet')) = 'ready', 'supplier undoes missing to ready');
+reset role;
+select tst.ok(close_finished_events(interval '0') = 0, 'a ready request keeps the event open');
