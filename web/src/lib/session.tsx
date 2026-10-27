@@ -58,16 +58,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, [reloadProfile]);
 
-  // A pending user waits on screen; check again when they come back to it.
+  // An admin may approve, move (new unit and role) or deactivate a user while
+  // the app is open. Check again whenever it comes back to the foreground.
   useEffect(() => {
-    if (profile?.approval !== "pending") return;
     const onVisible = () => document.visibilityState === "visible" && reloadProfile();
     document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [reloadProfile]);
+
+  // A pending user waits on screen for approval, so also check every 30 s.
+  useEffect(() => {
+    if (profile?.approval !== "pending") return;
     const timer = setInterval(reloadProfile, 30_000);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      clearInterval(timer);
-    };
+    return () => clearInterval(timer);
   }, [profile?.approval, reloadProfile]);
 
   const signOut = useCallback(async () => {

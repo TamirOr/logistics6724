@@ -1,4 +1,5 @@
-// Every user, with deactivate and move to another unit.
+// Every user, with deactivate and move to another unit, company or
+// supplier (the server changes the role to match).
 import { useState } from "react";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
@@ -6,7 +7,7 @@ import { useAction } from "../../components/Toast";
 import { moveUser, setUserActive } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
-import type { Profile } from "../../lib/types";
+import type { Profile, UnitKind } from "../../lib/types";
 import { useUsers } from "./useUsers";
 import { t } from "../../strings";
 
@@ -46,9 +47,15 @@ export function AdminUsers() {
       {moving && (
         <Sheet title={`${t.moveToUnit}: ${moving.first_name} ${moving.last_name}`} onClose={() => setMoving(null)}>
           <div className="stack">
-            {units.filter((u) => u.active && u.kind === (moving.role === "customer" ? "company" : "supplier")).map((u) => (
-              <button key={u.id} className="btn btn-secondary btn-block" disabled={u.id === moving.unit_id}
-                onClick={() => { act(() => moveUser(moving.id, u.id)); setMoving(null); }}>{u.name}</button>
+            <p className="muted">{t.moveChangesRole}</p>
+            {(["company", "supplier"] as UnitKind[]).map((kind) => (
+              <section key={kind} className="stack">
+                <h3 className="company-title">{kind === "company" ? t.kindCompany : t.kindSupplier}</h3>
+                {units.filter((u) => u.active && u.kind === kind).map((u) => (
+                  <button key={u.id} className="btn btn-secondary btn-block" disabled={u.id === moving.unit_id}
+                    onClick={() => { act(() => moveUser(moving.id, u.id)); setMoving(null); }}>{u.name}</button>
+                ))}
+              </section>
             ))}
           </div>
         </Sheet>

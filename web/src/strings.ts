@@ -148,6 +148,7 @@ export const t = {
   deactivate: "השבתה",
   activate: "הפעלה",
   moveToUnit: "העברה ליחידה",
+  moveChangesRole: "מעבר בין פלוגה לגורם אספקה משנה גם את התפקיד: בפלוגה לקוח, בגורם אספקה ספק.",
   active: "פעיל",
   inactive: "לא פעיל",
   me: "אני",
