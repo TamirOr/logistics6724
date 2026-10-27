@@ -34,7 +34,12 @@ export const annotation = (message) =>
 /** A SQL string literal. */
 export const sqlLiteral = (value) => `'${String(value).replaceAll("'", "''")}'`;
 
-/** The auth settings for 6-digit email codes, with optional custom SMTP. */
+/**
+ * Auth settings for email sign-in. The 6-digit code needs our email
+ * template, and Supabase allows custom templates on the free plan only with
+ * a custom SMTP provider. Without one, emails keep Supabase's default
+ * template, which carries a sign-in link instead of the code.
+ */
 export function authSettings({ siteUrl, otpTemplate, smtp }) {
   const settings = {
     site_url: siteUrl,
@@ -42,13 +47,13 @@ export function authSettings({ siteUrl, otpTemplate, smtp }) {
     mailer_autoconfirm: true,
     mailer_otp_length: 6,
     mailer_otp_exp: 600,
-    mailer_subjects_magic_link: "קוד הכניסה שלך",
-    mailer_templates_magic_link_content: otpTemplate,
-    mailer_subjects_confirmation: "קוד הכניסה שלך",
-    mailer_templates_confirmation_content: otpTemplate,
   };
   if (smtp.host) {
     Object.assign(settings, {
+      mailer_subjects_magic_link: "קוד הכניסה שלך",
+      mailer_templates_magic_link_content: otpTemplate,
+      mailer_subjects_confirmation: "קוד הכניסה שלך",
+      mailer_templates_confirmation_content: otpTemplate,
       smtp_host: smtp.host,
       smtp_port: smtp.port ?? "587",
       smtp_user: smtp.user,

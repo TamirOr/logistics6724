@@ -10,7 +10,7 @@ export const t = {
   signInTitle: "כניסה",
   emailLabel: "כתובת מייל",
   sendCode: "שלחו לי קוד",
-  codeSentTo: (email: string) => `שלחנו קוד בן 6 ספרות אל ${email}`,
+  codeSentTo: (email: string) => `שלחנו מייל אל ${email}. הקלידו את הקוד בן 6 הספרות שבו, או לחצו על הקישור אם יש.`,
   codeLabel: "קוד",
   verify: "כניסה",
   changeEmail: "שינוי מייל",

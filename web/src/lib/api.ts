@@ -21,7 +21,10 @@ async function rows<T>(query: PromiseLike<{ data: unknown; error: unknown }>): P
 // Auth and profile -------------------------------------------------------------
 
 export const sendCode = (email: string) =>
-  supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true, emailRedirectTo: `${location.origin}${import.meta.env.BASE_URL}` },
+  });
 
 export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
