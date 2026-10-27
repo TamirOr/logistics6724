@@ -185,12 +185,16 @@ export function useCached<T extends { id: string }>(cache: ReturnType<typeof cre
 
 // Units change rarely and are few, so they load once per session. They are
 // listed alphabetically everywhere: supplier sections, companies, pickers.
-// With no signal, the last loaded units are used.
+// With no signal, the last loaded units are used, and the next call tries
+// the server again.
 let unitsPromise: Promise<Unit[]> | null = null;
 export function loadUnits(force = false): Promise<Unit[]> {
   if (!unitsPromise || force) {
     unitsPromise = Promise.resolve(supabase.from("units").select("*")).then(({ data, error }) => {
-      if (error || !data) return readCache<Unit[]>("units") ?? [];
+      if (error || !data) {
+        unitsPromise = null;
+        return readCache<Unit[]>("units") ?? [];
+      }
       const units = (data as Unit[]).sort((a, b) => a.name.localeCompare(b.name, "he"));
       writeCache("units", units);
       return units;
