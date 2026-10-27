@@ -1,6 +1,6 @@
 // Web Push registration. On iPhone push works only from the installed
 // home-screen app, so the app first shows the install guide there.
-import { fetchVapidPublicKey, savePushSubscription } from "./api";
+import { deletePushSubscription, fetchVapidPublicKey, savePushSubscription } from "./api";
 
 export const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 export const isStandalone = () =>
@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 /** Asks for permission (must run from a tap) and stores the subscription. */
-export async function enablePush(userId: string): Promise<NotificationPermission> {
+export async function enablePush(): Promise<NotificationPermission> {
   if (!pushSupported()) return "denied";
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return permission;
@@ -28,15 +28,25 @@ export async function enablePush(userId: string): Promise<NotificationPermission
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidKey!),
   }));
-  await savePushSubscription(userId, sub.toJSON());
+  await savePushSubscription(sub.toJSON());
   return permission;
 }
 
 /** Re-sends an existing subscription, which browsers may rotate. */
-export async function refreshPush(userId: string) {
+export async function refreshPush() {
   if (!pushSupported() || Notification.permission !== "granted") return;
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
-  if (sub) await savePushSubscription(userId, sub.toJSON());
-  else await enablePush(userId);
+  if (sub) await savePushSubscription(sub.toJSON());
+  else await enablePush();
+}
+
+/** On sign-out: this device stops receiving the user's notifications. */
+export async function disablePush() {
+  if (!pushSupported()) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  await deletePushSubscription(sub.endpoint);
+  await sub.unsubscribe();
 }

@@ -47,7 +47,7 @@ export function PushPrompt() {
   if (permission === "denied") return <p className="muted">{t.notificationsBlocked}</p>;
   return (
     <button className="btn btn-secondary btn-block"
-      onClick={async () => setPermission(await enablePush(session.user.id))}>
+      onClick={async () => setPermission(await enablePush())}>
       🔔 {t.enableNotifications}
     </button>
   );

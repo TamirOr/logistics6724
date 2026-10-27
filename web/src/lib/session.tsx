@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { fetchMyProfile } from "./api";
 import { clearAllCaches, readCache, writeCache } from "./cache";
+import { disablePush } from "./push";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
 
@@ -76,6 +77,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     clearQueue();
     clearAllCaches();
+    // While still signed in, so row-level security lets it delete the row.
+    await disablePush().catch(() => {});
     await supabase.auth.signOut();
   }, []);
 
