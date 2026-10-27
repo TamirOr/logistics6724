@@ -2,6 +2,7 @@
 // per month in a Google Drive folder, then deletes them from the database.
 // An event is deleted only after the file holding it uploaded successfully.
 import ExcelJS from "npm:exceljs@4.4.0";
+import { TIMEZONE } from "../_shared/dates.ts";
 import { authorized, json, serverConfigs, serviceClient } from "../_shared/env.ts";
 import {
   addEmptyEventRow, addRequestRows, archivedEventIds, type ExportRow, REQUEST_SHEET, setupRequestSheet,
@@ -74,7 +75,7 @@ interface ArchivedEvent {
 }
 
 function monthKey(iso: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit" })
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE, year: "numeric", month: "2-digit" })
     .formatToParts(new Date(iso));
   return `${parts.find((p) => p.type === "year")!.value}-${parts.find((p) => p.type === "month")!.value}`;
 }

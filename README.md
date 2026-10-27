@@ -57,7 +57,7 @@ The workflow applies the migrations, deploys the Edge Functions and configures e
 
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
 2. In GitHub, open Actions → Deploy → "Run workflow", fill in **admin_email**, and run it.
-3. Reload the app. As admin, add the companies and suppliers under "יחידות". The order field sets the order of supplier sections on the customer event screen.
+3. Reload the app. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
 4. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 
 ### Sign-in emails (needed for 6-digit codes)
@@ -94,8 +94,10 @@ These live in `app_config` and can change without a deploy:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `did_you_mean_threshold` | 0.4 | Similarity needed for "התכוונת ל...?" |
+| `did_you_mean_threshold` | 0.4 | Word similarity needed for "התכוונת ל...?" |
 | `missing_window_minutes` | 5 | Each missing mark delays the grouped notification this long |
 | `missing_window_cap_minutes` | 15 | Latest send time, counted from the first mark |
-| `retention_days` | 90 | Age at which events move to Drive |
-| `timezone` | Asia/Jerusalem | Resolves "needed by" times |
+| `retention_days` | 90 | Age at which events move to Drive; also how far back history shows |
+| `auto_close_quiet_minutes` | 30 | How long an event must be done, with no changes, before it closes |
+
+The time zone (Asia/Jerusalem) is fixed: `timezone` in `app_config` for the database and `TIMEZONE` in `supabase/functions/_shared/dates.ts` for the app and Excel. Change both together.

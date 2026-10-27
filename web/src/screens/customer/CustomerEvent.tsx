@@ -1,4 +1,4 @@
-// The company's list in one event: a section per supplier, in the admin's
+// The company's list in one event: a section per supplier, in alphabetical
 // order, each a live checklist ending with an add row and "אספתי".
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";

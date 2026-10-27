@@ -139,6 +139,9 @@ export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
 
 // Push -----------------------------------------------------------------------------
 
+/** A tuning value from app_config, with the default to use if it is unset. */
+export const fetchTuning = (key: string, fallback: string) => rpc<string>("config", { k: key, fallback });
+
 /** The deploy workflow stores the VAPID public key in app_config. */
 export const fetchVapidPublicKey = () => rpc<string | null>("config", { k: "vapid_public_key" });
 
