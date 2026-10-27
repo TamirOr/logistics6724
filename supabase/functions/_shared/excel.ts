@@ -4,6 +4,7 @@
 import { STATUS_LABELS, type RequestStatus } from "./labels.ts";
 
 export interface ExportRow {
+  event_id: string;
   event_name: string;
   needed_by: string | null;
   company_name: string;
@@ -35,6 +36,8 @@ export const REQUEST_COLUMNS = [
   { header: "דחוף", key: "urgent", width: 8 },
   { header: "הערת ספק", key: "note", width: 30 },
   { header: "עודכן לאחרונה", key: "updated", width: 18 },
+  // Lets the archive job see which events a monthly file already holds.
+  { header: "מזהה אירוע", key: "event_id", width: 38, hidden: true },
 ];
 
 export function formatDateTime(iso: string, timeZone = "Asia/Jerusalem"): string {
@@ -63,8 +66,21 @@ export function addRequestRows(ws: Worksheet, rows: ExportRow[]): void {
       urgent: r.urgent ? "כן" : "",
       note: r.supplier_note ?? "",
       updated: formatDateTime(r.updated_at),
+      event_id: r.event_id,
     });
   }
+}
+
+/** One row for an event that had no requests, so it still leaves a trace. */
+export function addEmptyEventRow(ws: Worksheet, e: { id: string; name: string; needed_by: string | null }): void {
+  ws.addRow({ event: e.name, needed_by: e.needed_by ? e.needed_by.slice(0, 5) : "", event_id: e.id });
+}
+
+/** Event ids already written to a request sheet. Call after setupRequestSheet. */
+export function archivedEventIds(ws: Worksheet): Set<string> {
+  const values: unknown[] = ws.getColumn("event_id").values;
+  // values[0] is unused by ExcelJS and values[1] is the header.
+  return new Set(values.slice(2).filter((v): v is string => typeof v === "string" && v !== ""));
 }
 
 export interface TotalRow { item_name: string; supplier_name: string; quantity: number }

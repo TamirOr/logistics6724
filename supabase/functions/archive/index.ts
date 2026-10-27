@@ -3,7 +3,9 @@
 // An event is deleted only after the file holding it uploaded successfully.
 import ExcelJS from "npm:exceljs@4.4.0";
 import { authorized, json, serviceClient } from "../_shared/env.ts";
-import { addRequestRows, type ExportRow, REQUEST_SHEET, setupRequestSheet } from "../_shared/excel.ts";
+import {
+  addEmptyEventRow, addRequestRows, archivedEventIds, type ExportRow, REQUEST_SHEET, setupRequestSheet,
+} from "../_shared/excel.ts";
 
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
@@ -114,15 +116,19 @@ Deno.serve(async (req) => {
       if (!ws) ws = wb.addWorksheet(REQUEST_SHEET);
       // Column keys are not stored in the file, so set them on every run.
       setupRequestSheet(ws);
-      addRequestRows(ws, (rows ?? []) as ExportRow[]);
 
-      // Events with no requests still leave a trace in the file.
+      // An earlier run may have uploaded these events and then failed to
+      // delete them. Their rows are already in the file: don't add them twice.
+      const alreadyInFile = archivedEventIds(ws);
+      const newRows = ((rows ?? []) as ExportRow[]).filter((r) => !alreadyInFile.has(r.event_id));
       const withRows = new Set((rows ?? []).map((r) => r.event_id));
-      for (const e of monthEvents) {
-        if (!withRows.has(e.id)) ws.addRow({ event: e.name, needed_by: e.needed_by?.slice(0, 5) ?? "" });
-      }
+      const newEmptyEvents = monthEvents.filter((e) => !withRows.has(e.id) && !alreadyInFile.has(e.id));
 
-      await upload(token, folder, name, existingId, await wb.xlsx.writeBuffer());
+      if (newRows.length || newEmptyEvents.length) {
+        addRequestRows(ws, newRows);
+        newEmptyEvents.forEach((e) => addEmptyEventRow(ws, e));
+        await upload(token, folder, name, existingId, await wb.xlsx.writeBuffer());
+      }
 
       const { error: delError } = await db.from("events").delete().in("id", ids);
       if (delError) throw delError;
