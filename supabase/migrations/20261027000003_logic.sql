@@ -20,6 +20,9 @@ create table notification_outbox (
   body text not null,
   url text,
   created_at timestamptz not null default now(),
+  -- push-dispatch leases a row while sending it; a lease left by a
+  -- dispatcher that died expires and the row is tried again.
+  claimed_at timestamptz,
   sent_at timestamptz,
   attempts int not null default 0,
   last_error text

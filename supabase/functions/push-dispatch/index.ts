@@ -2,6 +2,7 @@
 // and right away when a notification is queued (see wake_dispatcher).
 import webpush from "npm:web-push@3.6.7";
 import { authorized, json, serviceClient } from "../_shared/env.ts";
+import { APP_NAME } from "../_shared/labels.ts";
 
 webpush.setVapidDetails(
   Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@example.com",
@@ -26,7 +27,7 @@ Deno.serve(async (req) => {
       await db.rpc("release_outbox", { p_id: row.id, p_error: subsError.message });
       continue;
     }
-    const payload = JSON.stringify({ title: "לוגיסטיקה", body: row.body, url: row.url ?? "/", tag: row.kind });
+    const payload = JSON.stringify({ title: APP_NAME, body: row.body, url: row.url ?? "/", tag: row.kind });
     let transientError: string | null = null;
     let delivered = 0;
 
@@ -49,9 +50,12 @@ Deno.serve(async (req) => {
       }
     }
     sent += delivered;
-    // Retry later only if no device got it, so nobody sees it twice.
+    // Retry only if no device got it, so nobody sees it twice. A row with no
+    // subscriptions to reach counts as done.
     if (transientError && delivered === 0) {
       await db.rpc("release_outbox", { p_id: row.id, p_error: transientError });
+    } else {
+      await db.rpc("mark_outbox_sent", { p_id: row.id });
     }
   }
   return json({ claimed: rows?.length ?? 0, sent });
