@@ -13,9 +13,9 @@ begin
   begin execute stmt; exception when others then return; end;
   raise exception 'FAILED (should have raised): %', what;
 end $$;
-grant usage on schema tst to authenticated;
+grant usage on schema tst to authenticated, anon;
 grant all on tst.t to authenticated;
-grant execute on all functions in schema tst to authenticated;
+grant execute on all functions in schema tst to authenticated, anon;
 
 -- Normalization -------------------------------------------------------------
 select tst.ok(normalize_he('גריקנים') = 'גריקנ', 'plural and final letter');
@@ -253,4 +253,10 @@ select tst.act('10000000-0000-0000-0000-000000000001');
 select set_user_active('10000000-0000-0000-0000-000000000003', false);
 select tst.act('10000000-0000-0000-0000-000000000003');
 select tst.ok((select count(*) from events) = 0, 'deactivated user sees nothing');
+reset role;
+
+-- Keepalive works for anon, which can read no table ----------------------------
+set role anon;
+select tst.ok(keepalive() is not null, 'anon keepalive');
+select tst.fails($$select * from units$$, 'anon cannot read units');
 reset role;
