@@ -2,6 +2,7 @@
 // opens in Safari and would not sign in the installed iPhone app.
 import { useState, type FormEvent } from "react";
 import { sendCode, verifyCode } from "../../lib/api";
+import { describeError } from "../../lib/errors";
 import { t } from "../../strings";
 
 export function SignIn() {
@@ -17,7 +18,7 @@ export function SignIn() {
     setError(null);
     const { error } = await sendCode(email.trim());
     setBusy(false);
-    if (error) setError(t.genericError);
+    if (error) setError(describeError(error));
     else setStep("code");
   };
 

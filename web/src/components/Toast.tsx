@@ -1,6 +1,7 @@
 // One bar at the bottom for short messages, with an optional undo. Used
 // instead of confirmation dialogs (spec: reversible actions never ask).
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { describeError } from "../lib/errors";
 import { onRejected } from "../lib/queue";
 import { t } from "../strings";
 
@@ -20,7 +21,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     timer.current = setTimeout(() => setToast(null), SHOW_MS);
   }, []);
 
-  useEffect(() => onRejected(() => show({ message: t.rejectedChange })), [show]);
+  useEffect(() => onRejected((_, reason) => show({ message: describeError({ message: reason }, t.rejectedChange) })), [show]);
 
   return (
     <ToastContext.Provider value={show}>
@@ -48,8 +49,8 @@ export function useAction() {
     try {
       await action();
       await after?.();
-    } catch {
-      show({ message: t.genericError });
+    } catch (error) {
+      show({ message: describeError(error) });
     }
   }, [show]);
 }

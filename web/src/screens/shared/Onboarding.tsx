@@ -5,6 +5,7 @@ import { registerProfile } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useSession } from "../../lib/session";
 import type { UserRole } from "../../lib/types";
+import { describeError } from "../../lib/errors";
 import { t } from "../../strings";
 
 export function Onboarding() {
@@ -28,8 +29,8 @@ export function Onboarding() {
     try {
       await registerProfile({ firstName, lastName, serviceNumber, role, unitId });
       await reloadProfile();
-    } catch {
-      setError(t.genericError);
+    } catch (error) {
+      setError(describeError(error));
     } finally {
       setBusy(false);
     }

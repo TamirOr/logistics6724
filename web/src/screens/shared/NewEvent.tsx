@@ -6,6 +6,7 @@ import { Layout } from "../../components/Layout";
 import { createEvent, duplicateEvent, fetchEvent } from "../../lib/api";
 import { useProfile } from "../../lib/session";
 import type { EventScope, LogisticsEvent } from "../../lib/types";
+import { describeError } from "../../lib/errors";
 import { t } from "../../strings";
 
 export function NewEvent() {
@@ -40,8 +41,8 @@ export function NewEvent() {
         ? await duplicateEvent(source.id, name.trim(), neededBy)
         : await createEvent(name.trim(), scope, neededBy);
       navigate(`/events/${id}`, { replace: true });
-    } catch {
-      setError(t.genericError);
+    } catch (error) {
+      setError(describeError(error));
       setBusy(false);
     }
   };
