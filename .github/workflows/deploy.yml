@@ -1,0 +1,102 @@
+# Deploys everything from GitHub, with no local terminal:
+#   1. database migrations, 2. Edge Functions, 3. project settings
+#   (server config, push keys, email-code sign-in), 4. the web app on
+#   GitHub Pages.
+# Runs on every push to main, and by hand from the Actions tab. Running it
+# by hand with an email also makes that user an admin.
+#
+# Repository secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF,
+# SUPABASE_DB_PASSWORD. Optional: SMTP_HOST, SMTP_PORT, SMTP_USER,
+# SMTP_PASS, SMTP_SENDER for a custom email sender.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      admin_email:
+        description: "Make this user an admin (they must have signed in to the app once)"
+        required: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+  SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply database migrations
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push
+
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Configure the project
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_SENDER: ${{ secrets.SMTP_SENDER }}
+        run: node scripts/supabase-admin.mjs configure
+
+      - name: Make admin
+        if: inputs.admin_email
+        env:
+          ADMIN_EMAIL: ${{ inputs.admin_email }}
+        run: node scripts/supabase-admin.mjs make-admin
+
+  web:
+    needs: backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build
+        working-directory: web
+        run: |
+          npm ci
+          export VITE_SUPABASE_URL="https://$SUPABASE_PROJECT_REF.supabase.co"
+          export VITE_SUPABASE_ANON_KEY="$(node ../scripts/supabase-admin.mjs anon-key)"
+          export BASE_PATH="/${{ github.event.repository.name }}/"
+          npm run build
+          # GitHub Pages has no rewrites: unknown paths load the app via 404.html.
+          cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

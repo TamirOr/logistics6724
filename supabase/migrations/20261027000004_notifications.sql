@@ -167,10 +167,11 @@ alter table requests replica identity full;
 do $$
 begin
   begin
-    create extension if not exists pg_net;
-    create extension if not exists pg_cron;
+    -- Schemas as in Supabase's docs for these extensions.
+    create extension if not exists pg_net with schema extensions;
+    create extension if not exists pg_cron with schema pg_catalog;
   exception when others then
-    raise notice 'pg_cron or pg_net unavailable, skipping scheduled jobs: %', sqlerrm;
+    raise warning 'pg_cron or pg_net unavailable, scheduled jobs NOT created: %', sqlerrm;
     return;
   end;
 
