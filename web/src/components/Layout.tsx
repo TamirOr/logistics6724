@@ -1,7 +1,8 @@
 // Page frame: header with title and back button, content, and an optional
 // bottom action bar within thumb reach.
 import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { goBack } from "../lib/navigation";
 import { SyncIndicator } from "./SyncIndicator";
 import { t } from "../strings";
 
@@ -16,11 +17,12 @@ interface Props {
 
 export function Layout({ title, back, actions, bottom, nav, children }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <div className="page">
       <header className="header">
         {back && (
-          <button className="icon-btn" onClick={() => navigate(-1)} aria-label={t.back}>→</button>
+          <button className="icon-btn" onClick={() => goBack(navigate, location)} aria-label={t.back}>→</button>
         )}
         <h1 className="header-title" dir="auto">{title}</h1>
         <div className="header-actions">{actions}</div>
