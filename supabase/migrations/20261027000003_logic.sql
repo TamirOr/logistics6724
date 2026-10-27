@@ -320,14 +320,6 @@ for each row execute function requests_before_insert();
 
 -- Column and transition rules for direct client writes, plus the derived
 -- fields every update maintains.
-create function reopen_event(p_event uuid) returns void
-language sql security definer set search_path = public as $$
-  update events set status = 'open', closed_at = null
-  where id = p_event and status = 'closed' and my_role() = 'customer'
-    and exists (select 1 from lists l where l.event_id = p_event and l.company_id = my_unit())
-$$;
-grant execute on function reopen_event to authenticated;
-
 create function requests_before_update() returns trigger
 language plpgsql set search_path = public as $$
 declare
@@ -378,10 +370,9 @@ begin
         end if;
       end if;
 
-      if old.status = 'collected' and new.status <> 'collected' and v_event_status = 'closed' then
-        -- Unmarking a pickup reopens an event that closed automatically.
-        perform reopen_event(old.event_id);
-      elsif v_event_status = 'closed' then
+      -- A closed event takes only an unmarked pickup, which reopens it
+      -- (see requests_after_change).
+      if v_event_status = 'closed' and not (old.status = 'collected' and new.status <> 'collected') then
         raise exception 'event is closed';
       end if;
 
@@ -432,6 +423,11 @@ for each row when (new.quantity <> old.quantity) execute function remember_defau
 create function requests_after_change() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  -- Unmarking a pickup reopens the event if it had closed. The guard
+  -- trigger lets only the company's customer make that change.
+  if tg_op = 'UPDATE' and old.status = 'collected' and new.status <> 'collected' then
+    update events set status = 'open', closed_at = null where id = new.event_id and status = 'closed';
+  end if;
   perform maybe_close_event(coalesce(new.event_id, old.event_id));
   return null;
 end $$;

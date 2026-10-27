@@ -289,3 +289,14 @@ select mark_collected((select id from lists where event_id = (select v from tst.
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'closed',
   'battalion event closes once every list is filled and done');
 
+-- Customers cannot reopen a closed event; only unmarking a pickup does -------
+select tst.act('10000000-0000-0000-0000-000000000001');
+insert into tst.t select 'bev3', create_event('מסדר', 'battalion');
+select close_event((select v from tst.t where k = 'bev3'));
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.fails($$update events set status = 'open' where id = (select v from tst.t where k = 'bev3')$$,
+  'customer reopens an event directly');
+select tst.ok(not exists (select 1 from pg_proc where proname = 'reopen_event'), 'no reopen RPC exposed');
+reset role;
+select tst.ok((select status from events where id = (select v from tst.t where k = 'bev3')) = 'closed',
+  'admin-closed event stays closed');
