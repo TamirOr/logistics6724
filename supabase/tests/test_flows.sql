@@ -344,3 +344,24 @@ reset role;
 select tst.ok((select headcount from units where id = '00000000-0000-0000-0000-0000000000c1') = 120,
   'a customer cannot change headcount');
 select tst.ok((select headcount from units where id = '00000000-0000-0000-0000-0000000000c2') = 95, 'admin sets headcount');
+
+-- Moving users between companies and suppliers ------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000001');
+select move_user('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000a2');
+reset role;
+select tst.ok(role = 'supplier' and unit_id = '00000000-0000-0000-0000-0000000000a2', 'company user moved to a supplier becomes a supplier')
+from users where id = '10000000-0000-0000-0000-000000000003';
+set role authenticated;
+select move_user('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000c2');
+reset role;
+select tst.ok(role = 'customer' and unit_id = '00000000-0000-0000-0000-0000000000c2', 'and back to a company as a customer')
+from users where id = '10000000-0000-0000-0000-000000000003';
+set role authenticated;
+select tst.fails($$select move_user('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000c1')$$, 'moving an admin');
+update units set active = false where id = '00000000-0000-0000-0000-0000000000a2';
+select tst.fails($$select move_user('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000a2')$$, 'moving to an inactive unit');
+update units set active = true where id = '00000000-0000-0000-0000-0000000000a2';
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.fails($$select move_user('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000a1')$$, 'non-admin moves a user');
+reset role;
