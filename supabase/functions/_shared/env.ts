@@ -13,11 +13,6 @@ export async function serverConfigs<K extends string>(db: SupabaseClient, keys: 
   return Object.fromEntries((data as { key: K; value: string }[]).map((r) => [r.key, r.value])) as Record<K, string | undefined>;
 }
 
-// pg_cron and wake_dispatcher call the functions with app_config.cron_secret.
-export function authorized(req: Request, cronSecret: string | undefined): boolean {
-  return !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
-}
-
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }

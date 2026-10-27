@@ -80,11 +80,21 @@ export function addEmptyEventRow(
   ws.addRow({ event: e.name, needed_by: formatNeededFor(e.needed_on, e.needed_by), event_id: e.id });
 }
 
-/** Event ids already written to a request sheet. Call after setupRequestSheet. */
-export function archivedEventIds(ws: Worksheet): Set<string> {
+// The event id of every data row. Call after setupRequestSheet.
+function eventIdCells(ws: Worksheet): string[] {
   const values: unknown[] = ws.getColumn("event_id").values;
   // values[0] is unused by ExcelJS and values[1] is the header.
-  return new Set(values.slice(2).filter((v): v is string => typeof v === "string" && v !== ""));
+  return values.slice(2).filter((v): v is string => typeof v === "string" && v !== "");
+}
+
+/** Event ids already written to a request sheet. Call after setupRequestSheet. */
+export function archivedEventIds(ws: Worksheet): Set<string> {
+  return new Set(eventIdCells(ws));
+}
+
+/** How many rows of the sheet belong to these events, to check an upload before deleting them. */
+export function countEventRows(ws: Worksheet, eventIds: Set<string>): number {
+  return eventIdCells(ws).filter((id) => eventIds.has(id)).length;
 }
 
 export interface TotalRow { item_name: string; supplier_name: string; quantity: number }

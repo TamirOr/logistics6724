@@ -1,12 +1,13 @@
 // Daily job: moves events older than the retention window to one .xlsx file
 // per month in a Google Drive folder, then deletes them from the database.
-// An event is deleted only after the file holding it uploaded successfully.
+// An event is deleted only after the file holding it uploaded successfully
+// and, read back from Drive, holds every row of it.
 import ExcelJS from "npm:exceljs@4.4.0";
 import { TIMEZONE } from "../_shared/dates.ts";
-import { authorized, json, serverConfigs, serviceClient } from "../_shared/env.ts";
 import {
-  addEmptyEventRow, addRequestRows, archivedEventIds, type ExportRow, REQUEST_SHEET, setupRequestSheet,
+  addEmptyEventRow, addRequestRows, archivedEventIds, countEventRows, type ExportRow, REQUEST_SHEET, setupRequestSheet,
 } from "../_shared/excel.ts";
+import { type JobOutcome, serveJob } from "../_shared/job.ts";
 
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
@@ -80,16 +81,32 @@ function monthKey(iso: string): string {
   return `${parts.find((p) => p.type === "year")!.value}-${parts.find((p) => p.type === "month")!.value}`;
 }
 
-Deno.serve(async (req) => {
-  const db = serviceClient();
-  const { cron_secret } = await serverConfigs(db, ["cron_secret"]);
-  if (!authorized(req, cron_secret)) return json({ error: "unauthorized" }, 401);
+const DRIVE_SECRETS = ["DRIVE_FOLDER_ID", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN"];
+
+/** Rows a monthly file must hold for these events: their requests, or one row for an event with none. */
+function expectedRowCount(events: ArchivedEvent[], rows: ExportRow[]): number {
+  const withRows = new Set(rows.map((r) => r.event_id));
+  return rows.length + events.filter((e) => !withRows.has(e.id)).length;
+}
+
+async function loadSheet(data: ArrayBuffer) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(data);
+  const ws = wb.getWorksheet(REQUEST_SHEET);
+  if (ws) setupRequestSheet(ws);
+  return ws;
+}
+
+serveJob("archive", [], async (db): Promise<JobOutcome> => {
+  // Until Drive is set up there is nothing to archive to. The health check
+  // reads "configured" and checks the archive only once it is true.
+  if (DRIVE_SECRETS.some((name) => !Deno.env.get(name))) return { summary: { configured: false, archived: 0 } };
   const folder = Deno.env.get("DRIVE_FOLDER_ID")!;
 
   const { data, error } = await db.rpc("archive_candidates").limit(MAX_EVENTS_PER_RUN);
-  if (error) return json({ error: error.message }, 500);
+  if (error) throw error;
   const events = data as ArchivedEvent[] | null;
-  if (!events?.length) return json({ archived: 0 });
+  if (!events?.length) return { summary: { configured: true, archived: 0, months: 0 } };
 
   const byMonth = new Map<string, ArchivedEvent[]>();
   for (const e of events) {
@@ -107,6 +124,7 @@ Deno.serve(async (req) => {
       const { data: rows, error: rowsError } = await db.from("export_rows").select("*")
         .in("event_id", ids).order("event_created_at").order("company_name").order("supplier_name");
       if (rowsError) throw rowsError;
+      const monthRows = (rows ?? []) as ExportRow[];
 
       const name = `logistics-${month}.xlsx`;
       const existingId = await findFile(token, folder, name);
@@ -123,8 +141,8 @@ Deno.serve(async (req) => {
       // An earlier run may have uploaded these events and then failed to
       // delete them. Their rows are already in the file: don't add them twice.
       const alreadyInFile = archivedEventIds(ws);
-      const newRows = ((rows ?? []) as ExportRow[]).filter((r) => !alreadyInFile.has(r.event_id));
-      const withRows = new Set((rows ?? []).map((r) => r.event_id));
+      const newRows = monthRows.filter((r) => !alreadyInFile.has(r.event_id));
+      const withRows = new Set(monthRows.map((r) => r.event_id));
       const newEmptyEvents = monthEvents.filter((e) => !withRows.has(e.id) && !alreadyInFile.has(e.id));
 
       if (newRows.length || newEmptyEvents.length) {
@@ -133,13 +151,22 @@ Deno.serve(async (req) => {
         await upload(token, folder, name, existingId, await wb.xlsx.writeBuffer());
       }
 
+      // Read the file back from Drive: delete only what it really holds.
+      const uploadedId = await findFile(token, folder, name);
+      const uploaded = uploadedId ? await loadSheet(await download(token, uploadedId)) : undefined;
+      const inFile = uploaded ? countEventRows(uploaded, new Set(ids)) : 0;
+      const expected = expectedRowCount(monthEvents, monthRows);
+      if (inFile !== expected) throw new Error(`file holds ${inFile} rows, expected ${expected}; nothing deleted`);
+
       const { error: delError } = await db.from("events").delete().in("id", ids);
       if (delError) throw delError;
       archived += ids.length;
     } catch (e) {
-      console.error("archive", month, e);
       failures.push(`${month}: ${(e as Error).message}`);
     }
   }
-  return json({ archived, failures }, failures.length ? 500 : 200);
+  return {
+    summary: { configured: true, archived, months: byMonth.size, failed_months: failures.length },
+    error: failures.length ? failures.join("; ") : undefined,
+  };
 });

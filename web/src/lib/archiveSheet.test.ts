@@ -4,7 +4,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import {
-  addEmptyEventRow, addRequestRows, archivedEventIds, REQUEST_SHEET, setupRequestSheet, type ExportRow,
+  addEmptyEventRow, addRequestRows, archivedEventIds, countEventRows, REQUEST_SHEET, setupRequestSheet, type ExportRow,
 } from "../../../supabase/functions/_shared/excel.ts";
 
 const row: ExportRow = {
@@ -28,6 +28,8 @@ describe("archive sheet", () => {
     setupRequestSheet(sheet);
 
     expect(archivedEventIds(sheet)).toEqual(new Set(["e1", "e2"]));
+    expect(countEventRows(sheet, new Set(["e1"]))).toBe(2);
+    expect(countEventRows(sheet, new Set(["e1", "e2", "e3"]))).toBe(3);
     expect(sheet.getColumn("event_id").hidden).toBe(true);
     expect(sheet.getRow(1).getCell(1).value).toBe("אירוע");
   });
