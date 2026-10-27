@@ -1,0 +1,5 @@
+# age public keys that nightly backups are encrypted to, one per line.
+# Lines starting with # are ignored. The matching private keys stay offline
+# with the owner and one deputy. Create a pair with `age-keygen -o key.txt`
+# (it prints the public key, starting with age1) and add the public key below.
+# See docs/runbook.md, Backups.

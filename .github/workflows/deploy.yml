@@ -1,44 +1,118 @@
 # Deploys everything from GitHub, with no local terminal:
 #   1. database migrations, 2. Edge Functions, 3. project settings
-#   (server config, push keys, email-code sign-in), 4. the web app on
-#   GitHub Pages.
-# Runs on every push to main, and by hand from the Actions tab. Running it
-# by hand with an email also makes that user an admin.
+#   (server config, push keys, email-code sign-in), 4. the web app.
 #
-# Repository secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF,
-# SUPABASE_DB_PASSWORD. Optional: SMTP_HOST, SMTP_PORT, SMTP_USER,
-# SMTP_PASS, SMTP_SENDER for a custom email sender.
+# Where it goes:
+#   push to main        -> staging    (STAGING_* secrets, web at /<repo>/staging/)
+#   push a tag v*       -> production (approval in the "production" environment,
+#                          a fresh backup before migrations, web at /<repo>/,
+#                          health check 10 minutes later, GitHub release)
+#   Run workflow        -> either, with optional admin, cron-secret and seed actions
+#
+# Secrets: SUPABASE_ACCESS_TOKEN (both projects), SUPABASE_PROJECT_REF and
+# SUPABASE_DB_PASSWORD (production), STAGING_SUPABASE_PROJECT_REF and
+# STAGING_SUPABASE_DB_PASSWORD (staging). Optional: SMTP_* / STAGING_SMTP_*,
+# SENTRY_DSN, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT. See README.
 name: Deploy
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
+      target:
+        description: "Project to deploy"
+        type: choice
+        options: [staging, production]
+        default: staging
       admin_email:
         description: "Make this user an admin (they must have signed in to the app once)"
         required: false
+      rotate_cron_secret:
+        description: "Replace the cron secret (see runbook)"
+        type: boolean
+        default: false
+      seed_staging:
+        description: "Staging only: load fake units and catalog"
+        type: boolean
+        default: false
+      skip_backup:
+        description: "Production only: skip the backup before migrations (emergencies)"
+        type: boolean
+        default: false
 
 concurrency:
-  group: deploy
+  group: deploy-${{ inputs.target || (startsWith(github.ref, 'refs/tags/v') && 'production') || 'staging' }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 env:
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-  SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-  SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
 
 jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.target.outputs.name }}
+      prefix: ${{ steps.target.outputs.prefix }}
+      base_path: ${{ steps.target.outputs.base_path }}
+      configured: ${{ steps.target.outputs.configured }}
+    steps:
+      - id: target
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
+          PRODUCTION_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          STAGING_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then name="$INPUT_TARGET"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then name=production
+          else name=staging; fi
+          if [ "$name" = production ]; then prefix=""; ref="$PRODUCTION_REF"; base="/$REPO/"
+          else prefix="STAGING_"; ref="$STAGING_REF"; base="/$REPO/staging/"; fi
+          if [ "$name" = staging ] && [ -n "$ref" ] && [ "$ref" = "$PRODUCTION_REF" ]; then
+            echo "::error::STAGING_SUPABASE_PROJECT_REF points at the production project"; exit 1
+          fi
+          configured=false
+          if [ -n "$ref" ]; then configured=true
+          else echo "::notice title=Deploy skipped::The $name project is not configured yet (README, Environments)."; fi
+          { echo "name=$name"; echo "prefix=$prefix"; echo "base_path=$base"; echo "configured=$configured"; } >> "$GITHUB_OUTPUT"
+
+  # Production waits here for a reviewer's approval (Settings, Environments,
+  # production, Required reviewers). Everything after it runs only once approved.
+  gate:
+    needs: target
+    if: needs.target.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.target.outputs.name }}
+    steps:
+      - run: echo "Deploying ${{ github.sha }} to ${{ needs.target.outputs.name }}"
+
+  backup:
+    needs: [target, gate]
+    if: needs.target.outputs.name == 'production' && !inputs.skip_backup
+    uses: ./.github/workflows/backup.yml
+    secrets: inherit
+
   backend:
+    needs: [target, gate, backup]
+    # Runs when the backup succeeded or was skipped on purpose (staging, skip_backup).
+    if: always() && needs.gate.result == 'success' && (needs.backup.result == 'success' || needs.backup.result == 'skipped')
     runs-on: ubuntu-latest
     env:
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      DEPLOY_TARGET: ${{ needs.target.outputs.name }}
+      SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}
+      SUPABASE_DB_PASSWORD: ${{ secrets[format('{0}SUPABASE_DB_PASSWORD', needs.target.outputs.prefix)] }}
+      SITE_URL: https://${{ github.repository_owner }}.github.io${{ needs.target.outputs.base_path }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: latest
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -48,20 +122,34 @@ jobs:
           supabase db push
 
       - name: Deploy Edge Functions
-        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+          # Release tag and Sentry settings the functions report with.
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" \
+            APP_VERSION="$(git rev-parse --short HEAD)" SENTRY_ENVIRONMENT="$DEPLOY_TARGET" \
+            ${SENTRY_DSN:+SENTRY_DSN="$SENTRY_DSN"}
 
       - name: Configure the project
         env:
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          SMTP_SENDER: ${{ secrets.SMTP_SENDER }}
+          SMTP_HOST: ${{ secrets[format('{0}SMTP_HOST', needs.target.outputs.prefix)] }}
+          SMTP_PORT: ${{ secrets[format('{0}SMTP_PORT', needs.target.outputs.prefix)] }}
+          SMTP_USER: ${{ secrets[format('{0}SMTP_USER', needs.target.outputs.prefix)] }}
+          SMTP_PASS: ${{ secrets[format('{0}SMTP_PASS', needs.target.outputs.prefix)] }}
+          SMTP_SENDER: ${{ secrets[format('{0}SMTP_SENDER', needs.target.outputs.prefix)] }}
         run: node scripts/supabase-admin.mjs configure
 
+      - name: Rotate the cron secret
+        if: inputs.rotate_cron_secret
+        run: node scripts/supabase-admin.mjs rotate-cron-secret
+
+      - name: Seed staging
+        if: inputs.seed_staging && needs.target.outputs.name == 'staging'
+        run: node scripts/supabase-admin.mjs seed-staging
+
       - name: Report project status
-        # Scheduled jobs, push devices and send errors, as a notice on the
-        # run page. Counts and errors only: the repository is public.
+        # Counts and errors only: the repository is public.
         if: always()
         continue-on-error: true
         run: node scripts/supabase-admin.mjs status
@@ -73,18 +161,24 @@ jobs:
         run: node scripts/supabase-admin.mjs make-admin
 
   web:
-    needs: backend
+    needs: [target, backend]
+    if: always() && needs.backend.result == 'success'
     runs-on: ubuntu-latest
+    # Production and staging share the site branch; one publish at a time.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
+    env:
+      DEPLOY_TARGET: ${{ needs.target.outputs.name }}
+      SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -92,18 +186,86 @@ jobs:
 
       - name: Build
         working-directory: web
+        env:
+          BASE_PATH: ${{ needs.target.outputs.base_path }}
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: ${{ needs.target.outputs.name }}
         run: |
           npm ci
           export VITE_SUPABASE_URL="https://$SUPABASE_PROJECT_REF.supabase.co"
           export VITE_SUPABASE_ANON_KEY="$(node ../scripts/supabase-admin.mjs anon-key)"
-          export BASE_PATH="/${{ github.event.repository.name }}/"
+          export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
+          export VITE_APP_BUILT_AT="$(git log -1 --format=%ct)"
           npm run build
-          # GitHub Pages has no rewrites: unknown paths load the app via 404.html.
-          cp dist/index.html dist/404.html
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Upload source maps to Sentry
+        if: env.SENTRY_AUTH_TOKEN != ''
+        working-directory: web
+        run: |
+          npx --yes @sentry/cli@3.8.2 sourcemaps inject dist
+          npx --yes @sentry/cli@3.8.2 sourcemaps upload --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
+            --release "$(git rev-parse --short HEAD)" dist
+
+      - name: Publish to the site branch
+        # GitHub Pages serves the site branch: production at the root,
+        # staging under staging/. Source maps never go there.
+        run: |
+          find web/dist -name '*.map' -delete
+          # Pages has no rewrites: unknown paths load the app via 404.html.
+          cp web/dist/index.html web/dist/404.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin site >/dev/null; then
+            git fetch --depth 1 origin site
+            git worktree add -B site site origin/site
+          else
+            git worktree add --orphan -b site site
+          fi
+          if [ "$DEPLOY_TARGET" = production ]; then
+            rsync -a --delete --exclude staging/ --exclude .git --exclude .nojekyll web/dist/ site/
+          else
+            mkdir -p site/staging && rsync -a --delete web/dist/ site/staging/
+          fi
+          touch site/.nojekyll
+          cd site
+          git add -A
+          git diff --cached --quiet && { echo "nothing changed"; exit 0; }
+          git commit -q -m "deploy $DEPLOY_TARGET $(git -C .. rev-parse --short HEAD)"
+          git push origin site
+
+  verify:
+    # Production must still be healthy once the new build has run for a while.
+    needs: [target, web]
+    if: always() && needs.web.result == 'success' && needs.target.outputs.name == 'production'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      HEALTH_TARGET: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          path: web/dist
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          node-version: 22
+      - run: sleep 600
+      - run: node scripts/supabase-admin.mjs health
+
+  release:
+    needs: [target, web]
+    if: always() && needs.web.result == 'success' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: GitHub release from Conventional Commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          git log --format=%s ${previous:+$previous..}"$GITHUB_REF_NAME" | node scripts/release-notes.mjs > notes.md
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

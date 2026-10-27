@@ -1,0 +1,86 @@
+# Restore drill: before launch and every quarter. Restores the newest
+# production backup into the staging project, checks every table's row
+# count against the dump, then (unless keep_data) removes the restored data
+# and seeds staging again. Staging keeps its own settings and never gets
+# production's push subscriptions, so it cannot notify real phones.
+#
+# Before running: add the backup's private age key as the secret
+# BACKUP_AGE_KEY (Settings, Secrets and variables, Actions). Delete that
+# secret again when the run is done. Log the date in docs/runbook.md.
+name: Restore drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep_data:
+        description: "Leave the restored production data in staging (remove it by running again without this)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      # Every database command below goes to staging.
+      SUPABASE_PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+      PRODUCTION_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+      BACKUP_TARGET: production
+      DEPLOY_TARGET: staging
+      AGE_KEY: ${{ secrets.BACKUP_AGE_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Preconditions
+        run: |
+          [ -n "$SUPABASE_PROJECT_REF" ] || { echo "::error::Staging is not configured"; exit 1; }
+          [ "$SUPABASE_PROJECT_REF" != "$PRODUCTION_REF" ] || { echo "::error::Staging points at production"; exit 1; }
+          [ -n "$AGE_KEY" ] || { echo "::error::Add the BACKUP_AGE_KEY secret first"; exit 1; }
+
+      - name: Install psql 17 and age
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 age
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
+      - name: Download and decrypt the newest backup
+        run: |
+          umask 077
+          node scripts/drive.mjs download-latest backup.tar.gz.age
+          printf '%s\n' "$AGE_KEY" > key.txt
+          age --decrypt --identity key.txt backup.tar.gz.age | tar -xz
+          rm key.txt
+          echo "Backup taken at migration $(node -p 'require("./manifest.json").migration')"
+
+      - name: Restore into staging
+        run: |
+          node scripts/supabase-admin.mjs pg -- psql --quiet --single-transaction -v ON_ERROR_STOP=1 \
+            -f supabase/restore/prepare.sql -f data.sql -f supabase/restore/finish.sql
+
+      - name: Check row counts
+        run: node scripts/supabase-admin.mjs verify-restore data.sql
+
+      - name: Remove the restored data and seed staging again
+        if: always() && !inputs.keep_data
+        run: |
+          node scripts/supabase-admin.mjs pg -- psql --quiet -v ON_ERROR_STOP=1 -f supabase/restore/cleanup.sql
+          node scripts/supabase-admin.mjs seed-staging
+
+      - name: Delete the decrypted files
+        if: always()
+        run: rm -f data.sql manifest.json backup.tar.gz.age key.txt
