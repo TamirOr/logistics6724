@@ -13,9 +13,9 @@ A static React PWA talks directly to Supabase. There is no application server.
 | Schema, RLS, business rules | `supabase/migrations/` |
 | Push sending, archiving | `supabase/functions/` (Deno Edge Functions) |
 | Web app (Vite + React PWA) | `web/` |
-| Keepalive and CI | `.github/workflows/` |
+| Deploy, keepalive and CI | `.github/workflows/`, `scripts/supabase-admin.mjs` |
 
-Every permission is enforced in the database. Customers, suppliers and admins all use the anon key; row-level security and guard triggers decide what each one can read and write.
+Every permission is enforced in the database. Customers, suppliers and admins all use the anon key; row-level security and guard triggers decide what each one can read and write. Secrets (cron secret, VAPID private key) live in `app_config` and are readable only by the service role.
 
 ## Local development
 
@@ -27,7 +27,7 @@ PGHOST=localhost PGUSER=postgres supabase/tests/run.sh
 
 # Web
 cd web
-cp .env.example .env.local   # fill in your Supabase URL, anon key, VAPID public key
+cp .env.example .env.local   # fill in your Supabase URL and anon key
 npm install
 npm run dev                  # http://localhost:5173
 npm test                     # unit tests
@@ -36,55 +36,41 @@ npm run build
 
 With Docker you can also run the full stack locally with `supabase start` (uses `supabase/config.toml`).
 
-## Deploying
+## Deploying (browser only)
 
-### 1. Supabase project
+Everything deploys from GitHub Actions. No terminal or CLI is needed: you set things up once in the browser, and every push to `main` deploys again. All the links below are web pages. Open them in the browser you use for GitHub and Supabase.
 
-1. Create a free project at supabase.com.
-2. Apply the migrations: `supabase link --project-ref <ref>`, then `supabase db push`.
-3. **Auth → Providers → Email:** enable email sign-in and turn off "Confirm email". Set the OTP length to 6 and the OTP expiry to 600 seconds.
-4. **Auth → Email Templates → Magic Link:** paste `supabase/templates/otp.html`. It sends `{{ .Token }}`, a code instead of a link.
-5. **Auth → SMTP:** set up an external SMTP provider (for example Resend, free tier). The built-in SMTP allows only a few emails per hour.
-6. **Database → Extensions:** make sure `pg_cron` and `pg_net` are enabled, then run the last block of `20261027000004_notifications.sql` again if the migration skipped the jobs.
+### One-time setup
 
-### 2. Secrets and config
+1. **Supabase access token.** Open https://supabase.com/dashboard/account/tokens, choose "Generate new token", name it `github-deploy`, and copy the token.
+2. **Project ref and database password.** In your project, open Project Settings → General and copy the **Project ID** (the ref). Under Project Settings → Database, use "Reset database password" if you don't have it, and copy the new password.
+3. **GitHub secrets.** In the repository, open Settings → Secrets and variables → Actions → "New repository secret" and add:
+   - `SUPABASE_ACCESS_TOKEN`: the token from step 1
+   - `SUPABASE_PROJECT_REF`: the Project ID
+   - `SUPABASE_DB_PASSWORD`: the database password
+4. **GitHub Pages.** In the repository, open Settings → Pages → Build and deployment → Source and choose **GitHub Actions**.
+5. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow". The app goes live at `https://<owner>.github.io/<repo>/`.
 
-Generate VAPID keys with `npx web-push generate-vapid-keys` and a random cron secret, for example `openssl rand -hex 32`.
+The workflow applies the migrations, deploys the Edge Functions and turns on 6-digit email codes. It also generates the cron secret and the push keys, which stay in the database.
 
-```bash
-supabase secrets set \
-  CRON_SECRET=... \
-  VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com \
-  GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=... DRIVE_FOLDER_ID=...
-supabase functions deploy push-dispatch
-supabase functions deploy archive
-```
+### First admin and units
 
-Then tell the database where the functions are, in the SQL editor:
-
-```sql
-insert into app_config (key, value) values
-  ('functions_url', 'https://<ref>.supabase.co/functions/v1'),
-  ('cron_secret', '<same CRON_SECRET>')
-on conflict (key) do update set value = excluded.value;
-```
-
-**Google Drive (archiving).** Create an OAuth client (type "Desktop") in Google Cloud. With the account that owns the archive folder, get a refresh token for the `https://www.googleapis.com/auth/drive.file` scope, for example with the OAuth Playground. A service account won't work: it has no storage quota of its own. `drive.file` only sees files the app created, so let the app create the monthly files in the folder.
-
-### 3. First admin and units
-
-1. Sign in once in the app with the admin's email (this creates the auth user).
-2. In the SQL editor: `select promote_admin('admin@example.com', 'שם', 'משפחה', '1234567');`
-3. As admin, add the companies and suppliers under "יחידות". The order field sets the order of supplier sections on the customer event screen.
+1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
+2. In GitHub, open Actions → Deploy → "Run workflow", fill in **admin_email**, and run it.
+3. Reload the app. As admin, add the companies and suppliers under "יחידות". The order field sets the order of supplier sections on the customer event screen.
 4. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 
-### 4. Web hosting
+### Optional: more sign-in emails
 
-Deploy `web/` as a static site (Vercel, Netlify or Cloudflare Pages): build command `npm run build`, output `dist`, root `web`. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `VITE_VAPID_PUBLIC_KEY`. Route every path to `index.html`, since this is a single-page app. Add the site URL under Auth → URL Configuration.
+Supabase's built-in email allows only a few emails per hour. Before rollout, create a free account at https://resend.com, verify a sending domain, create an API key, and add these GitHub secrets: `SMTP_HOST` = `smtp.resend.com`, `SMTP_PORT` = `587`, `SMTP_USER` = `resend`, `SMTP_PASS` = the API key, `SMTP_SENDER` = an address on your domain. The next deploy switches to it.
 
-### 5. Keepalive
+### Optional: archiving to Google Drive
 
-Add the repository secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`. `.github/workflows/keepalive.yml` calls the API every 3 days, so a quiet week doesn't pause the free project.
+The `archive` function needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` and `DRIVE_FOLDER_ID` as Edge Function secrets (Supabase → Edge Functions → Secrets). Until they are set, events stay in the database past 90 days. A service account won't work, because it has no storage quota of its own. Use an OAuth client and a refresh token for the account that owns the folder, with the `drive.file` scope.
+
+### Keepalive
+
+`.github/workflows/keepalive.yml` uses the same secrets and calls the API every 3 days, so a quiet week doesn't pause the free project.
 
 ## Tuning values
 
