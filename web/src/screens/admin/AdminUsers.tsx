@@ -5,11 +5,13 @@ import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
 import { moveUser, setUserActive } from "../../lib/api";
 import { useUnits } from "../../lib/live";
+import { useProfile } from "../../lib/session";
 import type { Profile } from "../../lib/types";
 import { useUsers } from "./useUsers";
 import { t } from "../../strings";
 
 export function AdminUsers() {
+  const me = useProfile();
   const runAction = useAction();
   const units = useUnits();
   const { users, reload } = useUsers();
@@ -26,14 +28,18 @@ export function AdminUsers() {
             <div className="req-main">
               <span className="req-name" dir="auto">{u.first_name} {u.last_name}</span>
               <span className="muted">{t.roleLabels[u.role]} {unitName(u.unit_id)}</span>
+              {u.id === me.id && <span className="tag">{t.me}</span>}
               {!u.active && <span className="tag">{t.inactive}</span>}
             </div>
             {u.role !== "admin" && (
               <button className="btn btn-ghost btn-small" onClick={() => setMoving(u)}>{t.moveToUnit}</button>
             )}
-            <button className="btn btn-ghost btn-small" onClick={() => act(() => setUserActive(u.id, !u.active))}>
-              {u.active ? t.deactivate : t.activate}
-            </button>
+            {/* The server refuses it too: an admin could lock themselves out. */}
+            {u.id !== me.id && (
+              <button className="btn btn-ghost btn-small" onClick={() => act(() => setUserActive(u.id, !u.active))}>
+                {u.active ? t.deactivate : t.activate}
+              </button>
+            )}
           </li>
         ))}
       </ul>

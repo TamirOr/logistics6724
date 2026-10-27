@@ -300,3 +300,34 @@ select tst.ok(not exists (select 1 from pg_proc where proname = 'reopen_event'),
 reset role;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev3')) = 'closed',
   'admin-closed event stays closed');
+
+-- An admin cannot deactivate themselves --------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000001');
+select tst.fails($$select set_user_active('10000000-0000-0000-0000-000000000001', false)$$, 'admin deactivates self');
+reset role;
+select tst.ok((select active from users where id = '10000000-0000-0000-0000-000000000001'), 'admin still active');
+
+-- Events with a date ------------------------------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'dated', create_event('אימון שטח', 'company', '06:30', '2026-11-03');
+select tst.ok(needed_on = '2026-11-03' and needed_by = '06:30'
+  and needed_at = timestamptz '2026-11-03 06:30 Asia/Jerusalem', 'date and time resolve to needed_at')
+from events where id = (select v from tst.t where k = 'dated');
+insert into tst.t select 'dated2', duplicate_event((select v from tst.t where k = 'dated'), 'אימון שטח 2', null, '2026-11-10');
+select tst.ok(needed_on = '2026-11-10' and needed_by is null
+  and needed_at = timestamptz '2026-11-10 00:00 Asia/Jerusalem', 'duplicate takes a new date')
+from events where id = (select v from tst.t where k = 'dated2');
+select tst.ok(exists (select 1 from information_schema.columns
+  where table_name = 'export_rows' and column_name = 'needed_on'), 'export_rows has needed_on');
+select tst.ok(not exists (select 1 from pg_proc where proname = 'create_event' and pronargs = 3), 'old create_event overload is gone');
+reset role;
+
+-- List overviews filter by event status -------------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok((select count(*) from list_overview where event_status = 'open')
+  = (select count(*) from lists l join events e on e.id = l.event_id where e.status = 'open'),
+  'list_overview event_status matches the events');
+reset role;

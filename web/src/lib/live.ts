@@ -11,12 +11,13 @@ type Change<T> = RealtimePostgresChangesPayload<T & Record<string, unknown>>;
 /**
  * Follows inserts, updates and deletes on a table. Realtime cannot filter
  * deletes, so they arrive unfiltered and carry only the row id. After a
- * (re)connect, onSubscribed lets the caller catch up on missed changes.
+ * reconnect, onResubscribed lets the caller catch up on missed changes; the
+ * first connect skips it, since callers load their data on mount anyway.
  */
 export function useRealtime<T>(table: string, filter: string | null, onChange: (c: Change<T>) => void,
-  onSubscribed?: () => void) {
-  const handlers = useRef({ onChange, onSubscribed });
-  handlers.current = { onChange, onSubscribed };
+  onResubscribed?: () => void) {
+  const handlers = useRef({ onChange, onResubscribed });
+  handlers.current = { onChange, onResubscribed };
 
   useEffect(() => {
     if (filter === null) return;
@@ -27,8 +28,11 @@ export function useRealtime<T>(table: string, filter: string | null, onChange: (
       .on("postgres_changes", { event: "INSERT", schema: "public", table, filter: rowFilter }, forward)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table, filter: rowFilter }, forward)
       .on("postgres_changes", { event: "DELETE", schema: "public", table }, forward);
+    let connectedBefore = false;
     channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") handlers.current.onSubscribed?.();
+      if (status !== "SUBSCRIBED") return;
+      if (connectedBefore) handlers.current.onResubscribed?.();
+      connectedBefore = true;
     });
     return () => {
       supabase.removeChannel(channel);

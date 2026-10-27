@@ -8,7 +8,7 @@ import {
 } from "../../../supabase/functions/_shared/excel.ts";
 
 const row: ExportRow = {
-  event_id: "e1", event_name: "תרגיל", needed_by: "22:00:00", company_name: "פלוגה א", supplier_name: "מטבח",
+  event_id: "e1", event_name: "תרגיל", needed_on: "2026-11-03", needed_by: "22:00:00", company_name: "פלוגה א", supplier_name: "מטבח",
   item_name: "ארגז מנות", quantity: 5, supplied_quantity: null, status: "ready", urgent: false,
   supplier_note: null, updated_at: "2026-10-27T08:00:00Z",
 };
@@ -20,7 +20,7 @@ describe("archive sheet", () => {
     setupRequestSheet(ws);
     expect(archivedEventIds(ws).size).toBe(0);
     addRequestRows(ws, [row, { ...row, item_name: "מים" }]);
-    addEmptyEventRow(ws, { id: "e2", name: "אירוע ריק", needed_by: null });
+    addEmptyEventRow(ws, { id: "e2", name: "אירוע ריק", needed_on: null, needed_by: null });
 
     const reloaded = new ExcelJS.Workbook();
     await reloaded.xlsx.load(await wb.xlsx.writeBuffer());

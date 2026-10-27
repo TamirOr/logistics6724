@@ -1,21 +1,26 @@
 // Open events the viewer can see, with list overviews, kept fresh by
-// realtime changes to events and to the given requests filter.
+// realtime changes to events and to the given requests filter. The last
+// result is cached per user, so the home screen shows it at once.
 import { useCallback, useEffect, useState } from "react";
-import { fetchEvents, fetchListOverviews } from "../lib/api";
+import { fetchEvents, fetchOpenListOverviews } from "../lib/api";
+import { readCache, writeCache } from "../lib/cache";
 import { useRealtime } from "../lib/live";
+import { useProfile } from "../lib/session";
 import type { ListOverview, LogisticsEvent } from "../lib/types";
 
 const REFRESH_DEBOUNCE_MS = 400;
 
+interface OpenEvents { events: LogisticsEvent[]; lists: ListOverview[] }
+
 export function useOpenEvents(requestsFilter: string | null) {
-  const [events, setEvents] = useState<LogisticsEvent[] | null>(null);
-  const [lists, setLists] = useState<ListOverview[]>([]);
+  const cacheKey = `open-events:${useProfile().id}`;
+  const [data, setData] = useState<OpenEvents | null>(() => readCache<OpenEvents>(cacheKey));
 
   const refresh = useCallback(async () => {
-    const evs = await fetchEvents("open");
-    setEvents(evs);
-    setLists(await fetchListOverviews(evs.map((e) => e.id)));
-  }, []);
+    const [events, lists] = await Promise.all([fetchEvents("open"), fetchOpenListOverviews()]);
+    setData({ events, lists });
+    writeCache(cacheKey, { events, lists });
+  }, [cacheKey]);
 
   // Bursts of changes (a supplier marking a whole list) refresh once.
   const [tick, setTick] = useState(0);
@@ -29,5 +34,5 @@ export function useOpenEvents(requestsFilter: string | null) {
   useRealtime("requests", requestsFilter, poke);
   useRealtime("lists", "", poke);
 
-  return { events, lists, refresh };
+  return { events: data?.events ?? null, lists: data?.lists ?? [], refresh };
 }

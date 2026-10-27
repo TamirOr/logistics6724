@@ -19,10 +19,10 @@ describe("excel export rows", () => {
   it("writes Hebrew status labels, the urgent mark and the short time", () => {
     const ws = fakeSheet();
     addRequestRows(ws, [{
-      event_id: "e1", event_name: "תרגיל", needed_by: "22:00:00", company_name: "פלוגה א", supplier_name: "מטבח",
+      event_id: "e1", event_name: "תרגיל", needed_on: "2026-11-03", needed_by: "22:00:00", company_name: "פלוגה א", supplier_name: "מטבח",
       item_name: "ארגז מנות", quantity: 5, supplied_quantity: 3, status: "partial", urgent: true,
       supplier_note: null, updated_at: "2026-10-27T08:00:00Z",
     }]);
-    expect(ws.rows[0]).toMatchObject({ needed_by: "22:00", status: "חלקי", urgent: "כן", supplied: 3, note: "" });
+    expect(ws.rows[0]).toMatchObject({ needed_by: "יום שלישי, 3.11 · 22:00", status: "חלקי", urgent: "כן", supplied: 3, note: "" });
   });
 });

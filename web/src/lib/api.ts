@@ -29,8 +29,10 @@ export const sendCode = (email: string) =>
 export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
 
+/** The signed-in user's profile; null before sign-up. Throws when offline. */
 export async function fetchMyProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  if (error) throw error;
   return data as Profile | null;
 }
 
@@ -43,11 +45,18 @@ export const registerProfile = (p: {
 
 // Events -----------------------------------------------------------------------
 
-export const createEvent = (name: string, scope: EventScope, neededBy: string | null) =>
-  rpc<string>("create_event", { p_name: name, p_scope: scope, p_needed_by: neededBy || null });
+/** When an event is needed: a date (YYYY-MM-DD) and a time of day (HH:MM), each optional. */
+export interface NeededFor { neededOn: string; neededBy: string }
 
-export const duplicateEvent = (sourceId: string, name: string, neededBy: string | null) =>
-  rpc<string>("duplicate_event", { p_source: sourceId, p_name: name, p_needed_by: neededBy || null });
+export const createEvent = (name: string, scope: EventScope, when: NeededFor) =>
+  rpc<string>("create_event", {
+    p_name: name, p_scope: scope, p_needed_on: when.neededOn || null, p_needed_by: when.neededBy || null,
+  });
+
+export const duplicateEvent = (sourceId: string, name: string, when: NeededFor) =>
+  rpc<string>("duplicate_event", {
+    p_source: sourceId, p_name: name, p_needed_on: when.neededOn || null, p_needed_by: when.neededBy || null,
+  });
 
 export const closeEvent = (id: string) => rpc<void>("close_event", { p_event: id });
 export const cancelEvent = (id: string) => rpc<void>("cancel_event", { p_event: id });
@@ -64,6 +73,10 @@ export const fetchEvents = (status: "open" | "history", sinceIso?: string, until
   if (untilIso) q = q.lt("created_at", untilIso);
   return rows<LogisticsEvent>(q);
 };
+
+/** Counts for every list of every open event the viewer can see. */
+export const fetchOpenListOverviews = () =>
+  rows<ListOverview>(supabase.from("list_overview").select("*").eq("event_status", "open"));
 
 export const fetchListOverviews = (eventIds: string[]) =>
   eventIds.length ? rows<ListOverview>(supabase.from("list_overview").select("*").in("event_id", eventIds)) : Promise.resolve([]);

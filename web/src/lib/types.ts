@@ -36,6 +36,7 @@ export interface LogisticsEvent {
   id: string;
   name: string;
   scope: EventScope;
+  needed_on: string | null;
   needed_by: string | null;
   needed_at: string | null;
   status: EventStatus;

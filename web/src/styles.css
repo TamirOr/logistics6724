@@ -269,3 +269,4 @@ h2 { font-size: 1.15rem; margin: 0; }
 .sync { display: flex; gap: 12px; justify-content: center; padding: 6px; font-size: 0.85rem; background: var(--partial-bg); }
 .sync-offline { background: var(--missing-bg); }
 .section > .btn-block { margin-top: 10px; }
+.when > .field { flex: 1; min-width: 140px; }

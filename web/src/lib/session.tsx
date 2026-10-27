@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { fetchMyProfile } from "./api";
+import { clearCache, readCache, writeCache } from "./cache";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
 
@@ -15,17 +16,37 @@ interface SessionState {
 }
 
 const SessionContext = createContext<SessionState | null>(null);
+const PROFILE_CACHE = "profile";
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // The cached profile shows the app at once; the fresh one replaces it. With
+  // no signal the cached one stays, so the app still opens offline.
   const reloadProfile = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
-    setQueueUser(data.session?.user.id ?? null);
+    const user = data.session?.user.id ?? null;
+    setQueueUser(user);
     setSession(data.session);
-    setProfile(data.session ? await fetchMyProfile(data.session.user.id) : null);
+    if (!user) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    const cached = readCache<Profile>(PROFILE_CACHE);
+    if (cached?.id === user) {
+      setProfile(cached);
+      setLoading(false);
+    }
+    try {
+      const fresh = await fetchMyProfile(user);
+      setProfile(fresh);
+      if (fresh) writeCache(PROFILE_CACHE, fresh);
+    } catch {
+      // Offline: keep the cached profile, if there is one.
+    }
     setLoading(false);
   }, []);
 
@@ -51,6 +72,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     clearQueue();
+    clearCache(PROFILE_CACHE);
     await supabase.auth.signOut();
   }, []);
 

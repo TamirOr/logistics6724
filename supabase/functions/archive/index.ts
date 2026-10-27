@@ -66,6 +66,7 @@ async function upload(token: string, folder: string, name: string, existingId: s
 interface ArchivedEvent {
   id: string;
   name: string;
+  needed_on: string | null;
   needed_by: string | null;
   created_at: string;
   closed_at: string | null;
