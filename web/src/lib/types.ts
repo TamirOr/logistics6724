@@ -99,7 +99,10 @@ export interface ItemSearchResult {
   name: string;
   verified: boolean;
   matched_alias: string | null;
+  /** Ranking: word similarity plus a boost for prefix matches. */
   score: number;
+  /** Plain word similarity, which the "did you mean" threshold uses. */
+  similarity: number;
   default_quantity: number | null;
 }
 

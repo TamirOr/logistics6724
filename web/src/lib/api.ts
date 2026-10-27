@@ -96,6 +96,13 @@ export const fetchListOverviews = (eventIds: string[]) =>
 export const searchItems = (supplierId: string, q: string) =>
   rpc<ItemSearchResult[]>("search_items", { p_supplier: supplierId, p_q: q });
 
+/** The item whose normalized name or alias equals the typed name, if any. */
+export async function exactItem(supplierId: string, name: string) {
+  const found = await rpc<{ id: string; name: string; default_quantity: number | null }[]>(
+    "exact_item", { p_supplier: supplierId, p_name: name });
+  return found[0] ?? null;
+}
+
 export const suggestItems = (supplierId: string, name: string) =>
   rpc<{ id: string; name: string; score: number }[]>("suggest_items", { p_supplier: supplierId, p_name: name });
 

@@ -428,3 +428,23 @@ select tst.ok((select count(*) from requests where event_id = (select v from tst
                and company_id = '00000000-0000-0000-0000-0000000000c1') = 0, 'no rows written into another company');
 select tst.ok((select count(*) from requests where event_id = (select v from tst.t where k = 'bev2-dup')
                and company_id = '00000000-0000-0000-0000-0000000000c2') = 1, 'own company requests copied');
+
+-- Catalog matching ---------------------------------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok((select name from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן מים')) = 'ג׳ריקן מים',
+  'exact_item matches despite the missing geresh');
+select tst.ok((select count(*) from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן')) = 0, 'exact_item is not fuzzy');
+select tst.ok((select bool_and(similarity <= score) from search_items('00000000-0000-0000-0000-0000000000a1', 'סול')),
+  'similarity excludes the ranking boost');
+reset role;
+select tst.fails($$insert into items (supplier_id, name, verified) values ('00000000-0000-0000-0000-0000000000a1', 'ג''ריקן  מים', true)$$,
+  'a second active item with the same normalized name');
+update items set active = false where name = 'סוללה AA';
+set role authenticated;
+select tst.fails($$select add_item('00000000-0000-0000-0000-0000000000a1', 'סוללה AA')$$, 'customer revives a hidden item');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'סוללה  AA') = (select id from items where name = 'סוללה AA'),
+  'supplier adding a hidden name unhides it');
+reset role;
+select tst.ok((select active from items where name = 'סוללה AA'), 'item active again');
