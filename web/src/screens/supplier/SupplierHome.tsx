@@ -45,6 +45,7 @@ export function SupplierHome() {
     value: supplierId,
     narrow: (q) => q.neq("status", "collected"),
     keep: (r) => r.status !== "collected",
+    cacheKey: `requests:supplier:${supplierId}`,
   });
   const itemOf = useCached(itemCache, rows.map((r) => r.item_id));
   const eventOf = useCached(eventCache, rows.map((r) => r.event_id));

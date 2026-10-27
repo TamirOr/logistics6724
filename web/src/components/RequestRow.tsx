@@ -1,14 +1,16 @@
-// One request on the customer event screen. Tapping the row opens edit.
-import type { Item, Request } from "../../lib/types";
-import { isClosed, setUrgent } from "../../lib/requests";
-import { StatusBadge } from "../../components/StatusBadge";
-import { t } from "../../strings";
+// One request as the company sees it: quantity, item, status, supplier note.
+// Editable on the customer event screen (tap to edit, urgent toggle);
+// read-only in past events.
+import type { Item, Request } from "../lib/types";
+import { isClosed, setUrgent } from "../lib/requests";
+import { StatusBadge } from "./StatusBadge";
+import { t } from "../strings";
 
 interface Props {
   request: Request;
   item: Item | undefined;
   editable: boolean;
-  onOpen: () => void;
+  onOpen?: () => void;
 }
 
 export function RequestRow({ request: r, item, editable, onOpen }: Props) {

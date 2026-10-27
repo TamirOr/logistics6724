@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { fetchMyProfile } from "./api";
-import { clearCache, readCache, writeCache } from "./cache";
+import { clearAllCaches, readCache, writeCache } from "./cache";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
 
@@ -75,7 +75,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     clearQueue();
-    clearCache(PROFILE_CACHE);
+    clearAllCaches();
     await supabase.auth.signOut();
   }, []);
 
