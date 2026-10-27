@@ -34,4 +34,6 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
 
 - Hebrew UI, `dir="rtl"`. User-entered text uses `dir="auto"`.
 - Every permission is enforced with RLS or a guard trigger. Add a SQL test for every new rule.
+- New functions are executable by nobody by default. Grant `execute ... to authenticated` right after a function the app calls; leave server-only helpers ungranted. Never expose a secret through a function the app can call: secrets are read only through `server_config()`.
+- RLS policies call helpers as `(select my_role())` and must not form a cycle between tables (requests → lists → requests).
 - Commits use Conventional Commits (`feat(db): …`, `fix(web): …`), one logical change per commit.
