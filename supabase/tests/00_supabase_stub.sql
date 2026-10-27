@@ -17,6 +17,9 @@ grant usage on schema auth to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
 
 grant usage on schema public to anon, authenticated, service_role;
+create schema extensions;
+grant usage on schema extensions to anon, authenticated, service_role;
+do $$ begin execute format('alter database %I set search_path = "$user", public, extensions', current_database()); end $$;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;

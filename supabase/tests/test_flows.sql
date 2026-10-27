@@ -260,3 +260,4 @@ set role anon;
 select tst.ok(keepalive() is not null, 'anon keepalive');
 select tst.fails($$select * from units$$, 'anon cannot read units');
 reset role;
+

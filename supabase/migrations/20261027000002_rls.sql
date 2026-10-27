@@ -26,6 +26,8 @@ language sql stable security definer set search_path = public as $$
   select my_role() is not null
 $$;
 
+grant execute on function my_role, my_unit, is_admin, is_approved to authenticated;
+
 alter table units enable row level security;
 alter table users enable row level security;
 alter table events enable row level security;

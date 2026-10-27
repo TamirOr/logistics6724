@@ -108,7 +108,6 @@ begin
   end loop;
   return n;
 end $$;
-revoke execute on function flush_missing_queue from public, anon, authenticated;
 
 -- Push subscriptions an outbox row should reach.
 create function outbox_subscriptions(p_outbox bigint)
@@ -124,14 +123,13 @@ language sql stable security definer set search_path = public as $$
   join push_subscriptions s on s.user_id = u.id
   where o.id = p_outbox
 $$;
-revoke execute on function outbox_subscriptions from public, anon, authenticated;
 
 -- Immediate delivery: wake push-dispatch through pg_net when it is
 -- installed and app_config holds functions_url and cron_secret. The
 -- every-minute job delivers anything this misses.
 create function wake_dispatcher() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare v_url text := config('functions_url'); v_secret text := config('cron_secret');
+declare v_url text := server_config('functions_url'); v_secret text := server_config('cron_secret');
 begin
   if v_url is not null and v_secret is not null
      and exists (select 1 from pg_extension where extname = 'pg_net') then
@@ -153,7 +151,6 @@ language sql stable security definer set search_path = public as $$
         < now() - (config('retention_days', '90') || ' days')::interval
   order by coalesce(cancelled_at, closed_at, created_at)
 $$;
-revoke execute on function archive_candidates from public, anon, authenticated;
 
 -- Realtime ---------------------------------------------------------------
 do $$

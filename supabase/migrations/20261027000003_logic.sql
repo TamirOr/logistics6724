@@ -6,6 +6,7 @@
 
 create function is_client() returns boolean
 language sql stable as $$ select current_user in ('authenticated', 'anon') $$;
+grant execute on function is_client to authenticated;
 
 -- Notifications -----------------------------------------------------------
 -- Rows are written here by triggers and sent by the push-dispatch Edge
@@ -33,7 +34,6 @@ returns void language sql security definer set search_path = public as $$
   insert into notification_outbox (kind, body, url, target_user, target_company, target_all_customers)
   values (p_kind, p_body, p_url, p_user, p_company, p_all_customers)
 $$;
-revoke execute on function notify from public, anon, authenticated;
 
 -- Sign-up and approval ------------------------------------------------------
 
@@ -68,6 +68,7 @@ begin
   if v_row.id is null then raise exception 'profile already approved'; end if;
   return v_row;
 end $$;
+grant execute on function register_profile to authenticated;
 
 create function approve_user(p_user uuid) returns void
 language plpgsql security definer set search_path = public as $$
@@ -80,6 +81,7 @@ begin
     perform notify('approved', 'החשבון שלך אושר', '/', p_user => p_user);
   end if;
 end $$;
+grant execute on function approve_user to authenticated;
 
 create function reject_user(p_user uuid, p_reason text default null) returns void
 language plpgsql security definer set search_path = public as $$
@@ -88,6 +90,7 @@ begin
   update users set approval = 'rejected', rejection_reason = nullif(btrim(p_reason), '')
   where id = p_user and approval = 'pending';
 end $$;
+grant execute on function reject_user to authenticated;
 
 create function set_user_active(p_user uuid, p_active boolean) returns void
 language plpgsql security definer set search_path = public as $$
@@ -96,6 +99,7 @@ begin
   if p_user = auth.uid() and not p_active then raise exception 'cannot deactivate yourself'; end if;
   update users set active = p_active where id = p_user;
 end $$;
+grant execute on function set_user_active to authenticated;
 
 create function move_user(p_user uuid, p_unit uuid) returns void
 language plpgsql security definer set search_path = public as $$
@@ -110,6 +114,7 @@ begin
   end if;
   update users set unit_id = p_unit where id = p_user;
 end $$;
+grant execute on function move_user to authenticated;
 
 -- Bootstrap: run from the SQL editor to make the first admin.
 create function promote_admin(p_email text, p_first_name text default 'מנהל',
@@ -124,7 +129,6 @@ begin
   on conflict (id) do update set role = 'admin', unit_id = null, approval = 'approved',
     active = true, approved_at = now();
 end $$;
-revoke execute on function promote_admin from public, anon, authenticated;
 
 -- Events ------------------------------------------------------------------
 
@@ -162,7 +166,6 @@ begin
   end if;
   return v_id;
 end $$;
-revoke execute on function insert_event from public, anon, authenticated;
 
 create function create_event(p_name text, p_scope event_scope, p_needed_by time default null)
 returns uuid language plpgsql security definer set search_path = public as $$
@@ -175,6 +178,7 @@ begin
   end if;
   raise exception 'not allowed to open this event';
 end $$;
+grant execute on function create_event to authenticated;
 
 -- Copies items and quantities into a new event with every status pending.
 -- Each company's new list gets that company's requests from the source.
@@ -207,6 +211,7 @@ begin
   order by r.created_at;
   return v_id;
 end $$;
+grant execute on function duplicate_event to authenticated;
 
 create function close_event(p_event uuid) returns void
 language plpgsql security definer set search_path = public as $$
@@ -219,6 +224,7 @@ begin
   end if;
   update events set status = 'closed', closed_at = now() where id = p_event and status = 'open';
 end $$;
+grant execute on function close_event to authenticated;
 
 create function cancel_event(p_event uuid) returns void
 language plpgsql security definer set search_path = public as $$
@@ -228,6 +234,7 @@ begin
   end if;
   update events set status = 'cancelled', cancelled_at = now() where id = p_event and status <> 'cancelled';
 end $$;
+grant execute on function cancel_event to authenticated;
 
 -- Closes an open event when every request that can still move is done:
 -- collected, or missing (nothing to collect). Needs at least one request,
@@ -240,7 +247,6 @@ language sql security definer set search_path = public as $$
     and not exists (select 1 from requests r where r.event_id = e.id
                     and r.status in ('pending', 'ready', 'partial', 'cancelled'))
 $$;
-revoke execute on function maybe_close_event from public, anon, authenticated;
 
 -- Derived status of a group of requests (a list, or one supplier's section).
 create function derive_list_status(n_total int, n_pending int, n_ready int, n_partial int,
@@ -254,6 +260,7 @@ language sql immutable as $$
     else 'in_progress'
   end
 $$;
+grant execute on function derive_list_status to authenticated;
 
 create view list_overview with (security_invoker = true) as
 select l.id, l.event_id, l.company_id, u.name as company_name,
@@ -317,7 +324,6 @@ language sql security definer set search_path = public as $$
   where id = p_event and status = 'closed' and my_role() = 'customer'
     and exists (select 1 from lists l where l.event_id = p_event and l.company_id = my_unit())
 $$;
-revoke execute on function reopen_event from public, anon, authenticated;
 grant execute on function reopen_event to authenticated;
 
 create function requests_before_update() returns trigger
@@ -450,6 +456,7 @@ begin
   if not found then raise exception 'cannot delete this request'; end if;
   return 'deleted';
 end $$;
+grant execute on function delete_request to authenticated;
 
 -- "אספתי" on one supplier's section of a list.
 create function mark_collected(p_list uuid, p_supplier uuid) returns int
@@ -461,6 +468,7 @@ begin
   get diagnostics n = row_count;
   return n;
 end $$;
+grant execute on function mark_collected to authenticated;
 
 -- Returns a collected or cancelled request to its previous status.
 create function restore_request(p_request uuid) returns void
@@ -469,17 +477,19 @@ begin
   update requests set status = previous_status
   where id = p_request and status in ('collected', 'cancelled') and previous_status is not null;
 end $$;
+grant execute on function restore_request to authenticated;
 
 -- Catalog -----------------------------------------------------------------
 
-create function like_escape(t text) returns text
+create function escape_like_pattern(t text) returns text
 language sql immutable as $$ select replace(replace(replace(t, '\', '\\'), '%', '\%'), '_', '\_') $$;
+grant execute on function escape_like_pattern to authenticated;
 
 -- Autocomplete over names and aliases, at most 8 rows. With an empty
 -- query, returns the items this company requested most recently.
 create function search_items(p_supplier uuid, p_q text, p_limit int default 8)
 returns table (id uuid, name text, verified boolean, matched_alias text, score real, default_quantity int)
-language plpgsql stable set pg_trgm.word_similarity_threshold = 0.3 as $$
+language plpgsql stable set search_path = public, extensions set pg_trgm.word_similarity_threshold = 0.3 as $$
 declare q text := normalize_he(coalesce(p_q, ''));
 begin
   if q = '' then
@@ -496,18 +506,18 @@ begin
   with cand as (
     select i.id, i.name, i.verified, null::text as alias,
       word_similarity(q, i.name_norm)
-        + case when i.name_norm like like_escape(q) || '%' then 0.5
-               when i.name_norm like '% ' || like_escape(q) || '%' then 0.3 else 0 end as s
+        + case when i.name_norm like escape_like_pattern(q) || '%' then 0.5
+               when i.name_norm like '% ' || escape_like_pattern(q) || '%' then 0.3 else 0 end as s
     from items i
     where i.supplier_id = p_supplier and i.active
-      and (q <% i.name_norm or i.name_norm like '%' || like_escape(q) || '%')
+      and (q <% i.name_norm or i.name_norm like '%' || escape_like_pattern(q) || '%')
     union all
     select i.id, i.name, i.verified, a.alias,
       word_similarity(q, a.alias_norm)
-        + case when a.alias_norm like like_escape(q) || '%' then 0.5 else 0 end
+        + case when a.alias_norm like escape_like_pattern(q) || '%' then 0.5 else 0 end
     from item_aliases a join items i on i.id = a.item_id
     where i.supplier_id = p_supplier and i.active
-      and (q <% a.alias_norm or a.alias_norm like '%' || like_escape(q) || '%')
+      and (q <% a.alias_norm or a.alias_norm like '%' || escape_like_pattern(q) || '%')
   ), best as (
     select distinct on (c.id) c.id, c.name, c.verified, c.alias, c.s
     from cand c order by c.id, c.s desc
@@ -518,6 +528,7 @@ begin
   order by b.s desc, b.name
   limit p_limit;
 end $$;
+grant execute on function search_items to authenticated;
 
 -- Exact match on the normalized name or an alias.
 create function find_exact_item(p_supplier uuid, p_name text) returns uuid
@@ -538,6 +549,7 @@ language sql stable as $$
   where s.score >= config('did_you_mean_threshold', '0.4')::real
   order by s.score desc limit 3
 $$;
+grant execute on function suggest_items to authenticated;
 
 -- Creates an item. Customers create unverified items in any supplier's
 -- catalog, suppliers create verified items in their own. An exact match
@@ -564,6 +576,7 @@ begin
   returning id into v_id;
   return v_id;
 end $$;
+grant execute on function add_item to authenticated;
 
 -- Moves every request and default quantity from p_source to p_target and
 -- keeps p_source's name as an alias of p_target.
@@ -595,11 +608,12 @@ begin
   delete from items where id = p_source;
   update items set verified = true where id = p_target;
 end $$;
+grant execute on function merge_item to authenticated;
 
 -- For each unverified item of a supplier, the closest verified item.
 create function merge_suggestions(p_supplier uuid)
 returns table (item_id uuid, suggested_id uuid, suggested_name text, score real)
-language sql stable set pg_trgm.similarity_threshold = 0.2 as $$
+language sql stable set search_path = public, extensions set pg_trgm.similarity_threshold = 0.2 as $$
   select u.id, m.id, m.name, m.score
   from items u
   cross join lateral (
@@ -612,3 +626,4 @@ language sql stable set pg_trgm.similarity_threshold = 0.2 as $$
   ) m
   where u.supplier_id = p_supplier and not u.verified and u.active
 $$;
+grant execute on function merge_suggestions to authenticated;

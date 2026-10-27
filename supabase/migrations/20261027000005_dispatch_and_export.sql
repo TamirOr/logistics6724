@@ -19,7 +19,6 @@ language sql security definer set search_path = public as $$
   update notification_outbox set sent_at = null, last_error = p_error where id = p_id
 $$;
 
-revoke execute on function claim_outbox, release_outbox from public, anon, authenticated;
 
 -- One row per request, with the columns the spec lists for Excel. Runs
 -- with the caller's rights, so each user exports only what they can see.

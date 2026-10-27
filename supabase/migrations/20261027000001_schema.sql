@@ -1,7 +1,16 @@
 -- Core schema: units, users, events, lists, requests, catalog.
 -- Names follow the spec glossary.
 
-create extension if not exists pg_trgm;
+-- Extensions live in their own schema (Supabase's layout), created before
+-- the default privileges below so their functions stay callable.
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
+
+-- New functions are callable by nobody until granted. Each function the
+-- app calls is granted to authenticated next to its definition, so a
+-- server-only helper or secret is never exposed by accident.
+alter default privileges revoke execute on functions from public;
+alter default privileges in schema public revoke execute on functions from anon, authenticated;
 
 create type unit_kind as enum ('company', 'supplier');
 create type user_role as enum ('customer', 'supplier', 'admin');
@@ -21,6 +30,7 @@ language sql immutable parallel safe as $$
       'ךםןףץ׳''״"-', 'כמנפצ'),
     '\s+', ' ', 'g'))
 $$;
+grant execute on function normalize_he to authenticated;
 
 create table units (
   id uuid primary key default gen_random_uuid(),
@@ -90,7 +100,7 @@ create table items (
   created_at timestamptz not null default now()
 );
 create index items_supplier_idx on items (supplier_id);
-create index items_name_norm_trgm on items using gin (name_norm gin_trgm_ops);
+create index items_name_norm_trgm on items using gin (name_norm extensions.gin_trgm_ops);
 
 create table item_aliases (
   id uuid primary key default gen_random_uuid(),
@@ -99,7 +109,7 @@ create table item_aliases (
   alias_norm text generated always as (normalize_he(alias)) stored,
   unique (item_id, alias)
 );
-create index item_aliases_norm_trgm on item_aliases using gin (alias_norm gin_trgm_ops);
+create index item_aliases_norm_trgm on item_aliases using gin (alias_norm extensions.gin_trgm_ops);
 
 create table requests (
   id uuid primary key default gen_random_uuid(),
@@ -148,19 +158,27 @@ create table push_subscriptions (
 );
 create index push_subscriptions_user_idx on push_subscriptions (user_id);
 
--- Server-only settings (functions URL, cron secret, tuning values).
+-- Settings. Tuning values are readable through config(); everything else
+-- (functions URL, cron secret) only through server_config().
 create table app_config (
   key text primary key,
-  value text not null
+  value text not null,
+  is_tuning boolean not null default false
 );
-insert into app_config (key, value) values
-  ('did_you_mean_threshold', '0.4'),
-  ('missing_window_minutes', '5'),
-  ('missing_window_cap_minutes', '15'),
-  ('retention_days', '90'),
-  ('timezone', 'Asia/Jerusalem');
+insert into app_config (key, value, is_tuning) values
+  ('did_you_mean_threshold', '0.4', true),
+  ('missing_window_minutes', '5', true),
+  ('missing_window_cap_minutes', '15', true),
+  ('retention_days', '90', true),
+  ('timezone', 'Asia/Jerusalem', true);
 
 create function config(k text, fallback text default null) returns text
 language sql stable security definer set search_path = public as $$
-  select coalesce((select value from app_config where key = k), fallback)
+  select coalesce((select value from app_config where key = k and is_tuning), fallback)
+$$;
+grant execute on function config to authenticated;
+
+create function server_config(k text) returns text
+language sql stable security definer set search_path = public as $$
+  select value from app_config where key = k
 $$;
