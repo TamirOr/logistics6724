@@ -13,6 +13,11 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
    - Excel columns and row formatting: `supabase/functions/_shared/excel.ts`.
    - All UI strings: `web/src/strings.ts`. No Hebrew literals in components.
 
+5. **Tests with every change.** New logic comes with tests in the same commit:
+   - Database rule, RLS policy or RPC: a case in `supabase/tests/test_*.sql`, including the "should fail" side.
+   - Client logic (queue, request rules, totals, formatting, shared Excel code): a Vitest file next to the code, `*.test.ts`.
+   - Run both suites before committing. A failing suite blocks the commit.
+
 ## Layout
 
 - `supabase/migrations/`: schema, RLS, business rules, notifications. Migrations are append-only once deployed: add a new file, don't edit an applied one.
@@ -23,7 +28,7 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
 ## Commands
 
 - DB tests: `PGHOST=... PGPORT=... PGUSER=postgres supabase/tests/run.sh` (needs Postgres 15+ with pg_trgm).
-- Web: `cd web && npm run dev | build | typecheck | test`.
+- Web: `cd web && npm run dev | build | typecheck | test` (Vitest, jsdom). Shared fixtures are in `web/src/test/fixtures.ts`.
 
 ## Conventions
 
