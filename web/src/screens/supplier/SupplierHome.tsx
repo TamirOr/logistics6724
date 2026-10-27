@@ -24,7 +24,7 @@ const byUrgencyThenAge = (a: Request, b: Request) =>
   Number(b.urgent) - Number(a.urgent) || a.created_at.localeCompare(b.created_at);
 
 const byNeededAt = (a: LogisticsEvent, b: LogisticsEvent) =>
-  (a.needed_at ?? "9999").localeCompare(b.needed_at ?? "9999") || a.created_at.localeCompare(b.created_at);
+  a.needed_at.localeCompare(b.needed_at) || a.created_at.localeCompare(b.created_at);
 
 export function SupplierHome() {
   const profile = useProfile();

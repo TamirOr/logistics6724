@@ -71,7 +71,6 @@ export const t = {
   neededBy: "נדרש עד",
   eventDate: "תאריך",
   eventTime: "שעה (לא חובה)",
-  neededByTomorrow: "מחר",
   create: "פתיחה",
   openEvents: "אירועים פתוחים",
   noOpenEvents: "אין אירועים פתוחים",

@@ -97,7 +97,8 @@ select tst.fails($$select create_event('x', 'company') from (select tst.act('100
 select tst.act('10000000-0000-0000-0000-000000000002');
 insert into tst.t select 'ev1', create_event('תרגיל לילה', 'company', '22:00');
 insert into tst.t select 'list1', id from lists where event_id = (select v from tst.t where k = 'ev1');
-select tst.ok((select needed_at from events where id = (select v from tst.t where k = 'ev1')) > now(), 'needed_at is in the future');
+select tst.ok((select needed_at from events where id = (select v from tst.t where k = 'ev1'))
+  = ((now() at time zone 'Asia/Jerusalem')::date + time '22:00') at time zone 'Asia/Jerusalem', 'a time without a date means today');
 
 insert into requests (id, list_id, item_id, quantity, status, supplier_note)
 values ('20000000-0000-0000-0000-000000000001', (select v from tst.t where k = 'list1'),
@@ -474,3 +475,19 @@ select tst.ok((select url from notification_outbox where kind = 'missing') = '/e
   'missing notification opens its event');
 select tst.ok((select body from notification_outbox where kind = 'missing') = 'אפסנאות: חסרים 1 פריטים: סוללה AA', 'missing text');
 select tst.ok((select count(*) from missing_queue) = 0, 'queue emptied, cancelled event included');
+
+-- Model invariants --------------------------------------------------------------
+reset role;
+select tst.fails($$update users set role = 'supplier' where id = '10000000-0000-0000-0000-000000000002'$$,
+  'a customer in a company cannot become a supplier without moving');
+select tst.fails($$update units set kind = 'supplier' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'a unit changes kind');
+select tst.fails($$insert into notification_outbox (kind, body) values ('x', 'no target')$$, 'a notification without a target');
+select tst.fails($$insert into notification_outbox (kind, body, target_user, target_all_customers)
+  values ('x', 'two targets', '10000000-0000-0000-0000-000000000002', true)$$, 'a notification with two targets');
+select tst.ok(not exists (select 1 from events where needed_on is null), 'every event has a date');
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'no-date', create_event('בלי תאריך', 'company');
+reset role;
+select tst.ok(needed_on = (now() at time zone 'Asia/Jerusalem')::date, 'an event without a date defaults to today')
+from events where id = (select v from tst.t where k = 'no-date');
