@@ -1,0 +1,26 @@
+# Supabase pauses free projects after 7 days of low activity. Daily use
+# prevents that; this covers quiet weeks.
+name: Keepalive
+
+on:
+  schedule:
+    - cron: "23 6 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Query the API
+        run: |
+          ANON_KEY="$(node scripts/supabase-admin.mjs anon-key)"
+          curl --fail --silent --show-error -X POST \
+            -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" -H "Content-Type: application/json" \
+            -d '{}' "https://$SUPABASE_PROJECT_REF.supabase.co/rest/v1/rpc/keepalive"
