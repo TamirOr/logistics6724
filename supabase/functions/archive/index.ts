@@ -79,8 +79,8 @@ function monthKey(iso: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (!authorized(req)) return json({ error: "unauthorized" }, 401);
   const db = serviceClient();
+  if (!(await authorized(req, db))) return json({ error: "unauthorized" }, 401);
   const folder = Deno.env.get("DRIVE_FOLDER_ID")!;
 
   const { data, error } = await db.rpc("archive_candidates").limit(MAX_EVENTS_PER_RUN);

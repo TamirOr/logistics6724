@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.45.4";
 
 export function serviceClient() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -6,10 +6,16 @@ export function serviceClient() {
   });
 }
 
-// Scheduled jobs call the functions with the shared secret stored in
-// app_config.cron_secret and in the CRON_SECRET function secret.
-export function authorized(req: Request): boolean {
-  const secret = Deno.env.get("CRON_SECRET");
+/** A server-only setting from app_config (cron secret, VAPID keys, site URL). */
+export async function serverConfig(db: SupabaseClient, key: string): Promise<string | null> {
+  const { data, error } = await db.rpc("server_config", { k: key });
+  if (error) throw error;
+  return data;
+}
+
+// pg_cron and wake_dispatcher call the functions with app_config.cron_secret.
+export async function authorized(req: Request, db: SupabaseClient): Promise<boolean> {
+  const secret = await serverConfig(db, "cron_secret");
   return !!secret && req.headers.get("x-cron-secret") === secret;
 }
 

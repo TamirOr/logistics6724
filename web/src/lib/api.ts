@@ -106,6 +106,9 @@ export async function saveUnit(unit: { id?: string; name: string; kind: "company
 
 // Push -----------------------------------------------------------------------------
 
+/** The deploy workflow stores the VAPID public key in app_config. */
+export const fetchVapidPublicKey = () => rpc<string | null>("config", { k: "vapid_public_key" });
+
 export async function savePushSubscription(userId: string, sub: PushSubscriptionJSON) {
   const { error } = await supabase.from("push_subscriptions").upsert({
     user_id: userId, endpoint: sub.endpoint, p256dh: sub.keys?.p256dh, auth: sub.keys?.auth,

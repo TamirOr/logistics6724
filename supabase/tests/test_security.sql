@@ -9,7 +9,10 @@ begin
 end $$;
 grant execute on function tst.denied to anon, authenticated;
 
-insert into app_config (key, value) values ('cron_secret', 's3cr3t'), ('functions_url', 'https://x/functions/v1');
+select tst.ok(length(server_config('cron_secret')) = 64, 'migration generates a 64-character cron secret');
+update app_config set value = 's3cr3t' where key = 'cron_secret';
+insert into app_config (key, value) values ('functions_url', 'https://x/functions/v1'), ('vapid_private_key', 'priv');
+insert into app_config (key, value, client_readable) values ('vapid_public_key', 'pub', true);
 
 set role anon;
 select tst.denied($$select config('cron_secret')$$, 'anon reads cron secret through config()');
@@ -25,11 +28,17 @@ select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok(config('cron_secret') is null, 'config() hides the cron secret');
 select tst.ok(config('functions_url') is null, 'config() hides the functions url');
 select tst.ok(config('did_you_mean_threshold') = '0.4', 'config() returns tuning keys');
+select tst.ok(config('vapid_public_key') = 'pub', 'config() returns the VAPID public key');
+select tst.ok(config('vapid_private_key') is null, 'config() hides the VAPID private key');
 select tst.denied($$select server_config('cron_secret')$$, 'authenticated calls server_config()');
 select tst.denied($$select flush_missing_queue()$$, 'authenticated calls flush_missing_queue()');
 select tst.denied($$select claim_outbox(1)$$, 'authenticated calls claim_outbox()');
 select tst.denied($$select notify('x', 'y')$$, 'authenticated calls notify()');
 select tst.denied($$select item_names(array[]::uuid[])$$, 'authenticated calls item_names()');
+reset role;
+
+set role service_role;
+select tst.ok(server_config('cron_secret') = 's3cr3t', 'service role reads server config');
 reset role;
 
 -- Every function anon or authenticated can run is on purpose.

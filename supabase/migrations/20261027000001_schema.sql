@@ -158,23 +158,30 @@ create table push_subscriptions (
 );
 create index push_subscriptions_user_idx on push_subscriptions (user_id);
 
--- Settings. Tuning values are readable through config(); everything else
--- (functions URL, cron secret) only through server_config().
+-- Settings. Rows marked client_readable (tuning values, the VAPID public
+-- key) are readable through config(); everything else (cron secret, VAPID
+-- private key, functions URL) only through server_config(), which only the
+-- service role can call. The deploy workflow fills in the URL and keys.
 create table app_config (
   key text primary key,
   value text not null,
-  is_tuning boolean not null default false
+  client_readable boolean not null default false
 );
-insert into app_config (key, value, is_tuning) values
+insert into app_config (key, value, client_readable) values
   ('did_you_mean_threshold', '0.4', true),
   ('missing_window_minutes', '5', true),
   ('missing_window_cap_minutes', '15', true),
   ('retention_days', '90', true),
   ('timezone', 'Asia/Jerusalem', true);
 
+-- Shared by pg_cron and the Edge Functions. Generated here so it never
+-- leaves the database: gen_random_uuid draws from a strong random source.
+insert into app_config (key, value)
+values ('cron_secret', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''));
+
 create function config(k text, fallback text default null) returns text
 language sql stable security definer set search_path = public as $$
-  select coalesce((select value from app_config where key = k and is_tuning), fallback)
+  select coalesce((select value from app_config where key = k and client_readable), fallback)
 $$;
 grant execute on function config to authenticated;
 
@@ -182,3 +189,4 @@ create function server_config(k text) returns text
 language sql stable security definer set search_path = public as $$
   select value from app_config where key = k
 $$;
+grant execute on function server_config to service_role;

@@ -13,9 +13,9 @@ begin
   begin execute stmt; exception when others then return; end;
   raise exception 'FAILED (should have raised): %', what;
 end $$;
-grant usage on schema tst to authenticated, anon;
+grant usage on schema tst to authenticated, anon, service_role;
 grant all on tst.t to authenticated;
-grant execute on all functions in schema tst to authenticated, anon;
+grant execute on all functions in schema tst to authenticated, anon, service_role;
 
 -- Normalization -------------------------------------------------------------
 select tst.ok(normalize_he('גריקנים') = 'גריקנ', 'plural and final letter');

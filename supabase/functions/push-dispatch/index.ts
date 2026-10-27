@@ -1,18 +1,20 @@
 // Sends pending Web Push notifications. Runs every minute from pg_cron,
 // and right away when a notification is queued (see wake_dispatcher).
 import webpush from "npm:web-push@3.6.7";
-import { authorized, json, serviceClient } from "../_shared/env.ts";
+import { authorized, json, serverConfig, serviceClient } from "../_shared/env.ts";
 import { APP_NAME } from "../_shared/labels.ts";
 
-webpush.setVapidDetails(
-  Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@example.com",
-  Deno.env.get("VAPID_PUBLIC_KEY")!,
-  Deno.env.get("VAPID_PRIVATE_KEY")!,
-);
-
 Deno.serve(async (req) => {
-  if (!authorized(req)) return json({ error: "unauthorized" }, 401);
   const db = serviceClient();
+  if (!(await authorized(req, db))) return json({ error: "unauthorized" }, 401);
+
+  // The deploy workflow generates the keys and stores them in app_config.
+  // The subject identifies the sender to push services; the site URL does.
+  webpush.setVapidDetails(
+    (await serverConfig(db, "site_url")) ?? "mailto:admin@example.invalid",
+    (await serverConfig(db, "vapid_public_key"))!,
+    (await serverConfig(db, "vapid_private_key"))!,
+  );
 
   const { error: flushError } = await db.rpc("flush_missing_queue");
   if (flushError) console.error("flush_missing_queue", flushError);

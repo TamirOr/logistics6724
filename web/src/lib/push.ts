@@ -1,6 +1,6 @@
 // Web Push registration. On iPhone push works only from the installed
 // home-screen app, so the app first shows the install guide there.
-import { savePushSubscription } from "./api";
+import { fetchVapidPublicKey, savePushSubscription } from "./api";
 
 export const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 export const isStandalone = () =>
@@ -21,9 +21,12 @@ export async function enablePush(userId: string): Promise<NotificationPermission
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return permission;
   const reg = await navigator.serviceWorker.ready;
-  const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({
+  const existing = await reg.pushManager.getSubscription();
+  const vapidKey = existing ? null : await fetchVapidPublicKey();
+  if (!existing && !vapidKey) return "default";
+  const sub = existing ?? (await reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY),
+    applicationServerKey: urlBase64ToUint8Array(vapidKey!),
   }));
   await savePushSubscription(userId, sub.toJSON());
   return permission;
