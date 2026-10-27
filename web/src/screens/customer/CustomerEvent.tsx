@@ -1,12 +1,13 @@
 // The company's list in one event: a section per supplier, in the admin's
 // order, each a live checklist ending with an add row and "אספתי".
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ItemAdder } from "../../components/ItemAdder";
+import { EventEndButtons } from "../../components/EventEndButtons";
 import { Layout } from "../../components/Layout";
-import { useAction, useToast } from "../../components/Toast";
+import { useToast } from "../../components/Toast";
 import { useEvent } from "../../hooks/useEvent";
-import { cancelEvent, closeEvent, fetchCompanyList } from "../../lib/api";
+import { fetchCompanyList } from "../../lib/api";
 import { readCache, writeCache } from "../../lib/cache";
 import { exportEvent } from "../../lib/exportExcel";
 import { itemCache, useCached, useLiveRows, useUnits } from "../../lib/live";
@@ -21,9 +22,7 @@ import { t } from "../../strings";
 export function CustomerEvent() {
   const { id } = useParams();
   const profile = useProfile();
-  const navigate = useNavigate();
   const showToast = useToast();
-  const runAction = useAction();
   const { event } = useEvent(id);
   // undefined while loading; null when the company has no list here.
   const [list, setList] = useState<List | null | undefined>(undefined);
@@ -64,7 +63,6 @@ export function CustomerEvent() {
     });
   };
 
-  const run = (action: () => Promise<void>) => runAction(action, () => navigate("/"));
 
   return (
     <Layout
@@ -100,16 +98,9 @@ export function CustomerEvent() {
         );
       })}
 
-      {editable && (
-        <div className="danger-zone">
-          {(event.scope === "company" || event.created_by === profile.id) && (
-            <button className="btn btn-secondary" onClick={() => run(() => closeEvent(event.id))}>{t.closeEvent}</button>
-          )}
-          {event.created_by === profile.id && (
-            <button className="btn btn-danger" onClick={() => run(() => cancelEvent(event.id))}>{t.cancelEvent}</button>
-          )}
-        </div>
-      )}
+      <EventEndButtons event={event}
+        canClose={event.scope === "company" || event.created_by === profile.id}
+        canCancel={event.created_by === profile.id} />
 
       {editing && (
         <RequestSheet request={rows.find((r) => r.id === editing.id) ?? editing} item={itemOf(editing.item_id)}

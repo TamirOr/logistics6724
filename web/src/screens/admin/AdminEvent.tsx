@@ -1,12 +1,12 @@
 // An event as the admin sees it: each company's list status, with close
 // and cancel.
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { EventEndButtons } from "../../components/EventEndButtons";
 import { Layout } from "../../components/Layout";
 import { ListStatusBadge, StatusCounts } from "../../components/StatusBadge";
-import { useAction } from "../../components/Toast";
 import { useEvent } from "../../hooks/useEvent";
-import { cancelEvent, closeEvent, fetchListOverviews } from "../../lib/api";
+import { fetchListOverviews } from "../../lib/api";
 import { exportEvent } from "../../lib/exportExcel";
 import { formatNeededBy } from "../../lib/time";
 import type { ListOverview } from "../../lib/types";
@@ -14,8 +14,6 @@ import { t } from "../../strings";
 
 export function AdminEvent() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const runAction = useAction();
   const { event } = useEvent(id);
   const [lists, setLists] = useState<ListOverview[]>([]);
 
@@ -25,7 +23,6 @@ export function AdminEvent() {
 
   if (!event) return <Layout title={t.loading} back>{null}</Layout>;
 
-  const run = (action: () => Promise<void>) => runAction(action, () => navigate("/"));
 
   return (
     <Layout title={event.name} back
@@ -42,12 +39,7 @@ export function AdminEvent() {
           </li>
         ))}
       </ul>
-      {event.status === "open" && (
-        <div className="danger-zone">
-          <button className="btn btn-secondary" onClick={() => run(() => closeEvent(event.id))}>{t.closeEvent}</button>
-          <button className="btn btn-danger" onClick={() => run(() => cancelEvent(event.id))}>{t.cancelEvent}</button>
-        </div>
-      )}
+      <EventEndButtons event={event} canClose canCancel />
     </Layout>
   );
 }
