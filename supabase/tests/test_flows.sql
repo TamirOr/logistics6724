@@ -418,3 +418,13 @@ select merge_item((select id from items where name = 'מנורת ראש'), (sele
 reset role;
 select tst.ok((select i.name from requests r join items i on i.id = r.item_id
                where r.event_id = (select v from tst.t where k = 'cancelled-ev')) = 'פנס ראש', 'merge moves requests of a cancelled event');
+
+-- A customer duplicating a battalion event copies only their own company --------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000003');
+insert into tst.t select 'bev2-dup', duplicate_event((select v from tst.t where k = 'bev2'), 'יום ספורט 2', null, '2026-11-12');
+reset role;
+select tst.ok((select count(*) from requests where event_id = (select v from tst.t where k = 'bev2-dup')
+               and company_id = '00000000-0000-0000-0000-0000000000c1') = 0, 'no rows written into another company');
+select tst.ok((select count(*) from requests where event_id = (select v from tst.t where k = 'bev2-dup')
+               and company_id = '00000000-0000-0000-0000-0000000000c2') = 1, 'own company requests copied');
