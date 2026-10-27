@@ -2,7 +2,7 @@
 // per month in a Google Drive folder, then deletes them from the database.
 // An event is deleted only after the file holding it uploaded successfully.
 import ExcelJS from "npm:exceljs@4.4.0";
-import { authorized, json, serviceClient } from "../_shared/env.ts";
+import { authorized, json, serverConfigs, serviceClient } from "../_shared/env.ts";
 import {
   addEmptyEventRow, addRequestRows, archivedEventIds, type ExportRow, REQUEST_SHEET, setupRequestSheet,
 } from "../_shared/excel.ts";
@@ -81,7 +81,8 @@ function monthKey(iso: string): string {
 
 Deno.serve(async (req) => {
   const db = serviceClient();
-  if (!(await authorized(req, db))) return json({ error: "unauthorized" }, 401);
+  const { cron_secret } = await serverConfigs(db, ["cron_secret"]);
+  if (!authorized(req, cron_secret)) return json({ error: "unauthorized" }, 401);
   const folder = Deno.env.get("DRIVE_FOLDER_ID")!;
 
   const { data, error } = await db.rpc("archive_candidates").limit(MAX_EVENTS_PER_RUN);

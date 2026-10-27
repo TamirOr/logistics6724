@@ -51,6 +51,8 @@ interface LiveOptions<T> {
   keep?: (row: T) => boolean;
   /** Saves the rows, so the screen opens with them when there is no signal. */
   cacheKey?: string;
+  /** A view to load from instead of the table, such as open_requests. Live updates still follow the table. */
+  source?: string;
 }
 
 export function useLiveRows<T extends { id: string }>(table: string, opts: LiveOptions<T>) {
@@ -63,7 +65,7 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
 
   const refetch = useCallback(async () => {
     if (!value) return;
-    let q = supabase.from(table).select("*").eq(column, value);
+    let q = supabase.from(optsRef.current.source ?? table).select("*").eq(column, value);
     if (optsRef.current.narrow) q = optsRef.current.narrow(q);
     const { data, error } = await q;
     if (!error) setRows(new Map((data as T[]).map((r) => [r.id, r])));
@@ -172,12 +174,13 @@ export const eventCache = createCache<LogisticsEvent>("events");
 
 /** Looks up cached rows by id, fetching any not cached yet. */
 export function useCached<T extends { id: string }>(cache: ReturnType<typeof createCache<T>>, ids: string[]) {
-  cache.useVersion();
+  const version = cache.useVersion();
   const key = ids.join(",");
   useEffect(() => {
     cache.ensure(ids);
   }, [cache, key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return cache.get;
+  // A new function whenever the cache changes, so memos that use it update.
+  return useCallback((id: string) => cache.get(id), [cache, version]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // Units change rarely and are few, so they load once per session. They are

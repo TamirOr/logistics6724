@@ -491,3 +491,13 @@ insert into tst.t select 'no-date', create_event('בלי תאריך', 'company')
 reset role;
 select tst.ok(needed_on = (now() at time zone 'Asia/Jerusalem')::date, 'an event without a date defaults to today')
 from events where id = (select v from tst.t where k = 'no-date');
+
+-- open_requests shows only open events, within row-level security --------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.ok(not exists (select 1 from open_requests o join events e on e.id = o.event_id where e.status <> 'open'),
+  'open_requests has no closed or cancelled events');
+select tst.ok(not exists (select 1 from open_requests where supplier_id <> '00000000-0000-0000-0000-0000000000a1'),
+  'open_requests keeps row-level security');
+select tst.ok((select count(*) from open_requests) > 0, 'open_requests has the supplier''s open work');
+reset role;
