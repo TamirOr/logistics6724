@@ -323,3 +323,11 @@ select tst.ok(exists (select 1 from information_schema.columns
   where table_name = 'export_rows' and column_name = 'needed_on'), 'export_rows has needed_on');
 select tst.ok(not exists (select 1 from pg_proc where proname = 'create_event' and pronargs = 3), 'old create_event overload is gone');
 reset role;
+
+-- List overviews filter by event status -------------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok((select count(*) from list_overview where event_status = 'open')
+  = (select count(*) from lists l join events e on e.id = l.event_id where e.status = 'open'),
+  'list_overview event_status matches the events');
+reset role;

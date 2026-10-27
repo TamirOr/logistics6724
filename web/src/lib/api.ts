@@ -29,8 +29,10 @@ export const sendCode = (email: string) =>
 export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
 
+/** The signed-in user's profile; null before sign-up. Throws when offline. */
 export async function fetchMyProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  if (error) throw error;
   return data as Profile | null;
 }
 
@@ -71,6 +73,10 @@ export const fetchEvents = (status: "open" | "history", sinceIso?: string, until
   if (untilIso) q = q.lt("created_at", untilIso);
   return rows<LogisticsEvent>(q);
 };
+
+/** Counts for every list of every open event the viewer can see. */
+export const fetchOpenListOverviews = () =>
+  rows<ListOverview>(supabase.from("list_overview").select("*").eq("event_status", "open"));
 
 export const fetchListOverviews = (eventIds: string[]) =>
   eventIds.length ? rows<ListOverview>(supabase.from("list_overview").select("*").in("event_id", eventIds)) : Promise.resolve([]);
