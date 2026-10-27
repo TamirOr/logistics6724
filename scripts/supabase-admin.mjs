@@ -34,13 +34,37 @@ export const annotation = (message) =>
 /** A SQL string literal. */
 export const sqlLiteral = (value) => `'${String(value).replaceAll("'", "''")}'`;
 
+const EMAIL = /^[^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"'<>]+$/;
+
+/**
+ * SMTP settings from the SMTP_* secrets, or null when SMTP_HOST is not set.
+ * A missing secret reaches the workflow as an empty string, and pasted
+ * values can carry spaces, so values are trimmed and checked here with a
+ * message that names the secret to fix.
+ */
+export function smtpFromEnv(env) {
+  const value = (name) => (env[name] ?? "").trim();
+  const host = value("SMTP_HOST");
+  if (!host) return null;
+
+  const user = value("SMTP_USER");
+  // App passwords are shown in groups of four with spaces; none belong in it.
+  const pass = value("SMTP_PASS").replace(/\s+/g, "");
+  const sender = value("SMTP_SENDER") || user;
+  if (!user || !pass) throw new Error("SMTP_HOST is set, but SMTP_USER or SMTP_PASS is empty");
+  if (!EMAIL.test(sender)) {
+    throw new Error("SMTP_SENDER must be a plain email address such as name@gmail.com (no spaces, quotes or name)");
+  }
+  return { host, port: value("SMTP_PORT") || "587", user, pass, sender };
+}
+
 /**
  * Auth settings for email sign-in. The 6-digit code needs our email
  * template, and Supabase allows custom templates on the free plan only with
  * a custom SMTP provider. Without one, emails keep Supabase's default
  * template, which carries a sign-in link instead of the code.
  */
-export function authSettings({ siteUrl, otpTemplate, smtp }) {
+export function authSettings({ siteUrl, otpTemplate, smtp = null }) {
   const settings = {
     site_url: siteUrl,
     uri_allow_list: siteUrl,
@@ -48,14 +72,14 @@ export function authSettings({ siteUrl, otpTemplate, smtp }) {
     mailer_otp_length: 6,
     mailer_otp_exp: 600,
   };
-  if (smtp.host) {
+  if (smtp) {
     Object.assign(settings, {
       mailer_subjects_magic_link: "קוד הכניסה שלך",
       mailer_templates_magic_link_content: otpTemplate,
       mailer_subjects_confirmation: "קוד הכניסה שלך",
       mailer_templates_confirmation_content: otpTemplate,
       smtp_host: smtp.host,
-      smtp_port: smtp.port ?? "587",
+      smtp_port: smtp.port,
       smtp_user: smtp.user,
       smtp_pass: smtp.pass,
       smtp_admin_email: smtp.sender,
@@ -105,7 +129,7 @@ async function ensureVapidKeys({ sql }) {
 
 async function configureAuth({ api }, env) {
   const otpTemplate = await readFile(new URL("../supabase/templates/otp.html", import.meta.url), "utf8");
-  const smtp = { host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, pass: env.SMTP_PASS, sender: env.SMTP_SENDER };
+  const smtp = smtpFromEnv(env);
   await api("PATCH", "/config/auth", authSettings({ siteUrl: env.SITE_URL, otpTemplate, smtp }));
 }
 
