@@ -16,6 +16,7 @@ import { Onboarding } from "./screens/shared/Onboarding";
 import { SignIn } from "./screens/shared/SignIn";
 import { Waiting } from "./screens/shared/Waiting";
 import { Catalog } from "./screens/supplier/Catalog";
+import { SupplierEvent } from "./screens/supplier/SupplierEvent";
 import { SupplierHome } from "./screens/supplier/SupplierHome";
 import type { UserRole } from "./lib/types";
 import { t } from "./strings";
@@ -31,7 +32,7 @@ const ROUTES: Record<UserRole, { path: string; element: JSX.Element }[]> = {
   ],
   supplier: [
     { path: "/", element: <SupplierHome /> },
-    { path: "/events/:id", element: <SupplierHome /> },
+    { path: "/events/:id", element: <SupplierEvent /> },
     { path: "/catalog", element: <Catalog /> },
     { path: "/history", element: <History /> },
   ],

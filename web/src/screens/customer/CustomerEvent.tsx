@@ -14,7 +14,7 @@ import { addRequest, collectSection, isCollectable, restoreRequest } from "../..
 import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
 import type { List, Request } from "../../lib/types";
-import { RequestRow } from "./RequestRow";
+import { RequestRow } from "../../components/RequestRow";
 import { RequestSheet } from "./RequestSheet";
 import { t } from "../../strings";
 
