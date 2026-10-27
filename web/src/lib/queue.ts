@@ -3,9 +3,13 @@
 // Every write the user makes goes through enqueue(). The entry is saved to
 // localStorage, its optimistic effects show on screen at once (see
 // applyEffects), and it is sent in the background in order. Network errors
-// keep the entry and retry with backoff. Errors from the server (a rule or
-// permission) drop the entry and notify listeners, so the screen falls back
-// to the server state.
+// keep the entry and retry with backoff; so does an expired session, after
+// a refresh. Errors from the server (a rule or permission) drop the entry
+// and notify listeners, so the screen falls back to the server state.
+//
+// The queue belongs to the signed-in user: it is stored per user id and
+// only sent while that user is signed in, so on a shared phone one user's
+// writes are never sent as another's.
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
 
@@ -32,19 +36,20 @@ export interface QueueEntry {
 type CommitListener = (entry: QueueEntry, data: unknown) => void;
 type RejectListener = (entry: QueueEntry, message: string) => void;
 
-const STORAGE_KEY = "write-queue-v1";
+const STORAGE_PREFIX = "write-queue-v1:";
 const MAX_BACKOFF_MS = 30_000;
 
-let entries: QueueEntry[] = load();
+let userId: string | null = null;
+let entries: QueueEntry[] = [];
 let flushing = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const changeListeners = new Set<() => void>();
 const commitListeners = new Set<CommitListener>();
 const rejectListeners = new Set<RejectListener>();
 
-function load(): QueueEntry[] {
+function load(user: string): QueueEntry[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+    return JSON.parse(localStorage.getItem(STORAGE_PREFIX + user) ?? "[]");
   } catch {
     return [];
   }
@@ -52,12 +57,27 @@ function load(): QueueEntry[] {
 
 function setEntries(next: QueueEntry[]) {
   entries = next;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-    // Storage full or blocked: the queue still works for this session.
+  if (userId) {
+    try {
+      localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify(entries));
+    } catch {
+      // Storage full or blocked: the queue still works for this session.
+    }
   }
   changeListeners.forEach((l) => l());
+}
+
+/** Switches to the signed-in user's queue (null when signed out) and sends what it holds. */
+export function setQueueUser(next: string | null) {
+  if (next === userId) return;
+  userId = next;
+  setEntries(next ? load(next) : []);
+  scheduleFlush();
+}
+
+/** Drops the signed-in user's unsent writes. Used on an explicit sign-out. */
+export function clearQueue() {
+  setEntries([]);
 }
 
 /** Queues a write. With delayMs it waits that long, so cancel() can undo it. */
@@ -130,31 +150,53 @@ async function send(m: Mutation) {
   }
 }
 
+type SendError = { code?: string; message?: string };
+
 // A Postgres error carries a SQLSTATE code. A failed fetch has none.
-function isNetworkError(error: { code?: string; message?: string }): boolean {
+function isNetworkError(error: SendError): boolean {
   return !navigator.onLine || !error.code || /fetch|network/i.test(error.message ?? "");
 }
 
+// PostgREST answers PGRST301 when the access token expired, typical after
+// hours offline. That is not a rejection of the write.
+function isExpiredSession(error: SendError): boolean {
+  return error.code === "PGRST301" || /jwt expired/i.test(error.message ?? "");
+}
+
+const without = (entry: QueueEntry) => entries.filter((e) => e.id !== entry.id);
+
+function retryLater(entry: QueueEntry) {
+  const backoff = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** entry.tries);
+  setEntries(entries.map((e) => (e.id === entry.id ? { ...e, tries: e.tries + 1, notBefore: Date.now() + backoff } : e)));
+}
+
 async function flush() {
-  if (flushing) return;
+  if (flushing || !userId) return;
   flushing = true;
+  const owner = userId;
   try {
     for (;;) {
       const entry = entries.find((e) => e.notBefore <= Date.now());
       if (!entry) break;
 
       const { data, error } = await send(entry.mutation);
-      const alreadyApplied = error?.code === "23505" && entry.mutation.kind === "insert";
+      // Signed out or switched user while this was in flight: leave the
+      // queue as it is now.
+      if (userId !== owner) break;
 
-      if (!error || alreadyApplied) {
-        setEntries(entries.filter((e) => e.id !== entry.id));
+      if (!error || (error.code === "23505" && entry.mutation.kind === "insert")) {
+        // A duplicate-key insert means an earlier try already landed.
+        setEntries(without(entry));
         commitListeners.forEach((l) => l(entry, data));
+      } else if (isExpiredSession(error)) {
+        await supabase.auth.refreshSession();
+        retryLater(entry);
+        break;
       } else if (isNetworkError(error)) {
-        const backoff = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** entry.tries);
-        setEntries(entries.map((e) => (e.id === entry.id ? { ...e, tries: e.tries + 1, notBefore: Date.now() + backoff } : e)));
+        retryLater(entry);
         break;
       } else {
-        setEntries(entries.filter((e) => e.id !== entry.id));
+        setEntries(without(entry));
         rejectListeners.forEach((l) => l(entry, error.message));
       }
     }
@@ -171,4 +213,3 @@ window.addEventListener("online", () => {
   setEntries(entries.map((e) => (e.tries > 0 ? { ...e, notBefore: Date.now() } : e)));
   scheduleFlush();
 });
-scheduleFlush();

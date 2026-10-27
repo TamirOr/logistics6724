@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { fetchMyProfile } from "./api";
+import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
 
 interface SessionState {
@@ -22,6 +23,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const reloadProfile = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
+    setQueueUser(data.session?.user.id ?? null);
     setSession(data.session);
     setProfile(data.session ? await fetchMyProfile(data.session.user.id) : null);
     setLoading(false);
@@ -48,6 +50,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [profile?.approval, reloadProfile]);
 
   const signOut = useCallback(async () => {
+    clearQueue();
     await supabase.auth.signOut();
   }, []);
 
