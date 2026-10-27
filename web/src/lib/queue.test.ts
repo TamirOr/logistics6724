@@ -161,4 +161,40 @@ describe("queue", () => {
     expect(send).not.toHaveBeenCalled();
     expect(stored()).toHaveLength(0);
   });
+
+  it("never lets a later write overtake one that is retrying", async () => {
+    const q = await freshQueue();
+    const sent: string[] = [];
+    send.mockImplementation(async () => ({ data: { id: "r1" }, error: null }));
+    send.mockImplementationOnce(async () => { sent.push("insert"); return { data: null, error: { message: "Failed to fetch", code: "" } }; });
+    q.enqueue({ kind: "insert", table: "requests", row: { id: "r1" } });
+    await flushTimers();
+    send.mockImplementation(async () => { sent.push(sent.length === 1 ? "update" : "insert-retry"); return { data: { id: "r1" }, error: null }; });
+    q.enqueue({ kind: "update", table: "requests", id: "r1", patch: { urgent: true } });
+    await flushTimers();
+    expect(sent).toEqual(["insert"]);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(sent.length).toBe(3);
+    expect(stored()).toHaveLength(0);
+  });
+
+  it("lets writes pass a delete that is only waiting out its undo delay", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValue({ data: { id: "r2" }, error: null });
+    q.enqueue({ kind: "rpc", fn: "delete_request", args: { p_request: "r1" } }, [], 5000);
+    q.enqueue({ kind: "update", table: "requests", id: "r2", patch: { urgent: true } });
+    await flushTimers();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(stored()).toHaveLength(1);
+  });
+
+  it("rejects an update that matched no row", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValue({ data: null, error: null });
+    const rejected = vi.fn();
+    q.onRejected(rejected);
+    q.enqueue({ kind: "update", table: "requests", id: "gone", patch: { urgent: true } });
+    await flushTimers();
+    expect(rejected).toHaveBeenCalledWith(expect.anything(), q.UPDATE_MISSED);
+  });
 });
