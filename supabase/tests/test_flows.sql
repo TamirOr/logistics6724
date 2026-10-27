@@ -261,3 +261,31 @@ select tst.ok(keepalive() is not null, 'anon keepalive');
 select tst.fails($$select * from units$$, 'anon cannot read units');
 reset role;
 
+-- A battalion event stays open while another company has not filled its list --
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000001');
+select set_user_active('10000000-0000-0000-0000-000000000003', true);
+insert into tst.t select 'bev2', create_event('יום ספורט', 'battalion');
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into requests (list_id, item_id, quantity)
+values ((select id from lists where event_id = (select v from tst.t where k = 'bev2')
+         and company_id = '00000000-0000-0000-0000-0000000000c1'), (select id from items where name = 'סוללה AA'), 2);
+select tst.act('10000000-0000-0000-0000-000000000004');
+update requests set status = 'ready' where event_id = (select v from tst.t where k = 'bev2');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select mark_collected((select id from lists where event_id = (select v from tst.t where k = 'bev2')
+  and company_id = '00000000-0000-0000-0000-0000000000c1'), '00000000-0000-0000-0000-0000000000a1');
+select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'open',
+  'battalion event stays open while company 2 list is empty');
+select tst.act('10000000-0000-0000-0000-000000000003');
+insert into requests (list_id, item_id, quantity)
+values ((select id from lists where event_id = (select v from tst.t where k = 'bev2')
+         and company_id = '00000000-0000-0000-0000-0000000000c2'), (select id from items where name = 'סוללה AA'), 1);
+select tst.act('10000000-0000-0000-0000-000000000004');
+update requests set status = 'ready' where event_id = (select v from tst.t where k = 'bev2') and status = 'pending';
+select tst.act('10000000-0000-0000-0000-000000000003');
+select mark_collected((select id from lists where event_id = (select v from tst.t where k = 'bev2')
+  and company_id = '00000000-0000-0000-0000-0000000000c2'), '00000000-0000-0000-0000-0000000000a1');
+select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'closed',
+  'battalion event closes once every list is filled and done');
+

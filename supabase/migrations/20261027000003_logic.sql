@@ -236,14 +236,16 @@ begin
 end $$;
 grant execute on function cancel_event to authenticated;
 
--- Closes an open event when every request that can still move is done:
--- collected, or missing (nothing to collect). Needs at least one request,
--- so a battalion event does not close while companies are still filling.
+-- Closes an open event when every list in it has requests and every
+-- request is done: collected, or missing (nothing to collect). A battalion
+-- event with a list still empty stays open, because that company may still
+-- be filling it; its creator or an admin closes it by hand.
 create function maybe_close_event(p_event uuid) returns void
 language sql security definer set search_path = public as $$
   update events e set status = 'closed', closed_at = now()
   where e.id = p_event and e.status = 'open'
-    and exists (select 1 from requests r where r.event_id = e.id)
+    and not exists (select 1 from lists l where l.event_id = e.id
+                    and not exists (select 1 from requests r where r.list_id = l.id))
     and not exists (select 1 from requests r where r.event_id = e.id
                     and r.status in ('pending', 'ready', 'partial', 'cancelled'))
 $$;
