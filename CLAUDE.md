@@ -23,7 +23,11 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
 - `supabase/migrations/`: schema, RLS, business rules, notifications. Migrations are append-only once deployed: add a new file, don't edit an applied one.
 - `supabase/functions/`: Deno Edge Functions (`push-dispatch`, `archive`). `_shared/` holds code shared with the web app.
 - `supabase/tests/`: SQL tests that run against plain Postgres with a stub of the Supabase auth schema.
+- `supabase/restore/`, `supabase/seed/`: restore-drill SQL and the staging seed.
 - `web/`: Vite + React + TypeScript PWA.
+- `scripts/`: Node tools the workflows run (`supabase-admin.mjs`, `drive.mjs`, ...), tested with `node --test scripts/*.test.mjs`.
+- `.github/workflows/`: CI, deploy (main → staging, tag `v*` → production), health, backup, restore drill.
+- `docs/runbook.md`: one entry per alert and support complaint. Add one with every new health check or alert.
 
 ## Commands
 
@@ -36,4 +40,6 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
 - Every permission is enforced with RLS or a guard trigger. Add a SQL test for every new rule.
 - New functions are executable by nobody by default. Grant `execute ... to authenticated` right after a function the app calls; leave server-only helpers ungranted. Never expose a secret through a function the app can call: secrets are read only through `server_configs()`, which only the service role can call.
 - RLS policies call helpers as `(select my_role())` and must not form a cycle between tables (requests → lists → requests).
+- Nothing personal goes to Sentry, logs, workflow output or the diagnostics text: ids and counts only. The repository and its workflow logs are public.
+- Migrations stay compatible with the previous web build for one release (expand, then contract); destructive ones need the `db-breaking` PR label.
 - Commits use Conventional Commits (`feat(db): …`, `fix(web): …`), one logical change per commit.

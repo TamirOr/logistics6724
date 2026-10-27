@@ -197,6 +197,8 @@ jobs:
           export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
           export VITE_APP_BUILT_AT="$(git log -1 --format=%ct)"
           npm run build
+          # built_at is the value for min_client_version (docs/runbook.md).
+          echo "::notice title=Build::version $VITE_APP_VERSION built_at $VITE_APP_BUILT_AT"
 
       - name: Upload source maps to Sentry
         if: env.SENTRY_AUTH_TOKEN != ''
@@ -268,4 +270,6 @@ jobs:
         run: |
           previous=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
           git log --format=%s ${previous:+$previous..}"$GITHUB_REF_NAME" | node scripts/release-notes.mjs > notes.md
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+          # A release drafted in the browser (which is how a tag is made there) gets these notes too.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+          else gh release create "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag; fi
