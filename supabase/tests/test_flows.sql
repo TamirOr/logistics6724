@@ -448,3 +448,29 @@ select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'סוללה  AA')
   'supplier adding a hidden name unhides it');
 reset role;
 select tst.ok((select active from items where name = 'סוללה AA'), 'item active again');
+
+-- Missing items are grouped per event and link to it; cancelled events stay quiet --
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'miss-a', create_event('חסרים א', 'company', null, '2026-11-08');
+insert into tst.t select 'miss-b', create_event('חסרים ב', 'company', null, '2026-11-09');
+insert into requests (list_id, item_id, quantity)
+select l.id, i.id, 1 from lists l, items i
+where l.event_id in ((select v from tst.t where k = 'miss-a'), (select v from tst.t where k = 'miss-b'))
+  and i.supplier_id = '00000000-0000-0000-0000-0000000000a1' and i.active and i.verified
+  and i.name in ('סוללה AA', 'ג׳ריקן מים');
+select tst.act('10000000-0000-0000-0000-000000000004');
+update requests set status = 'missing'
+where event_id in ((select v from tst.t where k = 'miss-a'), (select v from tst.t where k = 'miss-b'))
+  and item_id = (select id from items where name = 'סוללה AA');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select cancel_event((select v from tst.t where k = 'miss-b'));
+reset role;
+truncate notification_outbox;
+select tst.ok((select count(*) from missing_queue) = 2, 'one queue row per event');
+update missing_queue set send_after = now() - interval '1 second';
+select tst.ok(flush_missing_queue() = 1, 'only the live event sends');
+select tst.ok((select url from notification_outbox where kind = 'missing') = '/events/' || (select v from tst.t where k = 'miss-a'),
+  'missing notification opens its event');
+select tst.ok((select body from notification_outbox where kind = 'missing') = 'אפסנאות: חסרים 1 פריטים: סוללה AA', 'missing text');
+select tst.ok((select count(*) from missing_queue) = 0, 'queue emptied, cancelled event included');
