@@ -300,3 +300,10 @@ select tst.ok(not exists (select 1 from pg_proc where proname = 'reopen_event'),
 reset role;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev3')) = 'closed',
   'admin-closed event stays closed');
+
+-- An admin cannot deactivate themselves --------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000001');
+select tst.fails($$select set_user_active('10000000-0000-0000-0000-000000000001', false)$$, 'admin deactivates self');
+reset role;
+select tst.ok((select active from users where id = '10000000-0000-0000-0000-000000000001'), 'admin still active');

@@ -147,6 +147,7 @@ export const t = {
   activate: "הפעלה",
   moveToUnit: "העברה ליחידה",
   inactive: "לא פעיל",
+  me: "אני",
   addUnit: "הוספת יחידה",
   unitName: "שם היחידה",
   unitKind: "סוג",
