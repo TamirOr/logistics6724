@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeError } from "./errors";
+import { describeError, isItemNameTaken } from "./errors";
 import { t } from "../strings";
 
 describe("describeError", () => {
@@ -13,5 +13,13 @@ describe("describeError", () => {
   it("falls back to the generic message without a reason", () => {
     expect(describeError(undefined)).toBe(t.genericError);
     expect(describeError({ message: "" })).toBe(t.genericError);
+  });
+
+  it("shows known server reasons in Hebrew instead of the raw text", () => {
+    const taken = { code: "23505", message: 'duplicate key value violates unique constraint "items_active_name_unique"' };
+    expect(describeError(taken)).toBe(t.errItemNameTaken);
+    expect(isItemNameTaken(taken)).toBe(true);
+    expect(describeError({ message: "item is hidden by the supplier" })).toBe(t.errItemHidden);
+    expect(isItemNameTaken({ message: "item is hidden by the supplier" })).toBe(false);
   });
 });

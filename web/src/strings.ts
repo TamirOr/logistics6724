@@ -174,5 +174,8 @@ export const t = {
   unsynced: (n: number) => `${n} שינויים ממתינים לסנכרון`,
   rejectedChange: "השינוי נדחה על ידי השרת",
   genericError: "משהו השתבש. נסו שוב.",
+  errItemNameTaken: "כבר יש בקטלוג פריט בשם הזה.",
+  errItemHidden: "הפריט הוסתר על ידי גורם האספקה. בחרו פריט אחר או פנו אליו.",
+  nameTakenMerge: (name: string) => `כבר יש פריט בשם "${name}". למזג אליו?`,
   loading: "טוען…",
 };
