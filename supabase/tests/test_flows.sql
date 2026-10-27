@@ -97,7 +97,8 @@ select tst.fails($$select create_event('x', 'company') from (select tst.act('100
 select tst.act('10000000-0000-0000-0000-000000000002');
 insert into tst.t select 'ev1', create_event('תרגיל לילה', 'company', '22:00');
 insert into tst.t select 'list1', id from lists where event_id = (select v from tst.t where k = 'ev1');
-select tst.ok((select needed_at from events where id = (select v from tst.t where k = 'ev1')) > now(), 'needed_at is in the future');
+select tst.ok((select needed_at from events where id = (select v from tst.t where k = 'ev1'))
+  = ((now() at time zone 'Asia/Jerusalem')::date + time '22:00') at time zone 'Asia/Jerusalem', 'a time without a date means today');
 
 insert into requests (id, list_id, item_id, quantity, status, supplier_note)
 values ('20000000-0000-0000-0000-000000000001', (select v from tst.t where k = 'list1'),
@@ -160,6 +161,11 @@ select tst.ok(status = 'partial', 'unmark returns to partial') from requests whe
 select mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a1');
 select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'open', 'still open with kitchen ready');
 select mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a2');
+select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'open', 'done event stays open during the quiet period');
+reset role;
+select tst.ok(close_finished_events() = 0, 'the default 30-minute quiet period has not passed');
+select tst.ok(close_finished_events(interval '0') = 1, 'the job closes the finished event');
+set role authenticated;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'closed', 'event auto-closes');
 select tst.fails($$insert into requests (list_id, item_id, quantity) values ((select v from tst.t where k = 'list1'), (select id from items where name = 'סוללה AA'), 1)$$,
   'closed event is read-only');
@@ -275,6 +281,9 @@ update requests set status = 'ready' where event_id = (select v from tst.t where
 select tst.act('10000000-0000-0000-0000-000000000002');
 select mark_collected((select id from lists where event_id = (select v from tst.t where k = 'bev2')
   and company_id = '00000000-0000-0000-0000-0000000000c1'), '00000000-0000-0000-0000-0000000000a1');
+reset role;
+select close_finished_events(interval '0');
+set role authenticated;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'open',
   'battalion event stays open while company 2 list is empty');
 select tst.act('10000000-0000-0000-0000-000000000003');
@@ -286,6 +295,9 @@ update requests set status = 'ready' where event_id = (select v from tst.t where
 select tst.act('10000000-0000-0000-0000-000000000003');
 select mark_collected((select id from lists where event_id = (select v from tst.t where k = 'bev2')
   and company_id = '00000000-0000-0000-0000-0000000000c2'), '00000000-0000-0000-0000-0000000000a1');
+reset role;
+select close_finished_events(interval '0');
+set role authenticated;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'bev2')) = 'closed',
   'battalion event closes once every list is filled and done');
 
@@ -365,3 +377,141 @@ update units set active = true where id = '00000000-0000-0000-0000-0000000000a2'
 select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.fails($$select move_user('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000a1')$$, 'non-admin moves a user');
 reset role;
+
+-- Marking the last request missing keeps the event open for undo -----------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'quiet', create_event('בדיקת שקט', 'company', null, '2026-11-05');
+insert into requests (list_id, item_id, quantity)
+values ((select id from lists where event_id = (select v from tst.t where k = 'quiet')), (select id from items where name = 'סוללה AA'), 4);
+select tst.act('10000000-0000-0000-0000-000000000004');
+update requests set status = 'missing' where event_id = (select v from tst.t where k = 'quiet');
+select tst.ok((select status from events where id = (select v from tst.t where k = 'quiet')) = 'open', 'still open right after the last missing');
+update requests set status = 'ready' where event_id = (select v from tst.t where k = 'quiet');
+select tst.ok((select status from requests where event_id = (select v from tst.t where k = 'quiet')) = 'ready', 'supplier undoes missing to ready');
+reset role;
+select tst.ok(close_finished_events(interval '0') = 0, 'a ready request keeps the event open');
+
+-- The creator of a battalion event can close it; another customer cannot ---------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'bev-own', create_event('מטווח', 'battalion', null, '2026-11-06');
+select tst.act('10000000-0000-0000-0000-000000000003');
+select tst.fails($$select close_event((select v from tst.t where k = 'bev-own'))$$, 'another company closes a battalion event');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select close_event((select v from tst.t where k = 'bev-own'));
+reset role;
+select tst.ok((select status from events where id = (select v from tst.t where k = 'bev-own')) = 'closed', 'creator closes battalion event');
+
+-- An item used in a cancelled event can still be merged ---------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'cancelled-ev', create_event('אירוע שבוטל', 'company', null, '2026-11-07');
+select add_item('00000000-0000-0000-0000-0000000000a1', 'מנורת ראש');
+insert into requests (list_id, item_id, quantity)
+values ((select id from lists where event_id = (select v from tst.t where k = 'cancelled-ev')), (select id from items where name = 'מנורת ראש'), 2);
+select cancel_event((select v from tst.t where k = 'cancelled-ev'));
+select tst.fails($$update requests set quantity = 3 where event_id = (select v from tst.t where k = 'cancelled-ev')$$,
+  'customer edits a request in a cancelled event');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select add_item('00000000-0000-0000-0000-0000000000a1', 'פנס ראש');
+select merge_item((select id from items where name = 'מנורת ראש'), (select id from items where name = 'פנס ראש'));
+reset role;
+select tst.ok((select i.name from requests r join items i on i.id = r.item_id
+               where r.event_id = (select v from tst.t where k = 'cancelled-ev')) = 'פנס ראש', 'merge moves requests of a cancelled event');
+
+-- A customer duplicating a battalion event copies only their own company --------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000003');
+insert into tst.t select 'bev2-dup', duplicate_event((select v from tst.t where k = 'bev2'), 'יום ספורט 2', null, '2026-11-12');
+reset role;
+select tst.ok((select count(*) from requests where event_id = (select v from tst.t where k = 'bev2-dup')
+               and company_id = '00000000-0000-0000-0000-0000000000c1') = 0, 'no rows written into another company');
+select tst.ok((select count(*) from requests where event_id = (select v from tst.t where k = 'bev2-dup')
+               and company_id = '00000000-0000-0000-0000-0000000000c2') = 1, 'own company requests copied');
+
+-- Catalog matching ---------------------------------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok((select name from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן מים')) = 'ג׳ריקן מים',
+  'exact_item matches despite the missing geresh');
+select tst.ok((select count(*) from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן')) = 0, 'exact_item is not fuzzy');
+select tst.ok((select bool_and(similarity <= score) from search_items('00000000-0000-0000-0000-0000000000a1', 'סול')),
+  'similarity excludes the ranking boost');
+reset role;
+select tst.fails($$insert into items (supplier_id, name, verified) values ('00000000-0000-0000-0000-0000000000a1', 'ג''ריקן  מים', true)$$,
+  'a second active item with the same normalized name');
+update items set active = false where name = 'סוללה AA';
+set role authenticated;
+select tst.fails($$select add_item('00000000-0000-0000-0000-0000000000a1', 'סוללה AA')$$, 'customer revives a hidden item');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'סוללה  AA') = (select id from items where name = 'סוללה AA'),
+  'supplier adding a hidden name unhides it');
+reset role;
+select tst.ok((select active from items where name = 'סוללה AA'), 'item active again');
+
+-- Missing items are grouped per event and link to it; cancelled events stay quiet --
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'miss-a', create_event('חסרים א', 'company', null, '2026-11-08');
+insert into tst.t select 'miss-b', create_event('חסרים ב', 'company', null, '2026-11-09');
+insert into requests (list_id, item_id, quantity)
+select l.id, i.id, 1 from lists l, items i
+where l.event_id in ((select v from tst.t where k = 'miss-a'), (select v from tst.t where k = 'miss-b'))
+  and i.supplier_id = '00000000-0000-0000-0000-0000000000a1' and i.active and i.verified
+  and i.name in ('סוללה AA', 'ג׳ריקן מים');
+select tst.act('10000000-0000-0000-0000-000000000004');
+update requests set status = 'missing'
+where event_id in ((select v from tst.t where k = 'miss-a'), (select v from tst.t where k = 'miss-b'))
+  and item_id = (select id from items where name = 'סוללה AA');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select cancel_event((select v from tst.t where k = 'miss-b'));
+reset role;
+truncate notification_outbox;
+select tst.ok((select count(*) from missing_queue) = 2, 'one queue row per event');
+update missing_queue set send_after = now() - interval '1 second';
+select tst.ok(flush_missing_queue() = 1, 'only the live event sends');
+select tst.ok((select url from notification_outbox where kind = 'missing') = '/events/' || (select v from tst.t where k = 'miss-a'),
+  'missing notification opens its event');
+select tst.ok((select body from notification_outbox where kind = 'missing') = 'אפסנאות: חסרים 1 פריטים: סוללה AA', 'missing text');
+select tst.ok((select count(*) from missing_queue) = 0, 'queue emptied, cancelled event included');
+
+-- Model invariants --------------------------------------------------------------
+reset role;
+select tst.fails($$update users set role = 'supplier' where id = '10000000-0000-0000-0000-000000000002'$$,
+  'a customer in a company cannot become a supplier without moving');
+select tst.fails($$update units set kind = 'supplier' where id = '00000000-0000-0000-0000-0000000000c1'$$, 'a unit changes kind');
+select tst.fails($$insert into notification_outbox (kind, body) values ('x', 'no target')$$, 'a notification without a target');
+select tst.fails($$insert into notification_outbox (kind, body, target_user, target_all_customers)
+  values ('x', 'two targets', '10000000-0000-0000-0000-000000000002', true)$$, 'a notification with two targets');
+select tst.ok(not exists (select 1 from events where needed_on is null), 'every event has a date');
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+insert into tst.t select 'no-date', create_event('בלי תאריך', 'company');
+reset role;
+select tst.ok(needed_on = (now() at time zone 'Asia/Jerusalem')::date, 'an event without a date defaults to today')
+from events where id = (select v from tst.t where k = 'no-date');
+
+-- open_requests shows only open events, within row-level security --------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.ok(not exists (select 1 from open_requests o join events e on e.id = o.event_id where e.status <> 'open'),
+  'open_requests has no closed or cancelled events');
+select tst.ok(not exists (select 1 from open_requests where supplier_id <> '00000000-0000-0000-0000-0000000000a1'),
+  'open_requests keeps row-level security');
+select tst.ok((select count(*) from open_requests) > 0, 'open_requests has the supplier''s open work');
+reset role;
+
+-- A shared phone's push subscription follows the signed-in user -------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select register_push_subscription('https://push.example/abc', 'k', 'a');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select register_push_subscription('https://push.example/abc', 'k2', 'a2');
+select tst.ok((select count(*) from push_subscriptions) = 1, 'the new user owns the phone''s subscription');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok((select count(*) from push_subscriptions) = 0, 'the previous user no longer has it');
+reset role;
+select tst.ok((select user_id from push_subscriptions where endpoint = 'https://push.example/abc')
+  = '10000000-0000-0000-0000-000000000004', 'subscription moved');
+delete from push_subscriptions;

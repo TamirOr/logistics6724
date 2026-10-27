@@ -37,9 +37,9 @@ export interface LogisticsEvent {
   id: string;
   name: string;
   scope: EventScope;
-  needed_on: string | null;
+  needed_on: string;
   needed_by: string | null;
-  needed_at: string | null;
+  needed_at: string;
   status: EventStatus;
   created_by: string | null;
   created_by_unit: string | null;
@@ -99,7 +99,10 @@ export interface ItemSearchResult {
   name: string;
   verified: boolean;
   matched_alias: string | null;
+  /** Ranking: word similarity plus a boost for prefix matches. */
   score: number;
+  /** Plain word similarity, which the "did you mean" threshold uses. */
+  similarity: number;
   default_quantity: number | null;
 }
 

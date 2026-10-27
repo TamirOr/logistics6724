@@ -24,7 +24,7 @@ const byUrgencyThenAge = (a: Request, b: Request) =>
   Number(b.urgent) - Number(a.urgent) || a.created_at.localeCompare(b.created_at);
 
 const byNeededAt = (a: LogisticsEvent, b: LogisticsEvent) =>
-  (a.needed_at ?? "9999").localeCompare(b.needed_at ?? "9999") || a.created_at.localeCompare(b.created_at);
+  a.needed_at.localeCompare(b.needed_at) || a.created_at.localeCompare(b.created_at);
 
 export function SupplierHome() {
   const profile = useProfile();
@@ -43,6 +43,7 @@ export function SupplierHome() {
   const { rows, refetch } = useLiveRows<Request>("requests", {
     column: "supplier_id",
     value: supplierId,
+    source: "open_requests",
     narrow: (q) => q.neq("status", "collected"),
     keep: (r) => r.status !== "collected",
     cacheKey: `requests:supplier:${supplierId}`,
@@ -60,7 +61,10 @@ export function SupplierHome() {
   useEffect(loadSuggestions, [loadSuggestions, unverifiedCount]);
 
   // Only requests of open events; an event not loaded yet still shows.
-  const open = rows.filter((r) => (eventOf(r.event_id)?.status ?? "open") === "open");
+  const open = useMemo(
+    () => rows.filter((r) => (eventOf(r.event_id)?.status ?? "open") === "open"),
+    [rows, eventOf],
+  );
   const openEvents = useMemo(
     () => [...new Set(open.map((r) => r.event_id))].map((id) => eventOf(id))
       .filter((e): e is LogisticsEvent => !!e).sort(byNeededAt),

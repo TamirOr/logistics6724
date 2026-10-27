@@ -2,7 +2,7 @@
 // autocomplete from that supplier's catalog. An unknown name first offers
 // "התכוונת ל...?", and creates an unverified item only if the user insists.
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { addItem, searchItems, suggestItems } from "../lib/api";
+import { addItem, exactItem, searchItems, suggestItems } from "../lib/api";
 import type { ItemSearchResult } from "../lib/types";
 import { QuantityInput } from "./QuantityInput";
 import { useAction } from "./Toast";
@@ -45,8 +45,9 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
     nameRef.current?.focus();
   };
 
-  const add = (itemId: string) => {
-    onAdd(itemId, Math.max(1, quantity));
+  /** With a default from history, unless the user set the quantity. */
+  const add = (itemId: string, defaultQuantity: number | null = null) => {
+    onAdd(itemId, Math.max(1, quantityTouched || defaultQuantity == null ? quantity : defaultQuantity));
     reset();
   };
 
@@ -71,10 +72,12 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
     const typed = name.trim();
     if (!typed) return;
     runBusy(async () => {
+      // The server normalizes (geresh, plurals, final letters), so "גריקן מים"
+      // finds "ג׳ריקן מים" without asking.
+      const exact = await exactItem(supplierId, typed);
+      if (exact) return add(exact.id, exact.default_quantity);
       const found = await suggestItems(supplierId, typed);
-      const exact = found.find((s) => s.name === typed);
-      if (exact) add(exact.id);
-      else if (found.length) setSuggestions(found);
+      if (found.length) setSuggestions(found);
       else await create();
     });
   };

@@ -1,18 +1,18 @@
-// Events from the last 90 days, read-only, each with "שכפל". Also the
-// picker behind "שכפל אירוע קודם", and the date-range Excel export.
+// Events within the retention period (app_config, 90 days), read-only, each
+// with "שכפל". Also the picker behind "שכפל אירוע קודם", and the date-range
+// Excel export.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { EventCard } from "../../components/EventCard";
 import { Layout } from "../../components/Layout";
 import { useAction } from "../../components/Toast";
-import { fetchEvents, fetchListOverviews } from "../../lib/api";
+import { fetchEvents, fetchListOverviews, fetchTuning } from "../../lib/api";
 import { exportHistory } from "../../lib/exportExcel";
 import { useProfile } from "../../lib/session";
 import { daysAgo } from "../../lib/time";
 import type { ListOverview, LogisticsEvent } from "../../lib/types";
 import { t } from "../../strings";
 
-const RETENTION_DAYS = 90;
 const toDateInput = (iso: string) => iso.slice(0, 10);
 
 export function History({ pick = false }: { pick?: boolean }) {
@@ -25,7 +25,7 @@ export function History({ pick = false }: { pick?: boolean }) {
   const [to, setTo] = useState(toDateInput(new Date().toISOString()));
 
   useEffect(() => {
-    fetchEvents("history", daysAgo(RETENTION_DAYS)).then(async (evs) => {
+    fetchTuning("retention_days", "90").then((days) => fetchEvents("history", daysAgo(Number(days)))).then(async (evs) => {
       setEvents(evs);
       if (profile.role === "customer") setLists(await fetchListOverviews(evs.map((e) => e.id)));
     });

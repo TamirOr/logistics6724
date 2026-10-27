@@ -13,11 +13,12 @@ export function CustomerHome() {
   const navigate = useNavigate();
   const { events, lists } = useOpenEvents(`company_id=eq.${profile.unit_id}`);
 
-  const listOf = (eventId: string) => lists.find((l) => l.event_id === eventId && l.company_id === profile.unit_id);
-  const unfilled = (eventId: string) => {
-    const e = events?.find((x) => x.id === eventId);
-    return e?.scope === "battalion" && (listOf(eventId)?.n_total ?? 0) === 0;
-  };
+  const listByEvent = new Map(lists.filter((l) => l.company_id === profile.unit_id).map((l) => [l.event_id, l]));
+  const listOf = (eventId: string) => listByEvent.get(eventId);
+  // Battalion events this company has not filled yet go on top.
+  const unfilledIds = new Set((events ?? [])
+    .filter((e) => e.scope === "battalion" && (listOf(e.id)?.n_total ?? 0) === 0).map((e) => e.id));
+  const unfilled = (eventId: string) => unfilledIds.has(eventId);
   const sorted = [...(events ?? [])].sort((a, b) =>
     Number(unfilled(b.id)) - Number(unfilled(a.id)) || b.created_at.localeCompare(a.created_at));
 

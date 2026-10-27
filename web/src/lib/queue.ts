@@ -165,6 +165,24 @@ function isExpiredSession(error: SendError): boolean {
 
 const without = (entry: QueueEntry) => entries.filter((e) => e.id !== entry.id);
 
+/**
+ * The next entry to send, keeping writes in the order they were made. An
+ * entry backing off after a failure blocks everything after it, so a later
+ * write never overtakes it. An entry only waiting out its undo delay is
+ * skipped: it is a delete, and nothing queued after it depends on it.
+ */
+function nextToSend(now: number): QueueEntry | undefined {
+  for (const e of entries) {
+    if (e.notBefore <= now) return e;
+    if (e.tries > 0) return undefined;
+  }
+  return undefined;
+}
+
+// An update that matched no row was refused by row-level security or hit a
+// row that no longer exists. Either way it did not apply.
+export const UPDATE_MISSED = "the row was not found or may not be changed";
+
 function retryLater(entry: QueueEntry) {
   const backoff = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** entry.tries);
   setEntries(entries.map((e) => (e.id === entry.id ? { ...e, tries: e.tries + 1, notBefore: Date.now() + backoff } : e)));
@@ -176,10 +194,13 @@ async function flush() {
   const owner = userId;
   try {
     for (;;) {
-      const entry = entries.find((e) => e.notBefore <= Date.now());
+      const entry = nextToSend(Date.now());
       if (!entry) break;
 
-      const { data, error } = await send(entry.mutation);
+      const result = await send(entry.mutation);
+      const { data } = result;
+      const missed = !result.error && entry.mutation.kind === "update" && data == null;
+      const error = missed ? { code: "0ROWS", message: UPDATE_MISSED } : result.error;
       // Signed out or switched user while this was in flight: leave the
       // queue as it is now.
       if (userId !== owner) break;

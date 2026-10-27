@@ -51,7 +51,7 @@ function Gate() {
   const { session, profile, loading } = useSession();
 
   useEffect(() => {
-    if (session && profile) refreshPush(session.user.id).catch(() => {});
+    if (session && profile) refreshPush().catch(() => {});
   }, [session, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <div className="page center"><p className="muted">{t.loading}</p></div>;

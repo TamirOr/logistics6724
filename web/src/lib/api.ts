@@ -96,6 +96,13 @@ export const fetchListOverviews = (eventIds: string[]) =>
 export const searchItems = (supplierId: string, q: string) =>
   rpc<ItemSearchResult[]>("search_items", { p_supplier: supplierId, p_q: q });
 
+/** The item whose normalized name or alias equals the typed name, if any. */
+export async function exactItem(supplierId: string, name: string) {
+  const found = await rpc<{ id: string; name: string; default_quantity: number | null }[]>(
+    "exact_item", { p_supplier: supplierId, p_name: name });
+  return found[0] ?? null;
+}
+
 export const suggestItems = (supplierId: string, name: string) =>
   rpc<{ id: string; name: string; score: number }[]>("suggest_items", { p_supplier: supplierId, p_name: name });
 
@@ -132,13 +139,19 @@ export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
 
 // Push -----------------------------------------------------------------------------
 
+/** A tuning value from app_config, with the default to use if it is unset. */
+export const fetchTuning = (key: string, fallback: string) => rpc<string>("config", { k: key, fallback });
+
 /** The deploy workflow stores the VAPID public key in app_config. */
 export const fetchVapidPublicKey = () => rpc<string | null>("config", { k: "vapid_public_key" });
 
-export async function savePushSubscription(userId: string, sub: PushSubscriptionJSON) {
-  const { error } = await supabase.from("push_subscriptions").upsert({
-    user_id: userId, endpoint: sub.endpoint, p256dh: sub.keys?.p256dh, auth: sub.keys?.auth,
-    user_agent: navigator.userAgent,
-  }, { onConflict: "endpoint" });
+/** Registers this device's subscription to the signed-in user, taking it over from whoever had it. */
+export const savePushSubscription = (sub: PushSubscriptionJSON) =>
+  rpc<void>("register_push_subscription", {
+    p_endpoint: sub.endpoint, p_p256dh: sub.keys?.p256dh, p_auth: sub.keys?.auth, p_user_agent: navigator.userAgent,
+  });
+
+export async function deletePushSubscription(endpoint: string) {
+  const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
   if (error) throw error;
 }

@@ -1,7 +1,7 @@
 // Fills an ExcelJS worksheet with the export columns from the spec. Used in
 // the browser (export) and in the archive Edge Function, which pass their
 // own ExcelJS build.
-import { formatNeededFor } from "./dates.ts";
+import { formatNeededFor, TIMEZONE } from "./dates.ts";
 import { STATUS_LABELS, type RequestStatus } from "./labels.ts";
 
 export interface ExportRow {
@@ -42,7 +42,7 @@ export const REQUEST_COLUMNS = [
   { header: "מזהה אירוע", key: "event_id", width: 38, hidden: true },
 ];
 
-export function formatDateTime(iso: string, timeZone = "Asia/Jerusalem"): string {
+export function formatDateTime(iso: string, timeZone = TIMEZONE): string {
   return new Intl.DateTimeFormat("he-IL", {
     timeZone, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   }).format(new Date(iso));

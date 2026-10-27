@@ -1,5 +1,8 @@
 // Event dates as people read them, shared by the app and the Excel files.
 
+/** The battalion's time zone. The database has the same value in app_config.timezone. */
+export const TIMEZONE = "Asia/Jerusalem";
+
 /** "יום שלישי, 3.11" for a date-only value (YYYY-MM-DD). */
 export function formatEventDate(isoDate: string): string {
   // A date has no time zone; format it as UTC so the day never shifts.
