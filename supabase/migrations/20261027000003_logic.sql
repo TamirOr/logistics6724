@@ -50,7 +50,7 @@ begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
   if p_role not in ('customer', 'supplier') then raise exception 'invalid role'; end if;
   select kind into v_kind from units where id = p_unit_id and active;
-  if v_kind is null or v_kind::text <> case p_role when 'customer' then 'company' else 'supplier' end then
+  if v_kind is null or v_kind::text <> (case p_role when 'customer' then 'company' else 'supplier' end) then
     raise exception 'unit does not match side';
   end if;
   select email into v_email from auth.users where id = auth.uid();
@@ -105,7 +105,7 @@ begin
   select role into v_role from users where id = p_user;
   select kind into v_kind from units where id = p_unit;
   if v_role is null or v_role = 'admin' or v_kind is null
-     or v_kind::text <> case v_role when 'customer' then 'company' else 'supplier' end then
+     or v_kind::text <> (case v_role when 'customer' then 'company' else 'supplier' end) then
     raise exception 'unit does not match role';
   end if;
   update users set unit_id = p_unit where id = p_user;
