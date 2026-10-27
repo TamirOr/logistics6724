@@ -43,11 +43,18 @@ export const registerProfile = (p: {
 
 // Events -----------------------------------------------------------------------
 
-export const createEvent = (name: string, scope: EventScope, neededBy: string | null) =>
-  rpc<string>("create_event", { p_name: name, p_scope: scope, p_needed_by: neededBy || null });
+/** When an event is needed: a date (YYYY-MM-DD) and a time of day (HH:MM), each optional. */
+export interface NeededFor { neededOn: string; neededBy: string }
 
-export const duplicateEvent = (sourceId: string, name: string, neededBy: string | null) =>
-  rpc<string>("duplicate_event", { p_source: sourceId, p_name: name, p_needed_by: neededBy || null });
+export const createEvent = (name: string, scope: EventScope, when: NeededFor) =>
+  rpc<string>("create_event", {
+    p_name: name, p_scope: scope, p_needed_on: when.neededOn || null, p_needed_by: when.neededBy || null,
+  });
+
+export const duplicateEvent = (sourceId: string, name: string, when: NeededFor) =>
+  rpc<string>("duplicate_event", {
+    p_source: sourceId, p_name: name, p_needed_on: when.neededOn || null, p_needed_by: when.neededBy || null,
+  });
 
 export const closeEvent = (id: string) => rpc<void>("close_event", { p_event: id });
 export const cancelEvent = (id: string) => rpc<void>("cancel_event", { p_event: id });

@@ -1,11 +1,13 @@
 // Fills an ExcelJS worksheet with the export columns from the spec. Used in
 // the browser (export) and in the archive Edge Function, which pass their
 // own ExcelJS build.
+import { formatNeededFor } from "./dates.ts";
 import { STATUS_LABELS, type RequestStatus } from "./labels.ts";
 
 export interface ExportRow {
   event_id: string;
   event_name: string;
+  needed_on: string | null;
   needed_by: string | null;
   company_name: string;
   supplier_name: string;
@@ -26,7 +28,7 @@ export const TOTALS_SHEET = "סיכום";
 
 export const REQUEST_COLUMNS = [
   { header: "אירוע", key: "event", width: 24 },
-  { header: "נדרש עד", key: "needed_by", width: 10 },
+  { header: "נדרש עד", key: "needed_by", width: 22 },
   { header: "פלוגה", key: "company", width: 16 },
   { header: "גורם אספקה", key: "supplier", width: 16 },
   { header: "פריט", key: "item", width: 28 },
@@ -56,7 +58,7 @@ export function addRequestRows(ws: Worksheet, rows: ExportRow[]): void {
   for (const r of rows) {
     ws.addRow({
       event: r.event_name,
-      needed_by: r.needed_by ? r.needed_by.slice(0, 5) : "",
+      needed_by: formatNeededFor(r.needed_on, r.needed_by),
       company: r.company_name,
       supplier: r.supplier_name,
       item: r.item_name,
@@ -72,8 +74,10 @@ export function addRequestRows(ws: Worksheet, rows: ExportRow[]): void {
 }
 
 /** One row for an event that had no requests, so it still leaves a trace. */
-export function addEmptyEventRow(ws: Worksheet, e: { id: string; name: string; needed_by: string | null }): void {
-  ws.addRow({ event: e.name, needed_by: e.needed_by ? e.needed_by.slice(0, 5) : "", event_id: e.id });
+export function addEmptyEventRow(
+  ws: Worksheet, e: { id: string; name: string; needed_on: string | null; needed_by: string | null },
+): void {
+  ws.addRow({ event: e.name, needed_by: formatNeededFor(e.needed_on, e.needed_by), event_id: e.id });
 }
 
 /** Event ids already written to a request sheet. Call after setupRequestSheet. */

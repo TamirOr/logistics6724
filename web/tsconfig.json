@@ -15,5 +15,5 @@
     "isolatedModules": true,
     "types": ["vite/client", "vite-plugin-pwa/client"]
   },
-  "include": ["src", "../supabase/functions/_shared/labels.ts", "../supabase/functions/_shared/excel.ts"]
+  "include": ["src", "../supabase/functions/_shared/labels.ts", "../supabase/functions/_shared/excel.ts", "../supabase/functions/_shared/dates.ts"]
 }
