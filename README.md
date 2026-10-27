@@ -51,7 +51,7 @@ Everything deploys from GitHub Actions. No terminal or CLI is needed: you set th
 4. **GitHub Pages.** In the repository, open Settings → Pages → Build and deployment → Source and choose **GitHub Actions**.
 5. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow". The app goes live at `https://<owner>.github.io/<repo>/`.
 
-The workflow applies the migrations, deploys the Edge Functions and turns on 6-digit email codes. It also generates the cron secret and the push keys, which stay in the database.
+The workflow applies the migrations, deploys the Edge Functions and configures email sign-in. It also generates the cron secret and the push keys, which stay in the database. For 6-digit codes, also set up a sign-in email sender (below).
 
 ### First admin and units
 
@@ -60,9 +60,25 @@ The workflow applies the migrations, deploys the Edge Functions and turns on 6-d
 3. Reload the app. As admin, add the companies and suppliers under "יחידות". The order field sets the order of supplier sections on the customer event screen.
 4. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 
-### Optional: more sign-in emails
+### Sign-in emails (needed for 6-digit codes)
 
-Supabase's built-in email allows only a few emails per hour. Before rollout, create a free account at https://resend.com, verify a sending domain, create an API key, and add these GitHub secrets: `SMTP_HOST` = `smtp.resend.com`, `SMTP_PORT` = `587`, `SMTP_USER` = `resend`, `SMTP_PASS` = the API key, `SMTP_SENDER` = an address on your domain. The next deploy switches to it.
+On the free plan, Supabase sends sign-in emails with its default template, which contains a **link**, not the 6-digit code. The app accepts the link, which works in a browser and on Android. But an app installed on an iPhone home screen cannot use it. To send codes, give the project its own email sender. The next deploy then installs the code template.
+
+**Gmail (simplest).** Use a Gmail account that has 2-Step Verification on. Open https://myaccount.google.com/apppasswords, create an app password named `logistics`, and copy the 16 characters. Then add these GitHub secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | the Gmail address |
+| `SMTP_PASS` | the app password, without spaces |
+| `SMTP_SENDER` | the Gmail address |
+
+Gmail sends up to about 500 emails a day, far more than sign-ins need.
+
+**Brevo (no personal address as sender).** Create a free account at https://www.brevo.com (300 emails a day). Add and verify a sender address under Senders, and generate an SMTP key under SMTP & API. Use `SMTP_HOST` = `smtp-relay.brevo.com`, `SMTP_PORT` = `587`, `SMTP_USER` = the SMTP login Brevo shows, `SMTP_PASS` = the key, and `SMTP_SENDER` = the verified address.
+
+After adding the secrets, run Actions → Deploy → "Run workflow".
 
 ### Optional: archiving to Google Drive
 
