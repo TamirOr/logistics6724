@@ -3,7 +3,7 @@
 // edits go through lib/requests.ts instead, so they work offline.
 import { supabase } from "./supabase";
 import type {
-  EventScope, ItemSearchResult, ListOverview, LogisticsEvent, MergeSuggestion, Profile, Unit, UserRole,
+  EventScope, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion, Profile, Unit, UserRole,
 } from "./types";
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -61,9 +61,19 @@ export const duplicateEvent = (sourceId: string, name: string, when: NeededFor) 
 export const closeEvent = (id: string) => rpc<void>("close_event", { p_event: id });
 export const cancelEvent = (id: string) => rpc<void>("cancel_event", { p_event: id });
 
+/** One event, or null if it does not exist or is not visible. Throws when offline. */
 export async function fetchEvent(id: string): Promise<LogisticsEvent | null> {
-  const { data } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
   return data as LogisticsEvent | null;
+}
+
+/** A company's list in an event, or null. Throws when offline. */
+export async function fetchCompanyList(eventId: string, companyId: string): Promise<List | null> {
+  const { data, error } = await supabase.from("lists").select("*")
+    .eq("event_id", eventId).eq("company_id", companyId).maybeSingle();
+  if (error) throw error;
+  return data as List | null;
 }
 
 export const fetchEvents = (status: "open" | "history", sinceIso?: string, untilIso?: string) => {

@@ -32,7 +32,7 @@ export function NewEvent() {
       setName(e.name);
       setNeededBy(e.needed_by?.slice(0, 5) ?? "");
       setScope(e.scope);
-    });
+    }).catch(() => setError(t.offline));
   }, [sourceId]);
 
   const submit = async (e: FormEvent) => {

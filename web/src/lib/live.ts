@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { readCache, writeCache } from "./cache";
 import { applyEffects, onCommitted, useQueue } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
@@ -48,10 +49,12 @@ interface LiveOptions<T> {
   narrow?: (q: any) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Rows to keep on screen. Realtime may bring rows the query skipped. */
   keep?: (row: T) => boolean;
+  /** Saves the rows, so the screen opens with them when there is no signal. */
+  cacheKey?: string;
 }
 
 export function useLiveRows<T extends { id: string }>(table: string, opts: LiveOptions<T>) {
-  const { column, value } = opts;
+  const { column, value, cacheKey } = opts;
   const [rows, setRows] = useState<Map<string, T>>(new Map());
   const [loading, setLoading] = useState(true);
   const optsRef = useRef(opts);
@@ -87,7 +90,9 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
 
   useEffect(() => {
     if (!value) return;
-    setLoading(true);
+    const cached = cacheKey ? readCache<T[]>(cacheKey) : null;
+    setRows(new Map((cached ?? []).map((r) => [r.id, r])));
+    setLoading(!cached);
     refetch();
 
     // A confirmed write returns the row; RPCs return no rows, so refetch.
@@ -104,7 +109,11 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
       stopCommits();
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [table, column, value, refetch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [table, column, value, cacheKey, refetch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (cacheKey && !loading) writeCache(cacheKey, [...rows.values()]);
+  }, [cacheKey, rows, loading]);
 
   const visible = useMemo(() => {
     const merged = applyEffects(table, [...rows.values()], queue);
@@ -117,8 +126,10 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
 
 // Id caches ------------------------------------------------------------------
 
+// Saved to storage too, so names and events still show with no signal.
 function createCache<T extends { id: string }>(table: string) {
-  const byId = new Map<string, T>();
+  const cacheKey = `rows:${table}`;
+  const byId = new Map<string, T>((readCache<T[]>(cacheKey) ?? []).map((r) => [r.id, r]));
   const inFlight = new Set<string>();
   const listeners = new Set<() => void>();
   let version = 0;
@@ -132,6 +143,7 @@ function createCache<T extends { id: string }>(table: string) {
     get: (id: string) => byId.get(id),
     put(rows: T[]) {
       rows.forEach((r) => byId.set(r.id, r));
+      writeCache(cacheKey, [...byId.values()]);
       notify();
     },
     async ensure(ids: Iterable<string>) {
@@ -170,13 +182,16 @@ export function useCached<T extends { id: string }>(cache: ReturnType<typeof cre
 
 // Units change rarely and are few, so they load once per session. They are
 // listed alphabetically everywhere: supplier sections, companies, pickers.
+// With no signal, the last loaded units are used.
 let unitsPromise: Promise<Unit[]> | null = null;
 export function loadUnits(force = false): Promise<Unit[]> {
   if (!unitsPromise || force) {
-    unitsPromise = Promise.resolve(
-      supabase.from("units").select("*")
-        .then(({ data }) => ((data ?? []) as Unit[]).sort((a, b) => a.name.localeCompare(b.name, "he"))),
-    );
+    unitsPromise = Promise.resolve(supabase.from("units").select("*")).then(({ data, error }) => {
+      if (error || !data) return readCache<Unit[]>("units") ?? [];
+      const units = (data as Unit[]).sort((a, b) => a.name.localeCompare(b.name, "he"));
+      writeCache("units", units);
+      return units;
+    });
   }
   return unitsPromise;
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearCache, readCache, writeCache } from "./cache";
+import { clearAllCaches, clearCache, readCache, writeCache } from "./cache";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -19,5 +19,15 @@ describe("cache", () => {
     expect(readCache("bad")).toBeNull();
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
     expect(() => writeCache("k", 1)).not.toThrow();
+  });
+
+  it("clearAllCaches drops cached values but leaves other storage alone", () => {
+    writeCache("profile", { id: "u1" });
+    writeCache("requests:list:l1", [1]);
+    localStorage.setItem("write-queue-v1:u1", "[]");
+    clearAllCaches();
+    expect(readCache("profile")).toBeNull();
+    expect(readCache("requests:list:l1")).toBeNull();
+    expect(localStorage.getItem("write-queue-v1:u1")).toBe("[]");
   });
 });

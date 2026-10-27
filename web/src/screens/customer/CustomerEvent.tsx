@@ -6,12 +6,12 @@ import { ItemAdder } from "../../components/ItemAdder";
 import { Layout } from "../../components/Layout";
 import { useAction, useToast } from "../../components/Toast";
 import { useEvent } from "../../hooks/useEvent";
-import { cancelEvent, closeEvent } from "../../lib/api";
+import { cancelEvent, closeEvent, fetchCompanyList } from "../../lib/api";
+import { readCache, writeCache } from "../../lib/cache";
 import { exportEvent } from "../../lib/exportExcel";
 import { itemCache, useCached, useLiveRows, useUnits } from "../../lib/live";
 import { addRequest, collectSection, isCollectable, restoreRequest } from "../../lib/requests";
 import { useProfile } from "../../lib/session";
-import { supabase } from "../../lib/supabase";
 import { formatNeededBy } from "../../lib/time";
 import type { List, Request } from "../../lib/types";
 import { RequestRow } from "./RequestRow";
@@ -25,20 +25,30 @@ export function CustomerEvent() {
   const showToast = useToast();
   const runAction = useAction();
   const { event } = useEvent(id);
-  const [list, setList] = useState<List | null>(null);
+  // undefined while loading; null when the company has no list here.
+  const [list, setList] = useState<List | null | undefined>(undefined);
   const [editing, setEditing] = useState<Request | null>(null);
   const suppliers = useUnits().filter((u) => u.kind === "supplier" && u.active);
 
+  // The saved list opens the screen with no signal; the server's replaces it.
   useEffect(() => {
     if (!id) return;
-    supabase.from("lists").select("*").eq("event_id", id).eq("company_id", profile.unit_id!).maybeSingle()
-      .then(({ data }) => setList(data as List | null));
+    const key = `list:${id}`;
+    setList(readCache<List>(key) ?? undefined);
+    fetchCompanyList(id, profile.unit_id!)
+      .then((l) => {
+        setList(l);
+        if (l) writeCache(key, l);
+      })
+      .catch(() => setList((current) => current ?? null));
   }, [id, profile.unit_id]);
 
-  const { rows } = useLiveRows<Request>("requests", { column: "list_id", value: list?.id });
+  const { rows } = useLiveRows<Request>("requests", {
+    column: "list_id", value: list?.id, cacheKey: list ? `requests:list:${list.id}` : undefined,
+  });
   const itemOf = useCached(itemCache, rows.map((r) => r.item_id));
 
-  if (event === undefined) return <Layout title={t.loading} back>{null}</Layout>;
+  if (event === undefined || list === undefined) return <Layout title={t.loading} back>{null}</Layout>;
   if (!event || !list) return <Layout title={t.genericError} back>{null}</Layout>;
 
   const editable = event.status === "open";
