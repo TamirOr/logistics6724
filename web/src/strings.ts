@@ -37,6 +37,7 @@ export const t = {
   deactivatedTitle: "החשבון אינו פעיל",
   deactivatedBody: "פנו למנהל המערכת.",
   signOut: "יציאה",
+  signOutUnsynced: (n: number) => `${n} שינויים עוד לא נשלחו לשרת ויימחקו ביציאה. לצאת בכל זאת?`,
 
   // Install and notifications
   installTitle: "הוספה למסך הבית",
