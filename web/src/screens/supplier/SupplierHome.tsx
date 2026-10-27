@@ -67,7 +67,6 @@ export function SupplierHome() {
   );
   const shown = eventFilter ? open.filter((r) => r.event_id === eventFilter) : open;
   const companyName = (id: string) => units.find((u) => u.id === id)?.name ?? "";
-  const companyOrder = (id: string) => units.find((u) => u.id === id)?.sort_order ?? 0;
 
   const markReady = (r: Request) => {
     if (r.status === "ready") return setMenuFor(r);
@@ -118,7 +117,8 @@ export function SupplierHome() {
         <AggregateView requests={shown} itemOf={itemOf} units={units} />
       ) : eventsShown.map((e) => {
         const eventRows = shown.filter((r) => r.event_id === e.id);
-        const companies = [...new Set(eventRows.map((r) => r.company_id))].sort((a, b) => companyOrder(a) - companyOrder(b));
+        const companies = [...new Set(eventRows.map((r) => r.company_id))]
+          .sort((a, b) => companyName(a).localeCompare(companyName(b), "he"));
         return (
           <section key={e.id} className="section">
             <h2 className="section-title">

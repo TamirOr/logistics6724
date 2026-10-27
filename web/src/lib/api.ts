@@ -3,7 +3,7 @@
 // edits go through lib/requests.ts instead, so they work offline.
 import { supabase } from "./supabase";
 import type {
-  EventScope, ItemSearchResult, ListOverview, LogisticsEvent, MergeSuggestion, Profile, UserRole,
+  EventScope, ItemSearchResult, ListOverview, LogisticsEvent, MergeSuggestion, Profile, Unit, UserRole,
 } from "./types";
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -113,7 +113,7 @@ export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user
 export const setUserActive = (id: string, active: boolean) => rpc<void>("set_user_active", { p_user: id, p_active: active });
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
 
-export async function saveUnit(unit: { id?: string; name: string; kind: "company" | "supplier"; sort_order: number; active: boolean }) {
+export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
   const { error } = unit.id
     ? await supabase.from("units").update(unit).eq("id", unit.id)
     : await supabase.from("units").insert(unit);

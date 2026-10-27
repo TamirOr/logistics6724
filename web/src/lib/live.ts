@@ -168,13 +168,14 @@ export function useCached<T extends { id: string }>(cache: ReturnType<typeof cre
   return cache.get;
 }
 
-// Units change rarely and are few, so they load once per session.
+// Units change rarely and are few, so they load once per session. They are
+// listed alphabetically everywhere: supplier sections, companies, pickers.
 let unitsPromise: Promise<Unit[]> | null = null;
 export function loadUnits(force = false): Promise<Unit[]> {
   if (!unitsPromise || force) {
     unitsPromise = Promise.resolve(
-      supabase.from("units").select("*").order("sort_order").order("name")
-        .then(({ data }) => (data ?? []) as Unit[]),
+      supabase.from("units").select("*")
+        .then(({ data }) => ((data ?? []) as Unit[]).sort((a, b) => a.name.localeCompare(b.name, "he"))),
     );
   }
   return unitsPromise;

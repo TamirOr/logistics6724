@@ -4,9 +4,9 @@ import type { Item, Unit } from "../../lib/types";
 import { aggregateTotals } from "./AggregateView";
 
 const units: Unit[] = [
-  { id: "c1", name: "פלוגה א", kind: "company", sort_order: 1, active: true },
-  { id: "c2", name: "פלוגה ב", kind: "company", sort_order: 2, active: true },
-  { id: "supplier", name: "אפסנאות", kind: "supplier", sort_order: 1, active: true },
+  { id: "c1", name: "פלוגה א", kind: "company", headcount: 120, active: true },
+  { id: "c2", name: "פלוגה ב", kind: "company", headcount: null, active: true },
+  { id: "supplier", name: "אפסנאות", kind: "supplier", headcount: null, active: true },
 ];
 const items: Record<string, Item> = {
   aa: { id: "aa", supplier_id: "supplier", name: "סוללה AA", verified: true, active: true },

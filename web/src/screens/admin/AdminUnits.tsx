@@ -1,5 +1,5 @@
-// Companies and suppliers: add, rename, order and deactivate. The order of
-// suppliers is the order of sections on the customer event screen.
+// Companies and suppliers: add, rename, set a company's headcount (סד״כ)
+// and deactivate.
 import { useEffect, useState } from "react";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
@@ -27,7 +27,7 @@ export function AdminUnits() {
   return (
     <Layout title={t.units} back
       bottom={<button className="btn btn-primary btn-big"
-        onClick={() => setDraft({ name: "", kind: "company", sort_order: 100, active: true })}>{t.addUnit}</button>}>
+        onClick={() => setDraft({ name: "", kind: "company", headcount: null, active: true })}>{t.addUnit}</button>}>
       {KINDS.map((kind) => (
         <section key={kind} className="section">
           <h2 className="section-title">{kindLabel(kind)}</h2>
@@ -35,8 +35,8 @@ export function AdminUnits() {
             {units.filter((u) => u.kind === kind).map((u) => (
               <li key={u.id} className={`req ${u.active ? "" : "req-cancelled"}`}>
                 <button className="req-main" onClick={() => setDraft(u)}>
-                  <span className="req-qty">{u.sort_order}</span>
                   <span className="req-name" dir="auto">{u.name}</span>
+                  {u.headcount != null && <span className="muted">{t.headcountOf(u.headcount)}</span>}
                   {!u.active && <span className="tag">{t.inactive}</span>}
                 </button>
               </li>
@@ -55,17 +55,24 @@ export function AdminUnits() {
               <div className="segmented">
                 {KINDS.map((k) => (
                   <button key={k} type="button" className={draft.kind === k ? "active" : ""}
-                    onClick={() => setDraft({ ...draft, kind: k })}>{kindLabel(k)}</button>
+                    onClick={() => setDraft({ ...draft, kind: k, headcount: k === "company" ? draft.headcount : null })}>
+                    {kindLabel(k)}
+                  </button>
                 ))}
               </div>
             )}
-            <label className="field"><span>{t.sortOrder}</span>
-              <input className="input" inputMode="numeric" dir="ltr" value={draft.sort_order}
-                onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value.replace(/\D/g, "")) || 0 })} />
-            </label>
+            {draft.kind === "company" && (
+              <label className="field"><span>{t.headcount}</span>
+                <input className="input" inputMode="numeric" dir="ltr" value={draft.headcount ?? ""}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setDraft({ ...draft, headcount: digits ? Number(digits) : null });
+                  }} />
+              </label>
+            )}
             <label className="switch">
               <input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
-              <span>{draft.active ? t.activate : t.inactive}</span>
+              <span>{t.active}</span>
             </label>
             <button className="btn btn-primary btn-block" disabled={!draft.name.trim()}
               onClick={() => save({ ...draft, name: draft.name.trim() })}>{t.save}</button>

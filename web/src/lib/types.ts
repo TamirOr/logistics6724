@@ -14,7 +14,8 @@ export interface Unit {
   id: string;
   name: string;
   kind: UnitKind;
-  sort_order: number;
+  /** סד״כ: soldiers in a company. Always null for a supplier. */
+  headcount: number | null;
   active: boolean;
 }
 

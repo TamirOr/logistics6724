@@ -24,11 +24,11 @@ select tst.ok(normalize_he('  סוללות   AA ') = 'סולל aa', 'spaces and 
 select tst.ok(normalize_he('רס"פ') = 'רספ', 'gershayim');
 
 -- Fixtures: two companies, two suppliers, one user each, an admin ---------
-insert into units (id, name, kind, sort_order) values
-  ('00000000-0000-0000-0000-0000000000c1', 'פלוגה א', 'company', 1),
-  ('00000000-0000-0000-0000-0000000000c2', 'פלוגה ב', 'company', 2),
-  ('00000000-0000-0000-0000-0000000000a1', 'אפסנאות', 'supplier', 1),
-  ('00000000-0000-0000-0000-0000000000a2', 'מטבח', 'supplier', 2);
+insert into units (id, name, kind, headcount) values
+  ('00000000-0000-0000-0000-0000000000c1', 'פלוגה א', 'company', 120),
+  ('00000000-0000-0000-0000-0000000000c2', 'פלוגה ב', 'company', null),
+  ('00000000-0000-0000-0000-0000000000a1', 'אפסנאות', 'supplier', null),
+  ('00000000-0000-0000-0000-0000000000a2', 'מטבח', 'supplier', null);
 
 insert into auth.users (id, email) values
   ('10000000-0000-0000-0000-000000000001', 'admin@x.il'),
@@ -331,3 +331,16 @@ select tst.ok((select count(*) from list_overview where event_status = 'open')
   = (select count(*) from lists l join events e on e.id = l.event_id where e.status = 'open'),
   'list_overview event_status matches the events');
 reset role;
+
+-- Headcount (סד״כ) belongs to companies only ------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000001');
+update units set headcount = 95 where id = '00000000-0000-0000-0000-0000000000c2';
+select tst.fails($$update units set headcount = 10 where id = '00000000-0000-0000-0000-0000000000a1'$$, 'supplier headcount');
+select tst.fails($$update units set headcount = -1 where id = '00000000-0000-0000-0000-0000000000c2'$$, 'negative headcount');
+select tst.act('10000000-0000-0000-0000-000000000002');
+update units set headcount = 1 where id = '00000000-0000-0000-0000-0000000000c1';
+reset role;
+select tst.ok((select headcount from units where id = '00000000-0000-0000-0000-0000000000c1') = 120,
+  'a customer cannot change headcount');
+select tst.ok((select headcount from units where id = '00000000-0000-0000-0000-0000000000c2') = 95, 'admin sets headcount');
