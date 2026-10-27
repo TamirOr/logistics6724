@@ -1,0 +1,34 @@
+# Local Supabase CLI settings. The hosted project needs the same auth
+# settings in the dashboard (see README).
+project_id = "logistics6724"
+
+[api]
+schemas = ["public"]
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = []
+# Sessions are long: refresh tokens keep users signed in for months.
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+otp_length = 6
+otp_expiry = 600
+
+# Sign-in sends a 6-digit code, not a link (see spec: iPhone PWA storage).
+[auth.email.template.magic_link]
+subject = "קוד הכניסה שלך"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.confirmation]
+subject = "קוד הכניסה שלך"
+content_path = "./supabase/templates/otp.html"
+
+[functions.push-dispatch]
+verify_jwt = false
+
+[functions.archive]
+verify_jwt = false
