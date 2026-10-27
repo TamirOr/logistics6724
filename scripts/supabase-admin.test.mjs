@@ -15,16 +15,22 @@ test("sqlLiteral escapes quotes", () => {
   assert.equal(sqlLiteral("o'brien@example.com"), "'o''brien@example.com'");
 });
 
-test("auth settings use 6-digit codes and add SMTP only when configured", () => {
+test("without SMTP, auth settings leave the email template alone", () => {
+  // Supabase rejects template changes on the free plan's default sender.
   const base = authSettings({ siteUrl: "https://x.github.io/app/", otpTemplate: "{{ .Token }}", smtp: {} });
   assert.equal(base.mailer_otp_length, 6);
-  assert.equal(base.mailer_templates_magic_link_content, "{{ .Token }}");
+  assert.equal(base.mailer_templates_magic_link_content, undefined);
   assert.equal(base.smtp_host, undefined);
+});
 
+test("with SMTP, auth settings install the code template and the sender", () => {
   const withSmtp = authSettings({
-    siteUrl: "https://x.github.io/app/", otpTemplate: "", smtp: { host: "smtp.resend.com", user: "resend", pass: "k", sender: "a@b.c" },
+    siteUrl: "https://x.github.io/app/", otpTemplate: "{{ .Token }}",
+    smtp: { host: "smtp.gmail.com", user: "a@gmail.com", pass: "k", sender: "a@gmail.com" },
   });
-  assert.equal(withSmtp.smtp_host, "smtp.resend.com");
+  assert.equal(withSmtp.mailer_templates_magic_link_content, "{{ .Token }}");
+  assert.equal(withSmtp.mailer_templates_confirmation_content, "{{ .Token }}");
+  assert.equal(withSmtp.smtp_host, "smtp.gmail.com");
   assert.equal(withSmtp.smtp_port, "587");
 });
 
