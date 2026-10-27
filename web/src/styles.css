@@ -268,5 +268,16 @@ h2 { font-size: 1.15rem; margin: 0; }
 
 .sync { display: flex; gap: 12px; justify-content: center; padding: 6px; font-size: 0.85rem; background: var(--partial-bg); }
 .sync-offline { background: var(--missing-bg); }
+.update-banner { width: 100%; padding: 10px 16px; border: 0; font: inherit; font-weight: 700; background: var(--primary); color: var(--primary-text); cursor: pointer; }
+.update-banner:disabled { opacity: 0.8; cursor: default; }
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 8px 0 16px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.small { font-size: 0.85rem; }
+
+.health { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; font-weight: 600; }
+.health-ok { background: var(--ready-bg); }
+.health-bad { background: var(--danger); color: #fff; }
 .section > .btn-block { margin-top: 10px; }
 .when > .field { flex: 1; min-width: 140px; }

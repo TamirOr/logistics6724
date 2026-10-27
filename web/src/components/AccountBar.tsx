@@ -1,4 +1,5 @@
-// Sign-out, in the header of the top-level screens.
+// Diagnostics and sign-out, in the header of the top-level screens.
+import { Link } from "react-router-dom";
 import { useQueue } from "../lib/queue";
 import { useSession } from "../lib/session";
 import { t } from "../strings";
@@ -13,5 +14,10 @@ export function AccountBar() {
     signOut();
   };
 
-  return <button className="btn btn-ghost btn-small" onClick={confirmAndSignOut}>{t.signOut}</button>;
+  return (
+    <>
+      <Link className="btn btn-ghost btn-small" to="/diagnostics">{t.diagnostics}</Link>
+      <button className="btn btn-ghost btn-small" onClick={confirmAndSignOut}>{t.signOut}</button>
+    </>
+  );
 }

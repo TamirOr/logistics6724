@@ -41,11 +41,16 @@ export async function refreshPush() {
   else await enablePush();
 }
 
+/** This device's push subscription, if it has one. */
+export async function currentSubscription(): Promise<PushSubscription | null> {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return (await reg?.pushManager.getSubscription()) ?? null;
+}
+
 /** On sign-out: this device stops receiving the user's notifications. */
 export async function disablePush() {
-  if (!pushSupported()) return;
-  const reg = await navigator.serviceWorker.getRegistration();
-  const sub = await reg?.pushManager.getSubscription();
+  const sub = await currentSubscription();
   if (!sub) return;
   await deletePushSubscription(sub.endpoint);
   await sub.unsubscribe();
