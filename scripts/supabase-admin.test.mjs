@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { authSettings, generateVapidKeys, sqlLiteral } from "./supabase-admin.mjs";
+import { annotation, authSettings, generateVapidKeys, sqlLiteral } from "./supabase-admin.mjs";
 
 // web-push rejects keys that are not exactly these sizes.
 test("VAPID keys have the sizes Web Push expects", () => {
@@ -26,4 +26,8 @@ test("auth settings use 6-digit codes and add SMTP only when configured", () => 
   });
   assert.equal(withSmtp.smtp_host, "smtp.resend.com");
   assert.equal(withSmtp.smtp_port, "587");
+});
+
+test("annotation keeps a multi-line error on one workflow command line", () => {
+  assert.equal(annotation("a: 50%\nb: 400"), "a: 50%25%0Ab: 400");
 });

@@ -27,6 +27,10 @@ export function generateVapidKeys() {
   };
 }
 
+/** Escapes a message for a GitHub Actions workflow command. */
+export const annotation = (message) =>
+  message.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+
 /** A SQL string literal. */
 export const sqlLiteral = (value) => `'${String(value).replaceAll("'", "''")}'`;
 
@@ -73,33 +77,48 @@ function client(env) {
   return { ref, api, sql: (query) => api("POST", "/database/query", { query }) };
 }
 
-async function configure(env) {
-  const { ref, api, sql } = client(env);
-  const siteUrl = env.SITE_URL;
-  if (!siteUrl) throw new Error("SITE_URL is required");
-
+async function storeServerUrls({ ref, sql }, env) {
   await sql(`
     insert into app_config (key, value) values
       ('functions_url', ${sqlLiteral(`https://${ref}.supabase.co/functions/v1`)}),
-      ('site_url', ${sqlLiteral(siteUrl)})
+      ('site_url', ${sqlLiteral(env.SITE_URL)})
     on conflict (key) do update set value = excluded.value`);
+}
 
-  // Keys are generated once. Replacing them would cut off every device
-  // that already subscribed.
+// Keys are generated once. Replacing them would cut off every device that
+// already subscribed.
+async function ensureVapidKeys({ sql }) {
   const existing = await sql("select 1 from app_config where key = 'vapid_private_key'");
-  if (!existing.length) {
-    const { publicKey, privateKey } = generateVapidKeys();
-    await sql(`
-      insert into app_config (key, value, client_readable) values
-        ('vapid_public_key', ${sqlLiteral(publicKey)}, true),
-        ('vapid_private_key', ${sqlLiteral(privateKey)}, false)`);
-    console.log("Generated VAPID keys");
-  }
+  if (existing.length) return;
+  const { publicKey, privateKey } = generateVapidKeys();
+  await sql(`
+    insert into app_config (key, value, client_readable) values
+      ('vapid_public_key', ${sqlLiteral(publicKey)}, true),
+      ('vapid_private_key', ${sqlLiteral(privateKey)}, false)`);
+  console.log("Generated VAPID keys");
+}
 
+async function configureAuth({ api }, env) {
   const otpTemplate = await readFile(new URL("../supabase/templates/otp.html", import.meta.url), "utf8");
   const smtp = { host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, pass: env.SMTP_PASS, sender: env.SMTP_SENDER };
-  await api("PATCH", "/config/auth", authSettings({ siteUrl, otpTemplate, smtp }));
-  console.log(`Configured auth for ${siteUrl}${smtp.host ? " with custom SMTP" : ""}`);
+  await api("PATCH", "/config/auth", authSettings({ siteUrl: env.SITE_URL, otpTemplate, smtp }));
+}
+
+/** Runs every step even if one fails, then reports all failures together. */
+async function configure(env) {
+  if (!env.SITE_URL) throw new Error("SITE_URL is required");
+  const project = client(env);
+  const steps = { "server URLs": storeServerUrls, "VAPID keys": ensureVapidKeys, "auth settings": configureAuth };
+  const failures = [];
+  for (const [name, step] of Object.entries(steps)) {
+    try {
+      await step(project, env);
+      console.log(`ok: ${name}`);
+    } catch (e) {
+      failures.push(`${name}: ${e.message}`);
+    }
+  }
+  if (failures.length) throw new Error(failures.join("\n"));
 }
 
 async function anonKey(env) {
@@ -128,6 +147,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   }
   command(process.env).catch((e) => {
     console.error(e.message);
+    // Also as a GitHub annotation, which shows on the run page without
+    // opening the log.
+    if (process.env.GITHUB_ACTIONS) console.log(`::error title=supabase-admin ${process.argv[2]}::${annotation(e.message)}`);
     process.exit(1);
   });
 }
