@@ -267,7 +267,7 @@ export const t = {
   clearLocal: "ניקוי נתונים מקומיים וטעינה מחדש",
   confirmDropQueue: (n: number) => `${n} שינויים עוד לא נשלחו לשרת. למחוק גם אותם? (ביטול ישאיר אותם)`,
 
-  // Admin: system health and support
+  // Admin: system health
   systemOk: "המערכת תקינה",
   systemProblem: "בעיה במערכת:",
   healthChecks: {
@@ -280,24 +280,10 @@ export const t = {
     backup_last_ok_hours: "הגיבוי לא רץ",
   } as Record<string, string>,
   pushP95: (seconds: number) => `95% מההתראות נשלחו תוך ${seconds} שניות`,
-  support: "תמיכה",
   profile: "פרטים אישיים",
-  devices: "מכשירים",
-  noDevices: "אין מכשירים רשומים להתראות",
-  registered: "נרשם",
-  lastDelivered: "נמסרה לאחרונה",
   never: "אף פעם",
-  recentNotifications: "התראות אחרונות",
-  noNotifications: "אין התראות",
-  sentAt: "נשלחה",
-  notSent: "לא נשלחה",
-  attempts: (n: number) => `${n} ניסיונות`,
-  recentChanges: "שינויים אחרונים",
-  noChanges: "אין שינויים",
-  auditOps: { insert: "נוצר", update: "עודכן", delete: "נמחק" } as Record<string, string>,
   accessReview: "מנהלים וספקים",
   accessReviewHint: "בדקו מדי פעם שלכל מי שברשימה עדיין צריכה להיות גישה.",
-  lastChange: "שינוי אחרון",
   joinCodeTitle: "קוד הצטרפות",
   joinCodeAdminHint: "משתמשים חדשים צריכים את הקוד כדי לבחור יחידה בהרשמה. החליפו אותו אם דלף, וגם פעם בחודש.",
   rotateJoinCode: "החלפת הקוד",

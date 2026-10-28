@@ -124,7 +124,7 @@ All free plans. Every alert ends in an email; nobody needs to watch a dashboard.
   1. the production site URL, expecting 200;
   2. `https://<project-ref>.supabase.co/rest/v1/rpc/health`, method POST, body `{}`, headers `apikey: <anon key>` and `Content-Type: application/json`, expecting 200 and the keyword `true`. The anon key is public (it is in the web app); find it under Project Settings → API.
 
-What each alert means and how to fix it: [docs/runbook.md](docs/runbook.md). Support tools in the app: every user has **אבחון** (diagnostics) in the header; admins can open any user's support view from משתמשים, and see a health strip on the home screen.
+What each alert means and how to fix it: [docs/runbook.md](docs/runbook.md). Support tools in the app: every user has **אבחון** (diagnostics) in the header; admins see a health strip on the home screen.
 
 ## Configuration
 

@@ -1,9 +1,8 @@
-// Everyone with more than a company's access, with their last change, so
-// stale admin and supplier accounts get noticed and deactivated. Also the
+// Everyone with more than a company's access, so stale admin and supplier
+// accounts get noticed and deactivated. Also the
 // join code new users sign up with, rotated on the same monthly review.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { formatDateTime } from "../../../../supabase/functions/_shared/excel.ts";
 import { Layout } from "../../components/Layout";
 import { fetchAccessReview, fetchJoinCode, rotateJoinCode } from "../../lib/api";
 import { describeError } from "../../lib/errors";
@@ -55,9 +54,6 @@ export function AccessReview() {
               <Link className="req-name" dir="auto" to={`/users/${r.user_id}`}>{nameOf(r.user_id)}</Link>
               <span className="muted">{t.roleLabels[r.role]} {units.find((u) => u.id === r.unit_id)?.name ?? ""}</span>
               {!r.active && <span className="tag">{t.inactive}</span>}
-            </div>
-            <div className="req-sub muted">
-              <span>{t.lastChange}: {r.last_change_at ? formatDateTime(r.last_change_at) : t.never}</span>
             </div>
           </li>
         ))}
