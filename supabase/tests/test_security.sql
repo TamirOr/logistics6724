@@ -118,3 +118,49 @@ select tst.ok(join_code() <> '1234567890', 'rotation replaces the code');
 select tst.act('10000000-0000-0000-0000-0000000000f1');
 select tst.fails($$select * from signup_units('1234567890')$$, 'the old join code stops working');
 reset role;
+
+-- F7: size limits ---------------------------------------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-0000000000f1');
+select tst.fails(format($$select register_profile(%L, 'ב', '1234599', 'customer', '00000000-0000-0000-0000-0000000000c1')$$,
+  repeat('א', 51)), 'a 51-character first name');
+select tst.fails(format($$select register_profile('א', %L, '1234599', 'customer', '00000000-0000-0000-0000-0000000000c1')$$,
+  repeat('א', 10000)), 'a 10 KB last name');
+select register_profile(repeat('א', 50), 'ב', '1234599', 'customer', '00000000-0000-0000-0000-0000000000c1');
+select tst.fails(format($$select register_push_subscription('https://fcm.googleapis.com/fcm/send/x', 'k', 'a', %L)$$,
+  repeat('x', 10000)), 'a 10 KB user agent');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.fails(format($$select add_item('00000000-0000-0000-0000-0000000000a1', %L)$$, repeat('x', 101)),
+  'a 101-character item name');
+select tst.fails(format($$insert into item_aliases (item_id, alias)
+  select id, %L from items where supplier_id = '00000000-0000-0000-0000-0000000000a1' limit 1$$, repeat('x', 101)),
+  'a 101-character alias');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.fails(format($$select create_event(%L, 'company')$$, repeat('x', 81)), 'an 81-character event name');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select tst.fails(format($$insert into units (name, kind) values (%L, 'company')$$, repeat('x', 51)),
+  'a 51-character unit name');
+select tst.fails(format($$select reject_user('10000000-0000-0000-0000-0000000000f1', %L)$$, repeat('x', 501)),
+  'a 501-character rejection reason');
+reset role;
+
+-- A company adds at most max_new_items_per_company_day unverified items a day.
+update app_config set value = '2' where key = 'max_new_items_per_company_day';
+delete from items where not verified and created_by in (
+  select id from users where unit_id = '00000000-0000-0000-0000-0000000000c1');
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 1');
+select add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 2');
+select tst.fails($$select add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 3')$$,
+  'a third new item in a day over a cap of 2');
+select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 1') is not null,
+  'an existing item still resolves at the cap');
+select tst.act('10000000-0000-0000-0000-000000000003');
+select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 3') is not null,
+  'another company has its own cap');
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 4') is not null,
+  'suppliers are not capped in their own catalog');
+reset role;
+update app_config set value = '30' where key = 'max_new_items_per_company_day';
