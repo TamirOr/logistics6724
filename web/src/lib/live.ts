@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { isFresh, readCache, writeCache } from "./cache";
 import { noteSynced } from "./diagnostics";
 import { onReturn } from "./foreground";
+import { latestRequest } from "./latest";
 import { applyEffects, onCommitted, useQueue, type QueueEntry } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
@@ -75,18 +76,23 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
   const optsRef = useRef(opts);
   optsRef.current = opts;
   const queue = useQueue();
+  const requests = useRef(latestRequest()).current;
 
   const refetch = useCallback(async () => {
     if (!value) return;
+    const isLatest = requests.start();
     let q = supabase.from(optsRef.current.source ?? table).select("*").eq(column, value);
     if (optsRef.current.narrow) q = optsRef.current.narrow(q);
     const { data, error } = await q;
+    // A refetch for the previous value (another unit, another list) that
+    // answers late must not replace this one's rows.
+    if (!isLatest()) return;
     if (!error) {
       setRows(new Map((data as T[]).map((r) => [r.id, r])));
       noteSynced();
     }
     setLoading(false);
-  }, [table, column, value]);
+  }, [table, column, value, requests]);
 
   const upsert = (row: T) => setRows((m) => new Map(m).set(row.id, row));
   const remove = (id: string) =>

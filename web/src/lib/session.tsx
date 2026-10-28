@@ -5,6 +5,7 @@ import { supabase } from "./supabase";
 import { fetchMyProfile, workAsUnit } from "./api";
 import { clearAllCaches, readCache, writeCache } from "./cache";
 import { onReturn } from "./foreground";
+import { latestRequest } from "./latest";
 import { disablePush } from "./push";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
@@ -31,11 +32,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const userId = useRef<string | null>(null);
+  const requests = useRef(latestRequest()).current;
 
   // The cached profile shows the app at once; the fresh one replaces it. With
   // no signal the cached one stays, so the app still opens offline.
+  // Reloads overlap (sign-in, the foreground, the pending poll); only the
+  // newest one's answer is applied.
   const reloadProfile = useCallback(async () => {
+    const isLatest = requests.start();
     const { data } = await supabase.auth.getSession();
+    if (!isLatest()) return;
     const user = data.session?.user.id ?? null;
     userId.current = user;
     setQueueUser(user);
@@ -52,13 +58,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     try {
       const fresh = await fetchMyProfile(user);
+      if (!isLatest()) return;
       setProfile(fresh);
       if (fresh) writeCache(PROFILE_CACHE, fresh);
     } catch {
       // Offline: keep the cached profile, if there is one.
     }
     setLoading(false);
-  }, []);
+  }, [requests]);
 
   useEffect(() => {
     reloadProfile();

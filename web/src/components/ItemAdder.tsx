@@ -60,10 +60,16 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
 
   useEffect(() => {
     if (!open || selected) return;
+    // A slower search for earlier text must not replace a newer one's results.
+    let stale = false;
+    const show = (results: ItemSearchResult[]) => !stale && setResults(results);
     const timer = setTimeout(() => {
-      searchItems(supplierId, name).then(setResults).catch(() => setResults([]));
+      searchItems(supplierId, name).then(show).catch(() => show([]));
     }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [name, open, selected, supplierId]);
 
   const reset = () => {
