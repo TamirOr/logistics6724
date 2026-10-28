@@ -12,7 +12,7 @@ import { useUnits } from "../../lib/live";
 import type { Profile } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
 import { HealthStrip } from "./HealthStrip";
-import { UserFields } from "./UserFields";
+import { UserFields } from "../../components/UserFields";
 import { useUsers } from "./useUsers";
 import { t } from "../../strings";
 

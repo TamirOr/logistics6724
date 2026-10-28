@@ -13,8 +13,9 @@ import { moveUser, setUserActive, setUserSuppliers } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
+import { unitNamesOf } from "../../lib/userUnits";
 import { useUsers } from "./useUsers";
-import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, unitNamesOf, type ActiveFilter, type UserFilter } from "./users";
+import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, type ActiveFilter, type UserFilter } from "./users";
 import { t } from "../../strings";
 
 const ACTIVE_FILTERS: ActiveFilter[] = ["all", "active", "inactive"];

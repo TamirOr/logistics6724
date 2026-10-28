@@ -9,7 +9,7 @@ import { Layout } from "../../components/Layout";
 import { fetchUserSupport } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import type { UserSupport } from "../../lib/types";
-import { UserFields } from "./UserFields";
+import { UserFields } from "../../components/UserFields";
 import { useUsers } from "./useUsers";
 import { t } from "../../strings";
 

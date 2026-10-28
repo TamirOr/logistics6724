@@ -1,9 +1,11 @@
-// "What do I still need to prepare": every open request for this supplier,
-// by event and company, urgent first. The aggregate view sums each item
-// across companies for pulling stock in one pass.
+// "What do I still need to prepare": who is signed in and for which unit,
+// then every open request for this supplier, by event and company, urgent
+// first. The aggregate view sums each item across companies for pulling
+// stock in one pass.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Layout } from "../../components/Layout";
+import { ProfileCard } from "../../components/ProfileCard";
 import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { useAction, useToast } from "../../components/Toast";
 import { mergeItem, mergeSuggestions, updateItem } from "../../lib/api";
@@ -11,6 +13,7 @@ import { exportOpenRequests, exportTotals } from "../../lib/exportExcel";
 import { eventCache, itemCache, useCached, useLiveRows, useRealtime, useUnits } from "../../lib/live";
 import { acknowledgeCancel, setStatus } from "../../lib/requests";
 import { useActiveSupplier } from "../../lib/activeSupplier";
+import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
 import type { LogisticsEvent, MergeSuggestion, Request } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
@@ -28,6 +31,7 @@ const byNeededAt = (a: LogisticsEvent, b: LogisticsEvent) =>
   a.needed_at.localeCompare(b.needed_at) || a.created_at.localeCompare(b.created_at);
 
 export function SupplierHome() {
+  const profile = useProfile();
   const supplierId = useActiveSupplier();
   const { id: routeEventId } = useParams();
   const showToast = useToast();
@@ -105,6 +109,7 @@ export function SupplierHome() {
       }
     >
       <PushPrompt />
+      <ProfileCard profile={profile} units={units} activeUnitId={supplierId} />
       <SupplierSwitcher />
       <div className="toolbar">
         <div className="segmented">
