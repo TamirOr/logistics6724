@@ -13,7 +13,7 @@ create index user_suppliers_supplier_idx on user_suppliers (supplier_id);
 alter table user_suppliers enable row level security;
 revoke all on user_suppliers from anon;
 revoke insert, update, delete on user_suppliers from authenticated;
--- Writes go through register_profile and move_user.
+-- Writes go through register_profile, move_user and set_user_suppliers.
 create policy user_suppliers_read on user_suppliers for select to authenticated
   using (user_id = (select auth.uid()) or (select is_admin()));
 
@@ -186,6 +186,35 @@ begin
   where id = p_user;
   delete from user_suppliers where user_id = p_user and supplier_id <> p_unit;
 end $$;
+
+-- Admins set an approved supplier's units. The main unit stays while it is
+-- among them, else the first becomes the main unit. A unit the supplier is
+-- already in may be kept after it was deactivated; a new one must be active.
+create function set_user_suppliers(p_user uuid, p_suppliers uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_suppliers uuid[] := array(select distinct s from unnest(p_suppliers) s where s is not null);
+  v_first uuid := (select s from unnest(p_suppliers) with ordinality x (s, n) where s is not null order by n limit 1);
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if (select role from users where id = p_user) is distinct from 'supplier' then
+    raise exception 'not a supplier';
+  end if;
+  if cardinality(v_suppliers) = 0 then raise exception 'a supplier needs a unit'; end if;
+  if (select count(*) from units u where u.id = any (v_suppliers) and u.kind = 'supplier'
+        and (u.active or exists (select 1 from user_suppliers s where s.user_id = p_user and s.supplier_id = u.id)))
+     <> cardinality(v_suppliers) then
+    raise exception 'unit not found or inactive';
+  end if;
+
+  update users set unit_id = case when unit_id = any (v_suppliers) then unit_id else v_first end
+  where id = p_user;
+  delete from user_suppliers where user_id = p_user and supplier_id <> all (v_suppliers);
+  insert into user_suppliers (user_id, supplier_id)
+  select p_user, s from unnest(v_suppliers) s
+  on conflict do nothing;
+end $$;
+grant execute on function set_user_suppliers to authenticated;
 
 -- Catalog work: a supplier edits the catalog of any of its units.
 create or replace function merge_item(p_source uuid, p_target uuid) returns void

@@ -172,7 +172,7 @@ A supplier in several supplier units (picked at sign-up) sees one unit at a time
 select s.supplier_id, u.name from user_suppliers s join units u on u.id = s.supplier_id where s.user_id = '<user id>';
 ```
 
-Moving a user (admin → משתמשים → העברה ליחידה) leaves them in only the new unit. The app has no screen yet to add a unit to an approved supplier; add the row directly: `insert into user_suppliers values ('<user id>', '<supplier unit id>');`
+Fix: admin → משתמשים → יחידות אספקה on their row, tick the unit, save. Moving a user (העברה ליחידה) leaves them in only the new unit.
 
 ## Procedures
 

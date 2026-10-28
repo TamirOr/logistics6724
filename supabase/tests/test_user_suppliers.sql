@@ -99,3 +99,47 @@ select tst.act('10000000-0000-0000-0000-000000000012');
 select register_profile('עמית', 'רז', '1234581', 'customer', '00000000-0000-0000-0000-0000000000c1');
 select tst.ok((select count(*) from user_suppliers) = 0, 'a supplier who signs up again as a customer leaves its units');
 reset role;
+
+-- Admins edit an approved supplier's units -----------------------------------------
+insert into auth.users (id, email) values ('10000000-0000-0000-0000-000000000013', 'edit@x.il');
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000013');
+select register_profile('גיל', 'שם', '1234582', 'supplier', '00000000-0000-0000-0000-0000000000b1', null);
+select tst.act('10000000-0000-0000-0000-000000000001');
+select approve_user('10000000-0000-0000-0000-000000000013');
+
+select set_user_suppliers('10000000-0000-0000-0000-000000000013',
+  array['00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b1']::uuid[]);
+select tst.ok((select count(*) from user_suppliers where user_id = '10000000-0000-0000-0000-000000000013') = 2,
+  'an admin adds a unit to a supplier');
+select tst.ok((select unit_id from users where id = '10000000-0000-0000-0000-000000000013') = '00000000-0000-0000-0000-0000000000b1',
+  'the main unit stays while the supplier is still in it');
+
+select set_user_suppliers('10000000-0000-0000-0000-000000000013', array['00000000-0000-0000-0000-0000000000b3']::uuid[]);
+select tst.ok((select array_agg(supplier_id) from user_suppliers where user_id = '10000000-0000-0000-0000-000000000013')
+  = array['00000000-0000-0000-0000-0000000000b3']::uuid[], 'an admin replaces a supplier''s units');
+select tst.ok((select unit_id from users where id = '10000000-0000-0000-0000-000000000013') = '00000000-0000-0000-0000-0000000000b3',
+  'a supplier who left its main unit gets the first new one');
+
+select tst.fails($$select set_user_suppliers('10000000-0000-0000-0000-000000000013', array[]::uuid[])$$,
+  'a supplier left with no unit');
+select tst.fails($$select set_user_suppliers('10000000-0000-0000-0000-000000000013',
+  array['00000000-0000-0000-0000-0000000000c1']::uuid[])$$, 'a company as a supplier unit');
+select tst.fails($$select set_user_suppliers('10000000-0000-0000-0000-000000000002',
+  array['00000000-0000-0000-0000-0000000000b1']::uuid[])$$, 'supplier units for a customer');
+reset role;
+update units set active = false where id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3');
+set role authenticated;
+select tst.fails($$select set_user_suppliers('10000000-0000-0000-0000-000000000013',
+  array['00000000-0000-0000-0000-0000000000b2']::uuid[])$$, 'adding an inactive unit');
+select set_user_suppliers('10000000-0000-0000-0000-000000000013',
+  array['00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000b1']::uuid[]);
+select tst.ok((select count(*) from user_suppliers where user_id = '10000000-0000-0000-0000-000000000013') = 2,
+  'a supplier keeps a unit that was deactivated');
+
+select tst.act('10000000-0000-0000-0000-000000000013');
+select tst.fails($$select set_user_suppliers('10000000-0000-0000-0000-000000000013',
+  array['00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b2']::uuid[])$$,
+  'a supplier edits its own units');
+reset role;
+update units set active = true where id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3');

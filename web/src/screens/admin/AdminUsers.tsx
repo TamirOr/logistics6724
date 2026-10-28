@@ -1,14 +1,15 @@
 // Approved users in a table per side: suppliers, then customers, then
 // admins. The supplier and customer tables filter by unit and by active.
 // Each user can be deactivated or moved to another unit, company or
-// supplier (the server changes the role to match). A name opens the
+// supplier (the server changes the role to match), and a supplier's
+// supplier units can be edited. A name opens the
 // user's support view.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
-import { moveUser, setUserActive } from "../../lib/api";
+import { moveUser, setUserActive, setUserSuppliers } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
@@ -23,10 +24,11 @@ export function AdminUsers() {
   const units = useUnits();
   const { users, reload } = useUsers();
   const [moving, setMoving] = useState<Profile | null>(null);
+  const [editingUnits, setEditingUnits] = useState<Profile | null>(null);
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
   const approved = (role: UserRole) => users?.filter((u) => u.approval === "approved" && u.role === role) ?? [];
-  const table = { units, onMove: setMoving, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)) };
+  const table = { units, onMove: setMoving, onEditUnits: setEditingUnits, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)) };
 
   return (
     <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
@@ -49,7 +51,43 @@ export function AdminUsers() {
           </div>
         </Sheet>
       )}
+      {editingUnits && (
+        <SupplierUnitsSheet user={editingUnits} units={units} onClose={() => setEditingUnits(null)}
+          onSave={(ids) => { act(() => setUserSuppliers(editingUnits.id, ids)); setEditingUnits(null); }} />
+      )}
     </Layout>
+  );
+}
+
+interface SupplierUnitsSheetProps {
+  user: Profile;
+  units: Unit[];
+  onClose: () => void;
+  onSave: (supplierIds: string[]) => void;
+}
+
+// Active supplier units, plus any inactive one the supplier is still in.
+function SupplierUnitsSheet({ user, units, onClose, onSave }: SupplierUnitsSheetProps) {
+  const [picked, setPicked] = useState(user.supplier_ids);
+  const options = units.filter((u) => u.kind === "supplier" && (u.active || user.supplier_ids.includes(u.id)));
+  const toggle = (id: string, on: boolean) => setPicked((ids) => (on ? [...ids, id] : ids.filter((x) => x !== id)));
+
+  return (
+    <Sheet title={`${t.supplierUnits}: ${user.first_name} ${user.last_name}`} onClose={onClose}>
+      <div className="stack">
+        {options.map((u) => (
+          <label key={u.id} className="switch">
+            <input type="checkbox" checked={picked.includes(u.id)} onChange={(e) => toggle(u.id, e.target.checked)} />
+            {u.name}
+            {!u.active && <span className="tag">{t.inactive}</span>}
+          </label>
+        ))}
+        <button className="btn btn-primary btn-block" disabled={picked.length === 0} onClick={() => onSave(picked)}>
+          {t.save}
+        </button>
+        {picked.length === 0 && <p className="muted">{t.pickAtLeastOneUnit}</p>}
+      </div>
+    </Sheet>
   );
 }
 
@@ -60,10 +98,11 @@ interface UserTableProps {
   /** The kind of unit to filter by; no filters without it. */
   filterKind?: UnitKind;
   onMove: (user: Profile) => void;
+  onEditUnits: (user: Profile) => void;
   onSetActive: (user: Profile) => void;
 }
 
-function UserTable({ title, users, units, filterKind, onMove, onSetActive }: UserTableProps) {
+function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive }: UserTableProps) {
   const me = useProfile();
   const [filter, setFilter] = useState<UserFilter>(NO_FILTER);
   const shown = filterUsers(users, filter);
@@ -105,6 +144,9 @@ function UserTable({ title, users, units, filterKind, onMove, onSetActive }: Use
                   <td>{unitNamesOf(u, units)}</td>
                   <td>{u.active ? t.active : <span className="tag">{t.inactive}</span>}</td>
                   <td className="table-actions">
+                    {u.role === "supplier" && (
+                      <button className="btn btn-ghost btn-small" onClick={() => onEditUnits(u)}>{t.supplierUnits}</button>
+                    )}
                     {u.role !== "admin" && (
                       <button className="btn btn-ghost btn-small" onClick={() => onMove(u)}>{t.moveToUnit}</button>
                     )}
