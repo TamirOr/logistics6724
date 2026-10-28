@@ -85,7 +85,7 @@ Migrations must keep working with the previous web build for one release (expand
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
 2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
 3. Reload the app. Admins confirm every sign-in with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password...): the first time, the app shows a QR code to scan; after that it asks for the app's 6-digit code.
-4. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
+4. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order. A supplier user may belong to several suppliers (for example the kitchen and closing): they tick them at sign-up, and admins change them later under משתמשים → יחידות אספקה.
 5. Open מנהלים וספקים (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
 6. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 
