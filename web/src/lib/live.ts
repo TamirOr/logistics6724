@@ -6,7 +6,7 @@ import { supabase } from "./supabase";
 import { isFresh, readCache, writeCache } from "./cache";
 import { noteSynced } from "./diagnostics";
 import { onReturn } from "./foreground";
-import { applyEffects, onCommitted, useQueue } from "./queue";
+import { applyEffects, onCommitted, useQueue, type QueueEntry } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
 type Change<T> = RealtimePostgresChangesPayload<T & Record<string, unknown>>;
@@ -41,6 +41,17 @@ export function useRealtime<T>(table: string, filter: string | null, onChange: (
       supabase.removeChannel(channel);
     };
   }, [table, filter]);
+}
+
+/**
+ * Rows after a confirmed RPC. An RPC returns no rows, so its effects stay
+ * applied (they are what the server just did) until Realtime delivers the
+ * changed rows; reloading the whole list instead would fetch the same
+ * changes a second time.
+ */
+export function applyCommitted<T extends { id: string }>(table: string, rows: Map<string, T>, entry: QueueEntry) {
+  if (!entry.effects.some((e) => e.table === table)) return rows;
+  return new Map(applyEffects(table, [...rows.values()], [entry]).map((r) => [r.id, r]));
 }
 
 interface LiveOptions<T> {
@@ -102,10 +113,10 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
     setLoading(!cached);
     refetch();
 
-    // A confirmed write returns the row; RPCs return no rows, so refetch.
+    // A confirmed write returns the row; an RPC keeps its effects instead.
     const stopCommits = onCommitted((entry, data) => {
       const m = entry.mutation;
-      if (m.kind === "rpc") refetch();
+      if (m.kind === "rpc") setRows((current) => applyCommitted(table, current, entry));
       else if (m.table === table && m.kind !== "delete" && data) upsert(data as T);
       else if (m.table === table && m.kind === "delete") remove(m.id);
     });
