@@ -144,5 +144,4 @@ export interface AccessReviewRow {
   unit_id: string | null;
   active: boolean;
   approved_at: string | null;
-  last_change_at: string | null;
 }

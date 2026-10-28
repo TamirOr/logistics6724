@@ -284,7 +284,6 @@ export const t = {
   never: "אף פעם",
   accessReview: "מנהלים וספקים",
   accessReviewHint: "בדקו מדי פעם שלכל מי שברשימה עדיין צריכה להיות גישה.",
-  lastChange: "שינוי אחרון",
   joinCodeTitle: "קוד הצטרפות",
   joinCodeAdminHint: "משתמשים חדשים צריכים את הקוד כדי לבחור יחידה בהרשמה. החליפו אותו אם דלף, וגם פעם בחודש.",
   rotateJoinCode: "החלפת הקוד",
