@@ -1,8 +1,13 @@
-// The row menu: partial (asks how much), missing, back to pending, note.
+// The row menu: partial (asks how much), missing, back to pending, note,
+// and the item's category, so a new item can be sorted while working.
 import { useState } from "react";
+import { CategoryInput } from "../../components/CategoryInput";
 import { QuantityInput } from "../../components/QuantityInput";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { Sheet } from "../../components/Sheet";
+import { useAction } from "../../components/Toast";
+import { updateItem } from "../../lib/api";
+import { itemCache } from "../../lib/live";
 import { setStatus, setSupplierNote } from "../../lib/requests";
 import type { Item, Request } from "../../lib/types";
 import { t } from "../../strings";
@@ -19,15 +24,24 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
   const [askPartial, setAskPartial] = useState(false);
   const [supplied, setSupplied] = useState(r.supplied_quantity ?? Math.max(1, Math.floor(r.quantity / 2)));
   const [note, setLocalNote] = useState(r.supplier_note ?? "");
+  const [category, setCategory] = useState(item?.category ?? "");
+  const runAction = useAction();
 
+  // The category belongs to the item, so it changes for every request of it.
+  const saveCategory = () => {
+    if (!item || category.trim() === (item.category ?? "")) return;
+    runAction(async () => itemCache.put([await updateItem(item.id, { category: category.trim() || null })]));
+  };
   const change = (status: Request["status"], suppliedQuantity: number | null = null) => {
     setStatus(r, status, suppliedQuantity);
     if (note !== (r.supplier_note ?? "")) setSupplierNote(r, note);
+    saveCategory();
     onStatusChanged(r);
     onClose();
   };
-  const saveNote = () => {
+  const save = () => {
     setSupplierNote(r, note);
+    saveCategory();
     onClose();
   };
 
@@ -57,7 +71,12 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
           <textarea className="input" dir="auto" rows={2} placeholder={t.notePlaceholder} value={note}
             onChange={(e) => setLocalNote(e.target.value)} />
         </label>
-        <button className="btn btn-secondary btn-block" onClick={saveNote}>{t.save}</button>
+        {item && (
+          <label className="field"><span>{t.category}</span>
+            <CategoryInput supplierId={r.supplier_id} value={category} onChange={setCategory} />
+          </label>
+        )}
+        <button className="btn btn-secondary btn-block" onClick={save}>{t.save}</button>
       </div>
     </Sheet>
   );

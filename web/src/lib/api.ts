@@ -3,7 +3,7 @@
 // edits go through lib/requests.ts instead, so they work offline.
 import { supabase } from "./supabase";
 import type {
-  AccessReviewRow, EventScope, HealthReport, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
+  AccessReviewRow, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
   Profile, Unit, UserRole, UserSupport,
 } from "./types";
 
@@ -114,8 +114,12 @@ export type ItemMatch = Pick<ItemSearchResult, "id" | "name" | "default_quantity
 export const matchItem = (supplierId: string, name: string) =>
   rpc<ItemMatch[]>("match_catalog", { p_supplier: supplierId, p_name: name });
 
-export const addItem = (supplierId: string, name: string) =>
-  rpc<string>("add_item", { p_supplier: supplierId, p_name: name });
+/** A category given here applies to a new item only; a known item keeps its own. */
+export const addItem = (supplierId: string, name: string, category = "") =>
+  rpc<string>("add_catalog_item", { p_supplier: supplierId, p_name: name, p_category: category.trim() || null });
+
+export const supplierCategories = (supplierId: string) =>
+  rpc<string[]>("supplier_categories", { p_supplier: supplierId });
 
 export const mergeItem = (sourceId: string, targetId: string) =>
   rpc<void>("merge_item", { p_source: sourceId, p_target: targetId });
@@ -123,9 +127,11 @@ export const mergeItem = (sourceId: string, targetId: string) =>
 export const mergeSuggestions = (supplierId: string) =>
   rpc<MergeSuggestion[]>("merge_suggestions", { p_supplier: supplierId });
 
-export async function updateItem(id: string, patch: { name?: string; active?: boolean; verified?: boolean }) {
-  const { error } = await supabase.from("items").update(patch).eq("id", id);
+/** Returns the item as stored, with the category spelled as the server cleaned it. */
+export async function updateItem(id: string, patch: { name?: string; active?: boolean; verified?: boolean; category?: string | null }) {
+  const { data, error } = await supabase.from("items").update(patch).eq("id", id).select().single();
   if (error) throw error;
+  return data as Item;
 }
 
 // Admin --------------------------------------------------------------------------

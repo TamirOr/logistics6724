@@ -9,8 +9,8 @@ const units: Unit[] = [
   { id: "supplier", name: "אפסנאות", kind: "supplier", headcount: null, active: true },
 ];
 const items: Record<string, Item> = {
-  aa: { id: "aa", supplier_id: "supplier", name: "סוללה AA", verified: true, active: true },
-  jerry: { id: "jerry", supplier_id: "supplier", name: "ג׳ריקן מים", verified: true, active: true },
+  aa: { id: "aa", supplier_id: "supplier", name: "סוללה AA", category: "חשמל", verified: true, active: true },
+  jerry: { id: "jerry", supplier_id: "supplier", name: "ג׳ריקן מים", category: null, verified: true, active: true },
 };
 
 describe("aggregateTotals", () => {
@@ -23,7 +23,7 @@ describe("aggregateTotals", () => {
     ], (id) => items[id], units);
 
     expect(totals).toEqual([{
-      key: "aa:", item_name: "סוללה AA", supplier_name: "אפסנאות", quantity: 45, measure: null,
+      key: "aa:", item_name: "סוללה AA", category: "חשמל", supplier_name: "אפסנאות", quantity: 45, measure: null,
       byCompany: [{ company: "פלוגה א", quantity: 30 }, { company: "פלוגה ב", quantity: 15 }],
     }]);
   });

@@ -9,7 +9,7 @@ import {
 
 const row: ExportRow = {
   event_id: "e1", event_name: "תרגיל", needed_on: "2026-11-03", needed_by: "22:00:00", company_name: "פלוגה א", supplier_name: "מטבח",
-  item_name: "ארגז מנות", quantity: 5, supplied_quantity: null, status: "ready", urgent: false,
+  item_name: "ארגז מנות", item_category: null, quantity: 5, supplied_quantity: null, status: "ready", urgent: false,
   supplier_note: null, customer_note: null, updated_at: "2026-10-27T08:00:00Z", measure: null,
 };
 
