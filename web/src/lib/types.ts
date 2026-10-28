@@ -36,6 +36,10 @@ export interface Profile {
   active: boolean;
   /** Approves sign-ups to their units and removes users from them. Set by admins. */
   super_user: boolean;
+  /** Admins: the unit they work in as its customer or supplier (act_as_unit); null while they work as admin. */
+  acting_unit_id: string | null;
+  /** That unit's kind, while it is active. A deactivated unit returns the admin to admin. */
+  acting_kind: UnitKind | null;
   created_at: string;
 }
 

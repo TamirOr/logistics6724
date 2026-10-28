@@ -2,17 +2,23 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { fetchMyProfile } from "./api";
+import { fetchMyProfile, workAsUnit } from "./api";
 import { clearAllCaches, readCache, writeCache } from "./cache";
 import { disablePush } from "./push";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
+import { isAdminInUnit, workingProfile } from "./workingProfile";
 
 interface SessionState {
   session: Session | null;
+  /** The profile the screens work with: an admin working in a unit is that unit's user here. */
   profile: Profile | null;
+  /** An admin working as a unit's user, who can return to admin. */
+  adminInUnit: boolean;
   loading: boolean;
   reloadProfile: () => Promise<void>;
+  /** Admins: work as the user of a unit, or (null) return to admin. */
+  switchWorkingUnit: (unitId: string | null) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -82,8 +88,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  // Cached rows and queued edits belong to the screens being left, which
+  // the server no longer lets this user see or change.
+  const switchWorkingUnit = useCallback(async (unitId: string | null) => {
+    await workAsUnit(unitId);
+    clearQueue();
+    clearAllCaches();
+    await reloadProfile();
+  }, [reloadProfile]);
+
+  const value: SessionState = {
+    session,
+    profile: profile && workingProfile(profile),
+    adminInUnit: !!profile && isAdminInUnit(profile),
+    loading,
+    reloadProfile,
+    switchWorkingUnit,
+    signOut,
+  };
   return (
-    <SessionContext.Provider value={{ session, profile, loading, reloadProfile, signOut }}>
+    <SessionContext.Provider value={value}>
       {children}
     </SessionContext.Provider>
   );

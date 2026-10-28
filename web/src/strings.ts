@@ -46,6 +46,10 @@ export const t = {
   deactivatedBody: "פנו למנהל המערכת.",
   signOut: "יציאה",
   signOutUnsynced: (n: number) => `${n} שינויים עוד לא נשלחו לשרת ויימחקו ביציאה. לצאת בכל זאת?`,
+  // An admin works as a unit's customer or supplier, and returns.
+  workAs: { company: "כניסה כלקוח", supplier: "כניסה כספק" } as Record<string, string>,
+  returnToAdmin: "חזרה לניהול",
+  switchUnsynced: (n: number) => `${n} שינויים עוד לא נשלחו לשרת ויימחקו במעבר. לעבור בכל זאת?`,
 
   // Install and notifications
   installTitle: "הוספה למסך הבית",
