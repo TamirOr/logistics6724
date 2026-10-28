@@ -86,7 +86,7 @@ Migrations must keep working with the previous web build for one release (expand
 2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
 3. Reload the app. The battalion's companies and logistic platoons come from the seed migration; as admin, check them under "פלוגות ומחלקות" and set each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
 4. Open מנהלים ומחלקות לוגיסטיות (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
-5. The initial catalog comes from the same seed migration (`20261028000014_battalion_units_and_catalog.sql`). Suppliers edit it in the app.
+5. The initial catalog comes from the same seed migration (`20261028000016_battalion_units_and_catalog.sql`). Suppliers edit it in the app.
 
 ### Sign-in emails (needed for 6-digit codes)
 
@@ -124,7 +124,7 @@ All free plans. Every alert ends in an email; nobody needs to watch a dashboard.
   1. the production site URL, expecting 200;
   2. `https://<project-ref>.supabase.co/rest/v1/rpc/health`, method POST, body `{}`, headers `apikey: <anon key>` and `Content-Type: application/json`, expecting 200 and the keyword `true`. The anon key is public (it is in the web app); find it under Project Settings → API.
 
-What each alert means and how to fix it: [docs/runbook.md](docs/runbook.md). Support tools in the app: every user has **אבחון** (diagnostics) in the header; admins can open any user's support view from משתמשים, and see a health strip on the home screen.
+What each alert means and how to fix it: [docs/runbook.md](docs/runbook.md). Support tools in the app: every user has **אבחון** (diagnostics) in the header; admins see a health strip on the home screen.
 
 ## Configuration
 

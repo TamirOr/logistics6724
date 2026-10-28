@@ -36,6 +36,10 @@ export interface Profile {
   active: boolean;
   /** Approves sign-ups to their units and removes users from them. Set by admins. */
   super_user: boolean;
+  /** Admins: the unit they work in as its customer or supplier (act_as_unit); null while they work as admin. */
+  acting_unit_id: string | null;
+  /** That unit's kind, while it is active. A deactivated unit returns the admin to admin. */
+  acting_kind: UnitKind | null;
   created_at: string;
 }
 
@@ -138,33 +142,10 @@ export interface HealthReport {
   metrics: Record<string, number | boolean | null>;
 }
 
-export interface SupportDevice { id: string; user_agent: string | null; created_at: string; last_success_at: string | null }
-
-export interface SupportNotification {
-  id: number;
-  kind: string;
-  body: string;
-  created_at: string;
-  sent_at: string | null;
-  attempts: number;
-  last_error: string | null;
-}
-
-export interface AuditEntry {
-  at: string;
-  table_name: string;
-  row_id: string;
-  op: "insert" | "update" | "delete";
-  changed: Record<string, unknown>;
-}
-
-export interface UserSupport { devices: SupportDevice[]; notifications: SupportNotification[]; audit: AuditEntry[] }
-
 export interface AccessReviewRow {
   user_id: string;
   role: UserRole;
   unit_id: string | null;
   active: boolean;
   approved_at: string | null;
-  last_change_at: string | null;
 }

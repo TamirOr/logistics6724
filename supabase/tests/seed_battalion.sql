@@ -16,14 +16,14 @@ select pg_temp.ok((select array_agg(m.name order by m.name) from item_measures m
 -- Running it again on a database that has the data adds nothing.
 create temp table before as
   select (select count(*) from units) as units, (select count(*) from items) as items, (select count(*) from item_measures) as measures;
-\ir ../migrations/20261028000014_battalion_units_and_catalog.sql
+\ir ../migrations/20261028000016_battalion_units_and_catalog.sql
 select pg_temp.ok((select count(*) from units) = units and (select count(*) from items) = items
   and (select count(*) from item_measures) = measures, 'seed is safe to run again') from before;
 
 -- An item already in the catalog under another spelling is kept, not doubled.
 delete from items where name = 'לימון';
 insert into items (supplier_id, name, verified) select id, 'לימונים', true from units where name = 'אפסנאות';
-\ir ../migrations/20261028000014_battalion_units_and_catalog.sql
+\ir ../migrations/20261028000016_battalion_units_and_catalog.sql
 select pg_temp.ok((select count(*) from items where name in ('לימון', 'לימונים')) = 1, 'existing spelling is kept');
 
 truncate units cascade;

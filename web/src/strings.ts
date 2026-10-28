@@ -48,6 +48,10 @@ export const t = {
   deactivatedBody: "פנו למנהל המערכת.",
   signOut: "יציאה",
   signOutUnsynced: (n: number) => `${n} שינויים עוד לא נשלחו לשרת ויימחקו ביציאה. לצאת בכל זאת?`,
+  // An admin works as a unit's customer or supplier, and returns.
+  workAs: { company: "כניסה כפלוגה", supplier: "כניסה כמחלקה" } as Record<string, string>,
+  returnToAdmin: "חזרה לניהול",
+  switchUnsynced: (n: number) => `${n} שינויים עוד לא נשלחו לשרת ויימחקו במעבר. לעבור בכל זאת?`,
 
   // Install and notifications
   installTitle: "הוספה למסך הבית",
@@ -155,6 +159,8 @@ export const t = {
   hide: "הסתרה",
   show: "הצגה",
   merge: "מיזוג",
+  deleteItem: "מחיקה",
+  confirmDeleteItem: (name: string) => `למחוק את "${name}" מהקטלוג? אי אפשר לבטל את המחיקה.`,
   mergeWith: "מיזוג לתוך",
   hidden: "מוסתר",
   searchCatalog: "חיפוש בקטלוג",
@@ -220,6 +226,7 @@ export const t = {
   genericError: "משהו השתבש. נסו שוב.",
   errItemNameTaken: "כבר יש בקטלוג פריט בשם הזה.",
   errItemHidden: "הפריט הוסתר על ידי המחלקה הלוגיסטית. בחרו פריט אחר או פנו אליה.",
+  errItemInUse: "הפריט מופיע בבקשות ולכן אי אפשר למחוק אותו. אפשר להסתיר אותו או למזג אותו לפריט אחר.",
   errWrongJoinCode: "קוד ההצטרפות שגוי. בדקו אותו מול מנהל המערכת.",
   errDailyItemLimit: "הפלוגה הוסיפה היום את מספר הפריטים החדשים המרבי. בחרו פריט קיים או נסו מחר.",
   errTooLong: "הטקסט ארוך מדי. קצרו אותו ונסו שוב.",
@@ -270,7 +277,7 @@ export const t = {
   clearLocal: "ניקוי נתונים מקומיים וטעינה מחדש",
   confirmDropQueue: (n: number) => `${n} שינויים עוד לא נשלחו לשרת. למחוק גם אותם? (ביטול ישאיר אותם)`,
 
-  // Admin: system health and support
+  // Admin: system health
   systemOk: "המערכת תקינה",
   systemProblem: "בעיה במערכת:",
   healthChecks: {
@@ -283,24 +290,10 @@ export const t = {
     backup_last_ok_hours: "הגיבוי לא רץ",
   } as Record<string, string>,
   pushP95: (seconds: number) => `95% מההתראות נשלחו תוך ${seconds} שניות`,
-  support: "תמיכה",
   profile: "פרטים אישיים",
-  devices: "מכשירים",
-  noDevices: "אין מכשירים רשומים להתראות",
-  registered: "נרשם",
-  lastDelivered: "נמסרה לאחרונה",
   never: "אף פעם",
-  recentNotifications: "התראות אחרונות",
-  noNotifications: "אין התראות",
-  sentAt: "נשלחה",
-  notSent: "לא נשלחה",
-  attempts: (n: number) => `${n} ניסיונות`,
-  recentChanges: "שינויים אחרונים",
-  noChanges: "אין שינויים",
-  auditOps: { insert: "נוצר", update: "עודכן", delete: "נמחק" } as Record<string, string>,
   accessReview: "מנהלים ומחלקות לוגיסטיות",
   accessReviewHint: "בדקו מדי פעם שלכל מי שברשימה עדיין צריכה להיות גישה.",
-  lastChange: "שינוי אחרון",
   joinCodeTitle: "קוד הצטרפות",
   joinCodeAdminHint: "משתמשים חדשים צריכים את הקוד כדי לבחור פלוגה או מחלקה בהרשמה. החליפו אותו אם דלף, וגם פעם בחודש.",
   rotateJoinCode: "החלפת הקוד",

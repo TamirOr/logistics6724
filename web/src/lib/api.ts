@@ -4,7 +4,7 @@
 import { supabase } from "./supabase";
 import type {
   AccessReviewRow, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
-  Profile, Unit, UserRole, UserSupport,
+  Profile, Unit, UnitKind, UserRole,
 } from "./types";
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -30,12 +30,19 @@ export const sendCode = (email: string) =>
 export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
 
-// A users row with its supplier units embedded, flattened into a Profile.
-const PROFILE_COLUMNS = "*, user_suppliers(supplier_id, approved)";
-type ProfileRow = Omit<Profile, "supplier_ids" | "pending_supplier_ids">
-  & { user_suppliers: { supplier_id: string; approved: boolean }[] };
-const toProfile = ({ user_suppliers, ...row }: ProfileRow): Profile => ({
+/** Admins: work as the customer or supplier of a unit, or (null) return to admin. */
+export const workAsUnit = (unitId: string | null) =>
+  unitId ? rpc<void>("act_as_unit", { p_unit: unitId }) : rpc<void>("return_to_admin");
+
+// A users row with its supplier units and the unit an admin works in
+// embedded, flattened into a Profile. users has two keys to units, so the
+// embed names its key.
+const PROFILE_COLUMNS = "*, user_suppliers(supplier_id, approved), acting_unit:units!users_acting_unit_id_fkey(kind)";
+type ProfileRow = Omit<Profile, "supplier_ids" | "pending_supplier_ids" | "acting_kind">
+  & { user_suppliers: { supplier_id: string; approved: boolean }[]; acting_unit: { kind: UnitKind } | null };
+const toProfile = ({ user_suppliers, acting_unit, ...row }: ProfileRow): Profile => ({
   ...row,
+  acting_kind: acting_unit?.kind ?? null,
   supplier_ids: user_suppliers.filter((s) => s.approved).map((s) => s.supplier_id),
   pending_supplier_ids: user_suppliers.filter((s) => !s.approved).map((s) => s.supplier_id),
 });
@@ -128,6 +135,9 @@ export const supplierCategories = (supplierId: string) =>
 export const mergeItem = (sourceId: string, targetId: string) =>
   rpc<void>("merge_item", { p_source: sourceId, p_target: targetId });
 
+/** Refused while any request uses the item: hide or merge it instead. */
+export const deleteItem = (id: string) => rpc<void>("delete_item", { p_item: id });
+
 export const mergeSuggestions = (supplierId: string) =>
   rpc<MergeSuggestion[]>("merge_suggestions", { p_supplier: supplierId });
 
@@ -158,9 +168,6 @@ export const setUserSuppliers = (id: string, supplierIds: string[]) =>
 
 /** Pass or fail per health check, with the metrics behind them. Admins only. */
 export const fetchAdminHealth = () => rpc<HealthReport>("admin_health");
-
-/** One user's devices, notifications and recent changes. Admins only. */
-export const fetchUserSupport = (id: string) => rpc<UserSupport | null>("user_support", { p_user: id });
 
 export const fetchAccessReview = () => rpc<AccessReviewRow[]>("access_review");
 export const fetchJoinCode = () => rpc<string>("join_code");
