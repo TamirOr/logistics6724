@@ -147,14 +147,14 @@ language sql stable set search_path = public as $$
   select coalesce(array_agg(m.name order by m.created_at, m.name), '{}') from item_measures m where m.item_id = p_item
 $$;
 
--- search_items and match_item gain columns, which needs a drop. The old web
--- build ignores the new columns.
-drop function match_item(uuid, text);
-drop function search_items(uuid, text, int);
+-- search_catalog and match_catalog are search_items and match_item with the
+-- measures added. Adding columns to those two would need a drop, which the
+-- previous web build still calls; they stay below as wrappers until a later
+-- release removes them (expand, then contract).
 
--- The body is 20261027000015's, plus each item's measures and this
--- company's last measure for it.
-create function search_items(p_supplier uuid, p_q text, p_limit int default 8)
+-- The body is search_items' from 20261027000015, plus each item's measures
+-- and this company's last measure for it.
+create function search_catalog(p_supplier uuid, p_q text, p_limit int default 8)
 returns table (id uuid, name text, verified boolean, matched_alias text, score real, similarity real,
   default_quantity int, measures text[], default_measure text)
 language plpgsql stable set search_path = public, extensions set pg_trgm.word_similarity_threshold = 0.3 as $$
@@ -196,10 +196,10 @@ begin
   order by b.s desc, b.name
   limit p_limit;
 end $$;
-grant execute on function search_items to authenticated;
+grant execute on function search_catalog to authenticated;
 
--- The body is 20261027000020's, plus the measures as in search_items.
-create function match_item(p_supplier uuid, p_name text)
+-- The body is match_item's from 20261027000020, plus the measures as in search_catalog.
+create function match_catalog(p_supplier uuid, p_name text)
 returns table (id uuid, name text, exact boolean, default_quantity int, measures text[], default_measure text)
 language plpgsql stable set search_path = public as $$
 declare v_exact uuid := find_exact_item(p_supplier, p_name);
@@ -214,13 +214,27 @@ begin
   end if;
   return query
     select s.id, s.name, false, s.default_quantity, s.measures, s.default_measure
-    from search_items(p_supplier, p_name, 8) s
+    from search_catalog(p_supplier, p_name, 8) s
     where s.similarity >= config('did_you_mean_threshold', '0.4')::real
     order by s.similarity desc limit 3;
 end $$;
-grant execute on function match_item to authenticated;
+grant execute on function match_catalog to authenticated;
 
--- search_items and match_item call it with the caller's rights.
+-- The previous web build's calls, answered by the new functions.
+create or replace function search_items(p_supplier uuid, p_q text, p_limit int default 8)
+returns table (id uuid, name text, verified boolean, matched_alias text, score real, similarity real, default_quantity int)
+language sql stable set search_path = public as $$
+  select c.id, c.name, c.verified, c.matched_alias, c.score, c.similarity, c.default_quantity
+  from search_catalog(p_supplier, p_q, p_limit) c
+$$;
+
+create or replace function match_item(p_supplier uuid, p_name text)
+returns table (id uuid, name text, exact boolean, default_quantity int)
+language sql stable set search_path = public as $$
+  select c.id, c.name, c.exact, c.default_quantity from match_catalog(p_supplier, p_name) c
+$$;
+
+-- search_catalog and match_catalog call it with the caller's rights.
 grant execute on function item_measure_names to authenticated;
 
 -- Views list their columns when created; add measure at the end.
@@ -258,7 +272,7 @@ join units c on c.id = r.company_id
 join units s on s.id = r.supplier_id
 join items i on i.id = r.item_id;
 
--- 20261028000007's list of functions the app may call, plus item_measure_names.
+-- 20261028000007's list of functions the app may call, plus the three above.
 create or replace function privilege_drift() returns setof text
 language sql stable security definer set search_path = public as $$
   with fns as (
@@ -274,9 +288,9 @@ language sql stable security definer set search_path = public as $$
     'create_event', 'customer_request_rules', 'delete_request', 'derive_list_status', 'duplicate_event',
     'escape_like_pattern', 'exact_item', 'find_exact_item', 'health', 'is_admin', 'is_approved', 'is_client',
     'item_measure_names', 'join_code',
-    'mark_collected', 'match_item', 'merge_item', 'merge_suggestions', 'move_user', 'my_role', 'my_suppliers', 'my_unit',
+    'mark_collected', 'match_catalog', 'match_item', 'merge_item', 'merge_suggestions', 'move_user', 'my_role', 'my_suppliers', 'my_unit',
     'normalize_he', 'register_profile', 'register_push_subscription', 'reject_user', 'restore_request',
-    'rotate_join_code', 'search_items', 'send_test_notification', 'set_user_active', 'set_user_suppliers', 'signup_units', 'suggest_items',
+    'rotate_join_code', 'search_catalog', 'search_items', 'send_test_notification', 'set_user_active', 'set_user_suppliers', 'signup_units', 'suggest_items',
     'supplier_request_rules', 'user_support')
   union all
   select 'no row-level security on ' || relname from pg_class

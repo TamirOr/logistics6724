@@ -35,18 +35,21 @@ insert into requests (id, list_id, item_id, quantity, measure) values
 
 -- The add row gets the measures from search and match.
 select tst.ok(measures = '{ליטר מים,קרטון}' and default_measure = 'קרטון', 'search returns measures and the last one')
-from search_items('00000000-0000-0000-0000-0000000000a1', 'גריקן') where id = (select v from tst.t where k = 'm_jerry');
+from search_catalog('00000000-0000-0000-0000-0000000000a1', 'גריקן') where id = (select v from tst.t where k = 'm_jerry');
 select tst.ok(measures = '{ליטר מים,קרטון}' and default_measure = 'קרטון', 'exact match returns measures')
-from match_item('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקן מים');
+from match_catalog('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקן מים');
 select tst.ok(default_measure = 'קרטון', 'the empty search returns the last measure')
-from search_items('00000000-0000-0000-0000-0000000000a1', '') where id = (select v from tst.t where k = 'm_jerry');
+from search_catalog('00000000-0000-0000-0000-0000000000a1', '') where id = (select v from tst.t where k = 'm_jerry');
+select tst.ok((select default_quantity from search_items('00000000-0000-0000-0000-0000000000a1', 'גריקן')
+                 where id = (select v from tst.t where k = 'm_jerry')) = 1, 'the previous build''s search still answers');
+select tst.ok((select exact from match_item('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקן מים')), 'the previous build''s match still answers');
 select tst.ok((select measure from export_rows where item_name = 'ג׳ריקן מים' and event_id = (select v from tst.t where k = 'm_ev')
                  order by quantity limit 1) = 'קרטון', 'export rows carry the measure');
 
 -- Another company sees the item's measures, not this company's default.
 select tst.act('10000000-0000-0000-0000-000000000003');
 select tst.ok(measures = '{ליטר מים,קרטון}' and default_measure is null, 'measures are shared, the default is per company')
-from search_items('00000000-0000-0000-0000-0000000000a1', 'גריקן') where id = (select v from tst.t where k = 'm_jerry');
+from search_catalog('00000000-0000-0000-0000-0000000000a1', 'גריקן') where id = (select v from tst.t where k = 'm_jerry');
 
 -- Should fail: changing a measure, writing measures directly, an oversized one.
 select tst.act('10000000-0000-0000-0000-000000000002');
