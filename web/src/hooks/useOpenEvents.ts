@@ -26,7 +26,8 @@ export function useOpenEvents(requestsFilter: string | null) {
   const [tick, setTick] = useState(0);
   const poke = useCallback(() => setTick((n) => n + 1), []);
   useEffect(() => {
-    const timer = setTimeout(refresh, tick ? REFRESH_DEBOUNCE_MS : 0);
+    // Offline the saved copy stays; reconnecting to events pokes again.
+    const timer = setTimeout(() => refresh().catch(() => {}), tick ? REFRESH_DEBOUNCE_MS : 0);
     return () => clearTimeout(timer);
   }, [tick, refresh]);
 
