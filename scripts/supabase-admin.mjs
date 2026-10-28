@@ -142,6 +142,15 @@ async function ensureVapidKeys({ sql }) {
   console.log("Generated VAPID keys");
 }
 
+// pg_cron reads the cron secret from app_config; the functions check it
+// against their CRON_SECRET secret before touching the database. This keeps
+// the two equal.
+async function syncCronSecret({ api, sql }) {
+  const [row] = await sql("select value from app_config where key = 'cron_secret'");
+  if (!row) throw new Error("app_config has no cron_secret");
+  await api("POST", "/secrets", [{ name: "CRON_SECRET", value: row.value }]);
+}
+
 async function configureAuth({ api }, env) {
   const otpTemplate = await readFile(new URL("../supabase/templates/otp.html", import.meta.url), "utf8");
   const smtp = smtpFromEnv(env);
@@ -152,7 +161,9 @@ async function configureAuth({ api }, env) {
 async function configure(env) {
   if (!env.SITE_URL) throw new Error("SITE_URL is required");
   const project = client(env);
-  const steps = { "server URLs": storeServerUrls, "VAPID keys": ensureVapidKeys, "auth settings": configureAuth };
+  const steps = {
+    "server URLs": storeServerUrls, "VAPID keys": ensureVapidKeys, "cron secret": syncCronSecret, "auth settings": configureAuth,
+  };
   const failures = [];
   for (const [name, step] of Object.entries(steps)) {
     try {
@@ -275,11 +286,13 @@ async function recordBackup(env) {
     values ('backup', ${sqlLiteral(startedAt.toISOString())}, true, jsonb_build_object('bytes', ${bytes}))`);
 }
 
-// pg_cron, wake_dispatcher and the functions all read the secret from
-// app_config when they run, so replacing it there is the whole rotation.
+// pg_cron and wake_dispatcher read the secret from app_config when they
+// run; the functions get the new value as their CRON_SECRET secret.
 async function rotateCronSecret(env) {
-  await client(env).sql(`update app_config
+  const project = client(env);
+  await project.sql(`update app_config
     set value = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') where key = 'cron_secret'`);
+  await syncCronSecret(project);
   console.log("cron secret rotated");
 }
 

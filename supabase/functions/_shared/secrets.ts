@@ -10,7 +10,8 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-// pg_cron and wake_dispatcher call the functions with app_config.cron_secret.
+// pg_cron and wake_dispatcher send app_config.cron_secret; the functions
+// compare it with their CRON_SECRET secret, which the deploy keeps equal.
 export function authorized(req: { headers: Headers }, cronSecret: string | undefined): boolean {
   const given = req.headers.get("x-cron-secret");
   return !!cronSecret && given !== null && safeEqual(given, cronSecret);

@@ -53,7 +53,7 @@ select status_code, error_msg, left(content::text, 200), created from net._http_
 select key from app_config where key in ('functions_url', 'cron_secret', 'vapid_public_key', 'vapid_private_key');
 ```
 
-- `net._http_response` shows 401: the function and the database disagree on the cron secret. Run the Deploy workflow (it does not change the secret), or rotate it (below).
+- `net._http_response` shows 401: the function and the database disagree on the cron secret. Run the Deploy workflow (it copies `app_config.cron_secret` to the functions' `CRON_SECRET` secret without changing it), or rotate it (below).
 - 404: the function is not deployed. Run the Deploy workflow.
 - 5xx: open Sentry (the `push-dispatch` issue), or Supabase → Edge Functions → push-dispatch → Logs. Each run logs one JSON line with `run_id`, `claimed`, `sent`, `failed` and `error`.
 - `functions_url` missing: run the Deploy workflow, whose configure step stores it.
@@ -194,7 +194,7 @@ Never rotate VAPID keys on purpose unless the private key leaked: it cuts off ev
 
 ### Rotating the cron secret
 
-Actions → Deploy → Run workflow → target, tick "Replace the cron secret". pg_cron, `wake_dispatcher` and both functions read it from `app_config` on each run, so nothing else changes. Do it if the secret may have leaked.
+Actions → Deploy → Run workflow → target, tick "Replace the cron secret". pg_cron and `wake_dispatcher` read it from `app_config` on each run; the workflow copies the new value to the functions' `CRON_SECRET` secret, so nothing else changes. Do it if the secret may have leaked.
 
 ### A breaking schema change (`min_client_version`)
 
@@ -266,7 +266,7 @@ psql "$SESSION_POOLER_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/r
 | --- | --- | --- | --- |
 | `SUPABASE_ACCESS_TOKEN` | GitHub secret | Supabase → Account → Access tokens (organization-wide, not one project); replace the secret | Nothing else |
 | `SUPABASE_DB_PASSWORD` / `STAGING_…` | GitHub secret | Supabase → Project Settings → Database → Reset password; replace the secret | Nothing else |
-| `cron_secret` | `app_config` (database only) | Deploy → "Replace the cron secret" | Nothing else |
+| `cron_secret` | `app_config`, copied to the functions' `CRON_SECRET` secret | Deploy → "Replace the cron secret" | Nothing else |
 | `vapid_private_key` / `vapid_public_key` | `app_config` | Only if leaked: delete both rows, run Deploy | Every device must re-subscribe (see VAPID mismatch) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` | Edge Function secrets **and** GitHub secrets | Google Cloud console → new client secret or token; update both places | Archive and backups fail until both are updated |
 | `SMTP_PASS` / `STAGING_SMTP_PASS` | GitHub secret | New app password at the provider; replace the secret; run Deploy | Sign-in emails fail until deployed |

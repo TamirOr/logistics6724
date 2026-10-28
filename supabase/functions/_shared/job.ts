@@ -42,7 +42,12 @@ async function record(db: SupabaseClient, job: string, startedAt: Date, outcome:
 
 /**
  * Serves a scheduled function. `run` gets a service-role client and the
- * server settings it asked for (the cron secret is always read).
+ * server settings it asked for.
+ *
+ * The URL is public (verify_jwt = false, pg_cron sends no JWT), so a
+ * stranger's call is refused before anything else runs: no database query,
+ * no job_runs row. CRON_SECRET is the function secret the deploy copies
+ * from app_config.cron_secret (scripts/supabase-admin.mjs).
  */
 export function serveJob<K extends string>(
   job: string,
@@ -51,14 +56,14 @@ export function serveJob<K extends string>(
 ) {
   initSentry(job);
   Deno.serve(async (req) => {
+    if (!authorized(req, Deno.env.get("CRON_SECRET"))) return json({ error: "unauthorized" }, 401);
     const startedAt = new Date();
     const runId = crypto.randomUUID();
     const db = serviceClient();
     let outcome: JobOutcome;
     try {
-      const config = await serverConfigs(db, ["cron_secret", ...configKeys]);
-      if (!authorized(req, config.cron_secret)) return json({ error: "unauthorized" }, 401);
-      outcome = await run(db, config as Record<K, string | undefined>);
+      const config = await serverConfigs(db, configKeys);
+      outcome = await run(db, config);
       if (outcome.error) Sentry.captureMessage(`${job}: ${outcome.error}`, "error");
     } catch (e) {
       Sentry.captureException(e);
