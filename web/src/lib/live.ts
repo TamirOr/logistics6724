@@ -167,6 +167,12 @@ function createCache<T extends { id: string }>(table: string) {
     listeners.forEach((l) => l());
   };
 
+  const save = () => {
+    const now = Date.now();
+    writeCache(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
+    notify();
+  };
+
   return {
     get: (id: string) => byId.get(id),
     put(rows: T[]) {
@@ -175,8 +181,13 @@ function createCache<T extends { id: string }>(table: string) {
         byId.set(r.id, r);
         seenAt.set(r.id, now);
       });
-      writeCache(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
-      notify();
+      save();
+    },
+    /** Forgets a row the server deleted. */
+    drop(id: string) {
+      if (!byId.delete(id)) return;
+      seenAt.delete(id);
+      save();
     },
     async ensure(ids: Iterable<string>) {
       const missing = [...new Set(ids)].filter((id) => !byId.has(id) && !inFlight.has(id));

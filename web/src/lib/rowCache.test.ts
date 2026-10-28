@@ -17,4 +17,13 @@ describe("event and item caches", () => {
     expect(eventCache.get("old")).toBeUndefined();
     expect(eventCache.get("recent")?.name).toBe("חדש");
   });
+
+  it("forget a dropped row, in storage too", async () => {
+    const { eventCache } = await import("./live");
+    eventCache.put([{ id: "gone", name: "נמחק" } as never]);
+    eventCache.drop("gone");
+    expect(eventCache.get("gone")).toBeUndefined();
+    const saved = JSON.parse(localStorage.getItem(`${PREFIX}rows:events`) ?? "{}");
+    expect(saved.value.some((r: { row: { id: string } }) => r.row.id === "gone")).toBe(false);
+  });
 });
