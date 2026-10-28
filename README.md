@@ -49,10 +49,10 @@ There are two Supabase projects, which is what the free plan allows:
 | --- | --- | --- |
 | Supabase project | a second free project | the original project |
 | Web app | `https://<owner>.github.io/<repo>/staging/` | `https://<owner>.github.io/<repo>/` |
-| Deploys on | every push to `main` | a tag `v*` |
+| Deploys on | every push to `main` | the same run, after you approve it |
 | Before deploying | the full CI suite | the full CI suite |
 | Before migrations | nothing | a fresh encrypted backup |
-| After deploy | nothing | health check 10 minutes later; GitHub release with notes |
+| After deploy | nothing | health check 10 minutes later |
 | Data | fake units and catalog (Deploy → "Seed staging") | real |
 | Sentry environment | `staging` | `production` |
 | Push keys, email | its own VAPID keys; `STAGING_SMTP_*` (a test inbox) | its own; `SMTP_*` |
@@ -68,12 +68,13 @@ Both builds live on the `site` branch, which GitHub Pages serves. Source maps go
    - `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`: production
    - `STAGING_SUPABASE_PROJECT_REF`, `STAGING_SUPABASE_DB_PASSWORD`: staging (until they exist, pushes to `main` only run the tests)
 4. **GitHub Pages.** Settings → Pages → Build and deployment → Source: **Deploy from a branch**, branch `site`, folder `/ (root)`. The branch appears after the first deploy; until then, run a deploy first and come back.
-5. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning** and **Push protection**.
-6. **Deploy.** Merge to `main` (staging), or open Actions → Deploy → "Run workflow" and pick a target.
+5. **Production approval.** Settings → Environments → `production` (it appears after the first deploy; or "New environment") → tick **Required reviewers**, add yourself, Save. Without it, production deploys right after staging with no pause.
+6. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning** and **Push protection**.
+7. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow" and pick a target.
 
-### Releasing to production
+### Deploying to production
 
-Open Releases → "Draft a new release" → "Choose a tag" → type the next version (`v1.4.0`) → "Create new tag on publish" → Publish. The tag starts the Deploy workflow, which runs every test suite, takes a backup, migrates, deploys, checks health after 10 minutes and writes the release notes from the commit messages. To roll back the web app, run Deploy from the previous tag (see docs/runbook.md).
+Every merge to `main` starts one Deploy run: it runs every test suite, deploys staging, then **waits for your approval**. GitHub emails you, and the run shows **Review deployments** under Actions. Check the change on staging, then approve, and the same run takes a backup (once backups are set up), migrates and deploys production, and checks health 10 minutes later. If you merge again before approving, the waiting run is cancelled and the newer one waits instead, so an approval always ships the latest `main`. To ship nothing, just don't approve: the request expires after 30 days. To undo a change, revert its PR and merge (see docs/runbook.md).
 
 Migrations must keep working with the previous web build for one release (expand, then contract), because phones update only when the user taps the update banner. CI asks for the `db-breaking` label on a PR whose new migration drops, renames or changes a column type; see the runbook for `min_client_version`.
 
