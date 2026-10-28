@@ -164,3 +164,31 @@ select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכס�
   'suppliers are not capped in their own catalog');
 reset role;
 update app_config set value = '30' where key = 'max_new_items_per_company_day';
+
+-- F8: a creator who lost access cannot close or cancel ------------------------
+insert into auth.users (id, email) values ('10000000-0000-0000-0000-0000000000f2', 'leaver@x.il');
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-0000000000f2');
+select register_profile('עוזב', 'לוי', '1234600', 'customer', '00000000-0000-0000-0000-0000000000c1');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select approve_user('10000000-0000-0000-0000-0000000000f2');
+select tst.act('10000000-0000-0000-0000-0000000000f2');
+insert into tst.t select 'leaver_event', create_event('אירוע של עוזב', 'company');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select set_user_active('10000000-0000-0000-0000-0000000000f2', false);
+select tst.act('10000000-0000-0000-0000-0000000000f2');
+select tst.fails($$select cancel_event((select v from tst.t where k = 'leaver_event'))$$, 'a deactivated creator cancels');
+select tst.fails($$select close_event((select v from tst.t where k = 'leaver_event'))$$, 'a deactivated creator closes');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select set_user_active('10000000-0000-0000-0000-0000000000f2', true);
+select move_user('10000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000c2');
+select tst.act('10000000-0000-0000-0000-0000000000f2');
+select tst.fails($$select cancel_event((select v from tst.t where k = 'leaver_event'))$$, 'a moved creator cancels');
+select tst.fails($$select close_event((select v from tst.t where k = 'leaver_event'))$$, 'a moved creator closes');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select move_user('10000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000c1');
+select tst.act('10000000-0000-0000-0000-0000000000f2');
+select cancel_event((select v from tst.t where k = 'leaver_event'));
+reset role;
+select tst.ok((select status from events where id = (select v from tst.t where k = 'leaver_event')) = 'cancelled',
+  'a creator still in the unit cancels');
