@@ -61,7 +61,7 @@ Both builds live on the `site` branch, which GitHub Pages serves. Source maps go
 
 ### One-time setup
 
-1. **Supabase access token.** Open https://supabase.com/dashboard/account/tokens, choose "Generate new token", name it `github-deploy`, and copy the token. It works for both projects.
+1. **Supabase access token.** Open https://supabase.com/dashboard/account/tokens, choose "Generate new token", name it `github-deploy`, and copy the token. Give it access to the whole organization, not to one project: the same token deploys both staging and production. A token limited to one project gets "Your account does not have the necessary privileges" for the other.
 2. **Projects.** For each project (create the staging one at https://supabase.com/dashboard/new; choose the same region), open Project Settings → General and copy the **Project ID** (the ref). Under Project Settings → Database, use "Reset database password" if you don't have it, and copy the new password.
 3. **GitHub secrets.** In the repository, open Settings → Secrets and variables → Actions → "New repository secret" and add:
    - `SUPABASE_ACCESS_TOKEN`: the token from step 1
