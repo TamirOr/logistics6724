@@ -1,8 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { makeProfile } from "../../test/fixtures";
-import type { Unit } from "../../lib/types";
+import { makeProfile } from "../test/fixtures";
+import type { Unit } from "../lib/types";
 import { UserFields } from "./UserFields";
 
 const unit = (id: string, name: string): Unit => ({ id, name, kind: "supplier", headcount: null, active: true });

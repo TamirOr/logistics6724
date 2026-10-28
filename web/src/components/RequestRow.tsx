@@ -21,11 +21,12 @@ export function RequestRow({ request: r, item, editable, onOpen }: Props) {
       <button className="req-main" onClick={onOpen} disabled={!editable}>
         <RequestQuantity quantity={r.quantity} measure={r.measure} />
         <span className="req-name user-text" dir="auto">{item?.name ?? "…"}</span>
+        {r.urgent && <span className="tag tag-danger urgent-tag">{t.urgent}</span>}
         <StatusBadge status={r.status} />
       </button>
       {editable && !isClosed(r) && (
-        <button className={`icon-btn urgent-toggle ${r.urgent ? "on" : ""}`} aria-pressed={r.urgent}
-          aria-label={t.urgent} onClick={() => setUrgent(r, !r.urgent)}>!</button>
+        <button className={`urgent-toggle ${r.urgent ? "on" : ""}`} aria-pressed={r.urgent}
+          onClick={() => setUrgent(r, !r.urgent)}>! {t.urgent}</button>
       )}
       {r.status === "partial" && r.supplied_quantity != null && (
         <div className="req-sub">{t.suppliedOf(r.supplied_quantity, r.quantity)}</div>

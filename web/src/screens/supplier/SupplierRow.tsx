@@ -21,9 +21,9 @@ export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAck
   return (
     <li className={`req req-${r.status} ${r.urgent ? "req-urgent" : ""}`}>
       <button className="req-main" onClick={cancelled ? undefined : onTap}>
-        {r.urgent && <span className="urgent-dot" aria-label={t.urgent} />}
         <RequestQuantity quantity={r.quantity} measure={r.measure} />
         <span className="req-name user-text" dir="auto">{item?.name ?? "…"}</span>
+        {r.urgent && <span className="tag tag-danger urgent-tag">{t.urgent}</span>}
         <StatusBadge status={r.status} />
       </button>
       {cancelled ? (

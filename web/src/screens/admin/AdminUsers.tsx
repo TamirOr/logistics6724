@@ -13,8 +13,9 @@ import { moveUser, setUserActive, setUserSuppliers } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
+import { unitNamesOf } from "../../lib/userUnits";
 import { useUsers } from "./useUsers";
-import { filterUsers, NO_FILTER, toggleUnit, unitNamesOf, type ActiveFilter, type UserFilter } from "./users";
+import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, type ActiveFilter, type UserFilter } from "./users";
 import { t } from "../../strings";
 
 const ACTIVE_FILTERS: ActiveFilter[] = ["all", "active", "inactive"];
@@ -95,7 +96,7 @@ interface UserTableProps {
   title: string;
   users: Profile[];
   units: Unit[];
-  /** The kind of unit to filter by; no filters without it. */
+  /** The kind of unit to filter by; without it the table has no filters and shows everyone. */
   filterKind?: UnitKind;
   onMove: (user: Profile) => void;
   onEditUnits: (user: Profile) => void;
@@ -104,7 +105,7 @@ interface UserTableProps {
 
 function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive }: UserTableProps) {
   const me = useProfile();
-  const [filter, setFilter] = useState<UserFilter>(NO_FILTER);
+  const [filter, setFilter] = useState<UserFilter>(filterKind ? DEFAULT_FILTER : NO_FILTER);
   const shown = filterUsers(users, filter);
 
   return (

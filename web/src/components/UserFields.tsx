@@ -1,8 +1,8 @@
-// A user's sign-up details as admins see them: on a pending sign-up and on
-// the user's page.
-import type { Profile, Unit } from "../../lib/types";
-import { unitNamesOf } from "./users";
-import { t } from "../../strings";
+// A user's sign-up details: for admins on a pending sign-up and on the
+// user's page, for a supplier on their own home screen.
+import type { Profile, Unit } from "../lib/types";
+import { unitNamesOf } from "../lib/userUnits";
+import { t } from "../strings";
 
 export function UserFields({ user, units }: { user: Profile; units: Unit[] }) {
   return (
