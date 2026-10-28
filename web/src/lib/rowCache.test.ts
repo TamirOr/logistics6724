@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_AGE_MS, PREFIX } from "./cache";
+import { flushCacheWrites, MAX_AGE_MS, PREFIX } from "./cache";
 
 vi.mock("./supabase", () => ({ supabase: {} }));
 
@@ -21,7 +21,10 @@ describe("event and item caches", () => {
   it("forget a dropped row, in storage too", async () => {
     const { eventCache } = await import("./live");
     eventCache.put([{ id: "gone", name: "נמחק" } as never]);
+    flushCacheWrites();
+    expect(localStorage.getItem(`${PREFIX}rows:events`)).toContain("gone");
     eventCache.drop("gone");
+    flushCacheWrites();
     expect(eventCache.get("gone")).toBeUndefined();
     const saved = JSON.parse(localStorage.getItem(`${PREFIX}rows:events`) ?? "{}");
     expect(saved.value.some((r: { row: { id: string } }) => r.row.id === "gone")).toBe(false);

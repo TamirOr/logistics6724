@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearAllCaches, clearCache, MAX_AGE_MS, PREFIX, pruneCaches, readCache, writeCache } from "./cache";
+import {
+  clearAllCaches, clearCache, flushCacheWrites, MAX_AGE_MS, PREFIX, pruneCaches, readCache, SAVE_DELAY_MS, writeCache, writeCacheSoon,
+} from "./cache";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -53,5 +55,35 @@ describe("cache", () => {
     clearAllCaches();
     expect(localStorage.getItem(staging)).not.toBeNull();
     expect(PREFIX).not.toBe("cache-v3:otherproject:");
+  });
+});
+
+describe("writeCacheSoon", () => {
+  it("saves a burst of changes once, with the newest value", () => {
+    vi.useFakeTimers();
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    writeCacheSoon("rows", [1]);
+    writeCacheSoon("rows", [1, 2]);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(readCache("rows")).toEqual([1, 2]);
+    vi.advanceTimersByTime(SAVE_DELAY_MS);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem(`${PREFIX}rows`) ?? "{}").value).toEqual([1, 2]);
+    vi.useRealTimers();
+  });
+
+  it("saves at once when the app goes to the background", () => {
+    writeCacheSoon("rows", [3]);
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+    expect(localStorage.getItem(`${PREFIX}rows`)).not.toBeNull();
+  });
+
+  it("drops a waiting save on sign-out", () => {
+    writeCacheSoon("rows", [4]);
+    clearAllCaches();
+    flushCacheWrites();
+    expect(readCache("rows")).toBeNull();
   });
 });

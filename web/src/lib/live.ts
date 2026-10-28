@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { isFresh, readCache, writeCache } from "./cache";
+import { isFresh, readCache, writeCache, writeCacheSoon } from "./cache";
 import { noteSynced } from "./diagnostics";
 import { onReturn } from "./foreground";
 import { latestRequest } from "./latest";
@@ -137,7 +137,7 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
   }, [table, column, value, cacheKey, refetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (cacheKey && !loading) writeCache(cacheKey, [...rows.values()]);
+    if (cacheKey && !loading) writeCacheSoon(cacheKey, [...rows.values()]);
   }, [cacheKey, rows, loading]);
 
   const visible = useMemo(() => {
@@ -175,7 +175,7 @@ function createCache<T extends { id: string }>(table: string) {
 
   const save = () => {
     const now = Date.now();
-    writeCache(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
+    writeCacheSoon(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
     notify();
   };
 
