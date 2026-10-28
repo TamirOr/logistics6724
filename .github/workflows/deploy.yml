@@ -2,7 +2,7 @@
 #
 #   Merge to main -> tests -> staging -> waits for your approval -> production
 #                    (production: a backup before migrations, a health check
-#                    10 minutes after)
+#                    2 minutes after)
 #   Run workflow  -> one target, with optional admin, cron-secret and seed
 #                    actions (production still waits for approval)
 #
