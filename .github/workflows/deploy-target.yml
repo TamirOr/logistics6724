@@ -88,8 +88,6 @@ jobs:
     concurrency:
       group: backend-${{ inputs.target }}
       cancel-in-progress: false
-    outputs:
-      anon_key: ${{ steps.anon.outputs.key }}
     # Each per-target secret is named in full (no secrets[...] lookup, which
     # would load every secret into the job), and exactly one side is non-empty:
     # an unset production secret never falls back to the staging one.
@@ -137,9 +135,20 @@ jobs:
         run: node scripts/supabase-admin.mjs configure
 
       - name: Read the anon key
-        # Public anyway (it ships in the bundle); passed on so the web build needs no token.
-        id: anon
-        run: echo "key=$(node scripts/supabase-admin.mjs anon-key)" >> "$GITHUB_OUTPUT"
+        # Public anyway (it ships in the bundle); handed to the web build so
+        # that job needs no token. As a file, not a job output: GitHub drops
+        # an output equal to a value hidden from the logs ("Skip output ...
+        # may contain secret"), which once left the build without a key.
+        run: |
+          mkdir -p "$RUNNER_TEMP/anon-key"
+          node scripts/supabase-admin.mjs anon-key > "$RUNNER_TEMP/anon-key/key"
+          [ -s "$RUNNER_TEMP/anon-key/key" ] || { echo "::error::Could not read the anon key"; exit 1; }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: anon-key-${{ inputs.target }}
+          path: ${{ runner.temp }}/anon-key/key
+          retention-days: 1
 
       - name: Rotate the cron secret
         if: inputs.rotate_cron_secret
@@ -183,15 +192,22 @@ jobs:
           # No cache: a deploy installs from the registry, never from a
           # cache another workflow run could have written.
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: anon-key-${{ inputs.target }}
+          path: ${{ runner.temp }}/anon-key
+
       - name: Build
         working-directory: web
         env:
           BASE_PATH: ${{ needs.target.outputs.base_path }}
-          VITE_SUPABASE_ANON_KEY: ${{ needs.backend.outputs.anon_key }}
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: ${{ inputs.target }}
         run: |
           npm ci --ignore-scripts
+          VITE_SUPABASE_ANON_KEY="$(cat "$RUNNER_TEMP/anon-key/key")"
+          [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo "::error::The backend job passed no anon key"; exit 1; }
+          export VITE_SUPABASE_ANON_KEY
           export VITE_SUPABASE_URL="https://$SUPABASE_PROJECT_REF.supabase.co"
           export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
           export VITE_APP_BUILT_AT="$(git log -1 --format=%ct)"
