@@ -92,6 +92,8 @@ jobs:
   secrets:
     # Every commit on every branch, so a secret committed and then removed
     # is still caught. A finding fails the run; --redact keeps it out of the log.
+    # Not the site branch: it holds the built app, whose bundles carry the
+    # anon key, a JWT that is public by design.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -107,7 +109,7 @@ jobs:
             "https://github.com/gitleaks/gitleaks/releases/download/v$VERSION/gitleaks_${VERSION}_linux_x64.tar.gz"
           echo "$SHA256  $RUNNER_TEMP/gitleaks.tgz" | sha256sum --check --quiet
           tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
-          "$RUNNER_TEMP/gitleaks" git --log-opts=--all --redact --no-banner .
+          "$RUNNER_TEMP/gitleaks" git --log-opts="--exclude=refs/remotes/origin/site --all" --redact --verbose --no-banner .
 
   migrations-dry-run:
     # Shows which migrations the staging deploy will apply. Skipped until
