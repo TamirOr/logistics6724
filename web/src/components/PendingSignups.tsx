@@ -1,6 +1,7 @@
-// Sign-ups waiting for approval, each with approve and reject (with an
-// optional reason). Admins see every sign-up, a super user those of their
-// units: the server decides which rows come back and who may act on them.
+// Users waiting for approval, each with approve and reject (with an
+// optional reason). Admins see every sign-up; a super user sees those still
+// waiting in their units, and acts for those units only. The server decides
+// which rows come back and what each action does.
 import { useState } from "react";
 import { approveUser, rejectUser } from "../lib/api";
 import type { Profile, Unit } from "../lib/types";

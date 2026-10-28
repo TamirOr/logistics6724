@@ -31,10 +31,14 @@ export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
 
 // A users row with its supplier units embedded, flattened into a Profile.
-const PROFILE_COLUMNS = "*, user_suppliers(supplier_id)";
-type ProfileRow = Omit<Profile, "supplier_ids"> & { user_suppliers: { supplier_id: string }[] };
-const toProfile = ({ user_suppliers, ...row }: ProfileRow): Profile =>
-  ({ ...row, supplier_ids: user_suppliers.map((s) => s.supplier_id) });
+const PROFILE_COLUMNS = "*, user_suppliers(supplier_id, approved)";
+type ProfileRow = Omit<Profile, "supplier_ids" | "pending_supplier_ids">
+  & { user_suppliers: { supplier_id: string; approved: boolean }[] };
+const toProfile = ({ user_suppliers, ...row }: ProfileRow): Profile => ({
+  ...row,
+  supplier_ids: user_suppliers.filter((s) => s.approved).map((s) => s.supplier_id),
+  pending_supplier_ids: user_suppliers.filter((s) => !s.approved).map((s) => s.supplier_id),
+});
 
 /** The signed-in user's profile; null before sign-up. Throws when offline. */
 export async function fetchMyProfile(userId: string): Promise<Profile | null> {

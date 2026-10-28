@@ -8,6 +8,7 @@ import { useAction } from "../../components/Toast";
 import { useOpenEvents } from "../../hooks/useOpenEvents";
 import { useUsers } from "../../hooks/useUsers";
 import { useUnits } from "../../lib/live";
+import { awaitsApprovalFrom } from "../../lib/userUnits";
 import { PushPrompt } from "../shared/PushPrompt";
 import { HealthStrip } from "./HealthStrip";
 import { t } from "../../strings";
@@ -19,7 +20,7 @@ export function AdminHome() {
   const { users, reload } = useUsers();
   const { events } = useOpenEvents("");
 
-  const pending = (users ?? []).filter((u) => u.approval === "pending");
+  const pending = (users ?? []).filter((u) => awaitsApprovalFrom(u, null));
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
 

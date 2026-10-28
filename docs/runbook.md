@@ -155,7 +155,7 @@ select at, actor, op, changed from audit_log where table_name = 'requests' and r
 
 ### User stuck on "ממתין לאישור"
 
-They signed up and nobody has approved them yet: admin home → בקשות הצטרפות, or a super user of their unit → משתמשי היחידה. A super user sees a sign-up only when every unit it picked is one of theirs; a supplier who also picked another unit needs an admin. If they are not listed:
+They signed up and nobody has approved them yet: admin home → בקשות הצטרפות, or a super user (מפקד אחראי) of their unit → חיילי הפלוגה / חיילי המחלקה. A supplier who picked several units is approved by each unit on its own: they get in with the first approval and work only in the units that approved them; the profile shows the rest as "ממתין לאישור" (`select supplier_id, approved from user_suppliers where user_id = '<id>';`). An admin's approval approves every unit. If they are not listed:
 
 ```sql
 select id, role, unit_id, approval, active, created_at from users where email = '<their email>';

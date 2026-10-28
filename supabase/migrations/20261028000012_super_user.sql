@@ -1,16 +1,90 @@
--- Super users: customers or suppliers an admin trusts to run their own
--- unit's people. A super user approves or rejects the sign-ups of their
--- unit and removes users from it. Admins set the flag, on any number of
--- users. The previous web build never reads the new column.
+-- Super users ("מפקד אחראי" in the app): customers or suppliers an admin
+-- trusts to run their own unit's people. A super user approves or rejects
+-- sign-ups to their unit and removes users from it. Admins set the flag, on
+-- any number of users.
+--
+-- A supplier who signs up to several units is approved by each unit on its
+-- own: they start working once one unit approves them, in the units that
+-- did, and wait for the rest. Removing them works the same way, unit by
+-- unit. The previous web build reads neither new column.
 
 alter table users add column super_user boolean not null default false;
 
--- A customer's company, or a supplier's units (unit_id is among them).
+-- Memberships that exist now, and those admins set, are approved; sign-ups
+-- mark theirs as waiting (register_profile below).
+alter table user_suppliers add column approved boolean not null default true;
+
+-- A supplier works only in the units that approved them.
+create or replace function my_suppliers() returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select s.supplier_id
+  from user_suppliers s join users u on u.id = s.user_id
+  where u.id = auth.uid() and u.approval = 'approved' and u.active and u.role = 'supplier' and s.approved
+$$;
+
+-- 20261028000001's sign-up; every unit picked waits for its own approval.
+create or replace function register_profile(p_first_name text, p_last_name text,
+  p_service_number text, p_role user_role, p_unit_id uuid, p_supplier_ids uuid[])
+returns users language plpgsql security definer set search_path = public as $$
+declare
+  v_kind unit_kind;
+  v_email text;
+  v_row users;
+  v_suppliers uuid[] := array(select distinct s from unnest(array[p_unit_id] || coalesce(p_supplier_ids, '{}')) s);
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  if p_role not in ('customer', 'supplier') then raise exception 'invalid role'; end if;
+  select kind into v_kind from units where id = p_unit_id and active;
+  if v_kind is distinct from unit_kind_for(p_role) then
+    raise exception 'unit does not match side';
+  end if;
+  if p_role = 'customer' and cardinality(v_suppliers) > 1 then
+    raise exception 'customers belong to one company';
+  end if;
+  if (select count(*) from units where id = any (v_suppliers) and kind = v_kind and active) <> cardinality(v_suppliers) then
+    raise exception 'unit does not match side';
+  end if;
+  select email into v_email from auth.users where id = auth.uid();
+
+  insert into users (id, email, first_name, last_name, service_number, role, unit_id)
+  values (auth.uid(), coalesce(v_email, ''), btrim(p_first_name), btrim(p_last_name),
+          btrim(p_service_number), p_role, p_unit_id)
+  on conflict (id) do update set
+    first_name = excluded.first_name, last_name = excluded.last_name,
+    service_number = excluded.service_number, role = excluded.role,
+    unit_id = excluded.unit_id, approval = 'pending', rejection_reason = null
+  where users.approval <> 'approved'
+  returning * into v_row;
+
+  if v_row.id is null then raise exception 'profile already approved'; end if;
+
+  if p_role = 'supplier' then
+    delete from user_suppliers where user_id = v_row.id and supplier_id <> all (v_suppliers);
+    insert into user_suppliers (user_id, supplier_id)
+    select v_row.id, s from unnest(v_suppliers) s
+    on conflict do nothing;
+    update user_suppliers set approved = false where user_id = v_row.id;
+  end if;
+  return v_row;
+end $$;
+
+-- Every unit of a user: a customer's company, a supplier's units, approved
+-- or waiting.
 create function user_units(p_user uuid) returns setof uuid
 language sql stable security definer set search_path = public as $$
   select unit_id from users where id = p_user and role = 'customer'
   union
   select supplier_id from user_suppliers where user_id = p_user
+$$;
+
+-- The units still to approve the user: a pending customer's company, a
+-- supplier's waiting units. None once the user was rejected.
+create function pending_units(p_user uuid) returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select unit_id from users where id = p_user and role = 'customer' and approval = 'pending'
+  union
+  select s.supplier_id from user_suppliers s join users u on u.id = s.user_id
+  where s.user_id = p_user and not s.approved and u.approval <> 'rejected'
 $$;
 
 -- False unless the caller is an approved, active super user.
@@ -21,27 +95,37 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function is_super_user to authenticated;
 
--- The units the caller runs as a super user; none otherwise.
+-- The units the caller runs as a super user: those they work in. None
+-- for anyone else.
 create function my_managed_units() returns setof uuid
 language sql stable security definer set search_path = public as $$
-  select user_units(auth.uid()) where is_super_user()
+  select my_unit() where is_super_user() and my_role() = 'customer'
+  union
+  select my_suppliers() where is_super_user()
 $$;
 
--- The user is in at least one unit the caller runs. Enough to see them and
--- to remove them from the caller's units.
+-- The user is in at least one unit the caller runs, approved or waiting.
 create function shares_managed_unit(p_user uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select user_units(p_user) intersect select my_managed_units())
 $$;
 grant execute on function shares_managed_unit to authenticated;
 
--- Every unit of the user is one the caller runs. Needed to approve: a
--- sign-up that also picked another unit must not get in through this one.
-create function manages_all_units_of(p_user uuid) returns boolean
-language sql stable security definer set search_path = public as $$
-  select exists (select user_units(p_user))
-     and not exists (select user_units(p_user) except select my_managed_units())
-$$;
+-- Keeps a supplier's main unit (users.unit_id) on a unit they work in:
+-- the current one while it is approved, else an approved one, else any.
+create function refresh_main_unit(p_user uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_main uuid;
+begin
+  select s.supplier_id into v_main
+  from user_suppliers s join users u on u.id = s.user_id
+  where s.user_id = p_user
+  order by s.approved desc, s.supplier_id = u.unit_id desc, s.supplier_id
+  limit 1;
+  if v_main is not null then
+    update users set unit_id = v_main where id = p_user and unit_id is distinct from v_main;
+  end if;
+end $$;
 
 -- Super users read the profiles and units of the users in their units.
 drop policy users_read_own on users;
@@ -56,12 +140,21 @@ create policy user_suppliers_read on user_suppliers for select to authenticated 
   or ((select is_super_user()) and shares_managed_unit(user_id))
 );
 
+-- An admin approves the user in all their units, a super user in the
+-- waiting units they run. The first approval lets the user in.
 create or replace function approve_user(p_user uuid) returns void
 language plpgsql security definer set search_path = public as $$
+declare v_units uuid[];
 begin
-  if not (is_admin() or manages_all_units_of(p_user)) then
-    raise exception 'admins and the unit''s super users only';
+  if is_admin() then
+    v_units := array(select user_units(p_user));
+  else
+    v_units := array(select pending_units(p_user) intersect select my_managed_units());
+    if cardinality(v_units) = 0 then raise exception 'admins and the unit''s super users only'; end if;
   end if;
+
+  update user_suppliers set approved = true where user_id = p_user and supplier_id = any (v_units);
+  perform refresh_main_unit(p_user);
   update users set approval = 'approved', rejection_reason = null,
     approved_at = now(), approved_by = auth.uid()
   where id = p_user and approval <> 'approved';
@@ -70,36 +163,48 @@ begin
   end if;
 end $$;
 
+-- A super user turns the user down for the waiting units they run. The
+-- user is rejected only when no other unit is left to them.
 create or replace function reject_user(p_user uuid, p_reason text default null) returns void
 language plpgsql security definer set search_path = public as $$
+declare v_units uuid[];
 begin
-  if not (is_admin() or manages_all_units_of(p_user)) then
-    raise exception 'admins and the unit''s super users only';
+  if not is_admin() then
+    v_units := array(select pending_units(p_user) intersect select my_managed_units());
+    if cardinality(v_units) = 0 then raise exception 'admins and the unit''s super users only'; end if;
+    if exists (select user_units(p_user) except select unnest(v_units)) then
+      delete from user_suppliers where user_id = p_user and supplier_id = any (v_units);
+      perform refresh_main_unit(p_user);
+      return;
+    end if;
   end if;
   update users set approval = 'rejected', rejection_reason = nullif(btrim(p_reason), '')
   where id = p_user and approval = 'pending';
 end $$;
 
--- A user only in the caller's units is deactivated. A supplier who also
--- works in other units leaves only the caller's and keeps the rest.
+-- A user only in the caller's units is deactivated. A supplier who is also
+-- in other units leaves the caller's and keeps the rest; left only with
+-- units still to approve them, they wait again.
 create function remove_from_unit(p_user uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   if not is_super_user() then raise exception 'super users only'; end if;
   if p_user = auth.uid() then raise exception 'cannot remove yourself'; end if;
-  if not shares_managed_unit(p_user)
-     or (select approval from users where id = p_user) <> 'approved' then
+  if (select approval from users where id = p_user) is distinct from 'approved'
+     or not exists (select 1 from user_units(p_user) u (id)
+                    where u.id in (select my_managed_units()) and u.id not in (select pending_units(p_user))) then
     raise exception 'not an approved user of your unit';
   end if;
 
-  if manages_all_units_of(p_user) then
+  if not exists (select user_units(p_user) except select my_managed_units()) then
     update users set active = false where id = p_user;
     return;
   end if;
   delete from user_suppliers where user_id = p_user and supplier_id in (select my_managed_units());
-  update users
-  set unit_id = (select supplier_id from user_suppliers where user_id = p_user order by supplier_id limit 1)
-  where id = p_user and unit_id not in (select supplier_id from user_suppliers where user_id = p_user);
+  perform refresh_main_unit(p_user);
+  if not exists (select 1 from user_suppliers where user_id = p_user and approved) then
+    update users set approval = 'pending' where id = p_user;
+  end if;
 end $$;
 grant execute on function remove_from_unit to authenticated;
 
@@ -115,7 +220,8 @@ end $$;
 grant execute on function set_super_user to authenticated;
 
 -- The trust is in running one unit: moving to another unit drops it, and
--- an admin marks the user again if they should run the new one.
+-- an admin marks the user again if they should run the new one. An
+-- approved user works in the unit an admin moves them to.
 create or replace function move_user(p_user uuid, p_unit uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare v_role user_role; v_kind unit_kind;
@@ -133,6 +239,8 @@ begin
       super_user = super_user and unit_id = p_unit
   where id = p_user;
   delete from user_suppliers where user_id = p_user and supplier_id <> p_unit;
+  update user_suppliers set approved = true
+  where user_id = p_user and (select approval from users where id = p_user) = 'approved';
 end $$;
 
 -- Super users hold extra rights, so the access review lists them too.

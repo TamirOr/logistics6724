@@ -99,7 +99,7 @@ export function SupplierHome() {
   return (
     <Layout
       title={t.appName}
-      nav={[{ to: "/catalog", label: t.catalog }, { to: "/history", label: t.history }, ...unitUsersNav(profile, t.unitUsers)]}
+      nav={[{ to: "/catalog", label: t.catalog }, { to: "/history", label: t.history }, ...unitUsersNav(profile)]}
       actions={
         <button className="btn btn-ghost btn-small"
           onClick={() => view === "aggregate"

@@ -1,5 +1,5 @@
-// A super user's screen: sign-ups to their units to approve or reject, then
-// the active users of their units, each removable from them.
+// A super user's screen: users waiting for their unit's approval, then the
+// active soldiers of their units, each removable from them.
 import { Layout } from "../../components/Layout";
 import { PendingSignups } from "../../components/PendingSignups";
 import { useAction } from "../../components/Toast";
@@ -17,15 +17,15 @@ export function UnitUsers() {
   const runAction = useAction();
   const units = useUnits();
   const { users, reload } = useUsers();
-  const { pending, members } = splitUnitUsers(users ?? [], me.id);
+  const { pending, members } = splitUnitUsers(users ?? [], me);
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
   const remove = (u: Profile) => {
-    if (window.confirm(t.confirmRemoveFromUnit(`${u.first_name} ${u.last_name}`))) act(() => removeFromUnit(u.id));
+    if (window.confirm(t.confirmRemoveFromUnit[me.role](`${u.first_name} ${u.last_name}`))) act(() => removeFromUnit(u.id));
   };
 
   return (
-    <Layout title={t.unitUsers} back>
+    <Layout title={t.unitUsers[me.role]} back>
       <PendingSignups pending={pending} units={units} act={act} />
 
       <h2 className="section-title">{t.unitMembers} <span className="muted count">({members.length})</span></h2>
@@ -41,7 +41,7 @@ export function UnitUsers() {
             <div className="muted">{unitNamesOf(u, units)}</div>
           </div>
           {u.id !== me.id && (
-            <button className="btn btn-ghost btn-small" onClick={() => remove(u)}>{t.removeFromUnit}</button>
+            <button className="btn btn-ghost btn-small" onClick={() => remove(u)}>{t.removeFromUnit[me.role]}</button>
           )}
         </article>
       ))}

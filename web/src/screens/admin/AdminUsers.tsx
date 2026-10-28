@@ -13,7 +13,7 @@ import { moveUser, setSuperUser, setUserActive, setUserSuppliers } from "../../l
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
-import { unitNamesOf } from "../../lib/userUnits";
+import { unitNamesOf, unitsOf } from "../../lib/userUnits";
 import { useUsers } from "../../hooks/useUsers";
 import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, type ActiveFilter, type UserFilter } from "./users";
 import { t } from "../../strings";
@@ -70,8 +70,8 @@ interface SupplierUnitsSheetProps {
 
 // Active supplier units, plus any inactive one the supplier is still in.
 function SupplierUnitsSheet({ user, units, onClose, onSave }: SupplierUnitsSheetProps) {
-  const [picked, setPicked] = useState(user.supplier_ids);
-  const options = units.filter((u) => u.kind === "supplier" && (u.active || user.supplier_ids.includes(u.id)));
+  const [picked, setPicked] = useState(unitsOf(user));
+  const options = units.filter((u) => u.kind === "supplier" && (u.active || unitsOf(user).includes(u.id)));
   const toggle = (id: string, on: boolean) => setPicked((ids) => (on ? [...ids, id] : ids.filter((x) => x !== id)));
 
   return (

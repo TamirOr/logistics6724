@@ -30,7 +30,7 @@ export function CustomerHome() {
   return (
     <Layout
       title={t.openEvents}
-      nav={[{ to: "/history", label: t.history }, ...unitUsersNav(profile, t.unitUsers)]}
+      nav={[{ to: "/history", label: t.history }, ...unitUsersNav(profile)]}
       bottom={
         <>
           <button className="btn btn-primary btn-big" onClick={() => navigate("/events/new")}>{t.newEvent}</button>
