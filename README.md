@@ -163,7 +163,7 @@ These live in `app_config` and can change without a deploy:
 | `missing_window_cap_minutes` | 15 | Latest send time, counted from the first mark |
 | `retention_days` | 90 | Age at which events move to Drive; also how far back history shows |
 | `auto_close_quiet_minutes` | 30 | How long an event must be done, with no changes, before it closes |
-| `max_new_items_per_company_day` | 30 | Unverified items one company may add to the catalogs in 24 hours |
+| `max_new_items_per_company_day` | 100 | Unverified items one company may add to the catalogs in 24 hours |
 | `min_client_version` | 0 | Builds with an older commit time (Unix seconds) stop writing and ask to update; see the runbook |
 
 Health thresholds (server-only, read by `health_report()`):

@@ -158,6 +158,7 @@ select tst.fails(format($$select reject_user('10000000-0000-0000-0000-0000000000
 reset role;
 
 -- A company adds at most max_new_items_per_company_day unverified items a day.
+select tst.ok(config('max_new_items_per_company_day') = '100', 'a company may add 100 new items a day by default');
 update app_config set value = '2' where key = 'max_new_items_per_company_day';
 delete from items where not verified and created_by in (
   select id from users where unit_id = '00000000-0000-0000-0000-0000000000c1');
@@ -176,7 +177,7 @@ select tst.act('10000000-0000-0000-0000-000000000004');
 select tst.ok(add_item('00000000-0000-0000-0000-0000000000a1', 'פריט מכסה 4') is not null,
   'suppliers are not capped in their own catalog');
 reset role;
-update app_config set value = '30' where key = 'max_new_items_per_company_day';
+update app_config set value = '100' where key = 'max_new_items_per_company_day';
 
 -- F8: a creator who lost access cannot close or cancel ------------------------
 insert into auth.users (id, email) values ('10000000-0000-0000-0000-0000000000f2', 'leaver@x.il');

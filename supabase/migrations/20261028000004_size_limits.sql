@@ -15,7 +15,7 @@ alter table push_subscriptions add constraint push_subscriptions_endpoint_length
 
 -- Customers may add unverified items to any supplier's catalog. A cap per
 -- company per day stops one account from flooding the catalogs.
-insert into app_config (key, value, client_readable) values ('max_new_items_per_company_day', '30', true)
+insert into app_config (key, value, client_readable) values ('max_new_items_per_company_day', '100', true)
 on conflict (key) do nothing;
 
 -- The body is 20261028000001's (a supplier adds to any of its units), plus the cap.
@@ -51,7 +51,7 @@ begin
   if v_role = 'customer' and (
     select count(*) from items i join users u on u.id = i.created_by
     where u.unit_id = my_unit() and not i.verified and i.created_at > now() - interval '1 day'
-  ) >= config('max_new_items_per_company_day', '30')::int then
+  ) >= config('max_new_items_per_company_day', '100')::int then
     raise exception 'daily limit of new items reached';
   end if;
 
