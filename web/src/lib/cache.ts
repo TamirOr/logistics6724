@@ -6,8 +6,12 @@
 // MAX_AGE_MS are pruned at startup: a screen nobody opened for a month is
 // not needed offline. This is separate from the server's retention period.
 
-const PREFIX = "cache-v2:";
-const OLD_PREFIXES = ["cache-v1:"];
+// Staging and production are served from the same origin, so they share
+// storage. Keys name the Supabase project they came from, so neither shows
+// the other's rows or clears them on sign-out.
+const PROJECT = new URL(import.meta.env.VITE_SUPABASE_URL ?? "http://local").hostname.split(".")[0];
+export const PREFIX = `cache-v3:${PROJECT}:`;
+const OLD_PREFIXES = ["cache-v1:", "cache-v2:"];
 export const MAX_AGE_MS = 30 * 86_400_000;
 
 interface Saved<T> { savedAt: number; value: T }

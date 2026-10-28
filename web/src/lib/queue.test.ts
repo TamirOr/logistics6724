@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PREFIX } from "./cache";
 
 const send = vi.fn();
 const refreshSession = vi.fn(async () => ({ data: {}, error: null }));
@@ -263,15 +264,15 @@ describe("queue", () => {
 
   it("drops the screens' caches when storage is full, so the unsent write is saved", async () => {
     const q = await freshQueue();
-    localStorage.setItem("cache-v2:units", "[]");
+    localStorage.setItem(`${PREFIX}units`, "[]");
     const setItem = Storage.prototype.setItem;
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
-      if (localStorage.getItem("cache-v2:units") !== null) throw new DOMException("full", "QuotaExceededError");
+      if (localStorage.getItem(`${PREFIX}units`) !== null) throw new DOMException("full", "QuotaExceededError");
       setItem.call(this, key, value);
     });
     q.enqueue({ kind: "rpc", fn: "mark_collected", args: {} }, [], 5000);
     spy.mockRestore();
-    expect(localStorage.getItem("cache-v2:units")).toBeNull();
+    expect(localStorage.getItem(`${PREFIX}units`)).toBeNull();
     expect(stored()).toHaveLength(1);
   });
 

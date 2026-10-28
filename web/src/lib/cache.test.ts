@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearAllCaches, clearCache, MAX_AGE_MS, pruneCaches, readCache, writeCache } from "./cache";
+import { clearAllCaches, clearCache, MAX_AGE_MS, PREFIX, pruneCaches, readCache, writeCache } from "./cache";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -15,7 +15,7 @@ describe("cache", () => {
   });
 
   it("never throws when storage fails or holds junk", () => {
-    localStorage.setItem("cache-v2:bad", "{not json");
+    localStorage.setItem(`${PREFIX}bad`, "{not json");
     expect(readCache("bad")).toBeNull();
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
     expect(() => writeCache("k", 1)).not.toThrow();
@@ -37,10 +37,21 @@ describe("cache", () => {
     vi.setSystemTime(new Date("2026-10-27T00:00:00Z"));
     writeCache("requests:list:new", [2]);
     localStorage.setItem("cache-v1:profile", "{}");
+    localStorage.setItem("cache-v2:units", "{}");
     pruneCaches(Date.parse("2026-10-01T00:00:00Z") + MAX_AGE_MS + 1);
     expect(readCache("requests:list:old")).toBeNull();
     expect(readCache("requests:list:new")).toEqual([2]);
     expect(localStorage.getItem("cache-v1:profile")).toBeNull();
+    expect(localStorage.getItem("cache-v2:units")).toBeNull();
     vi.useRealTimers();
+  });
+
+  it("leaves another project's copies alone, on the same origin", () => {
+    const staging = "cache-v3:otherproject:units";
+    localStorage.setItem(staging, JSON.stringify({ savedAt: 0, value: [] }));
+    pruneCaches();
+    clearAllCaches();
+    expect(localStorage.getItem(staging)).not.toBeNull();
+    expect(PREFIX).not.toBe("cache-v3:otherproject:");
   });
 });
