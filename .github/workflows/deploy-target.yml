@@ -36,7 +36,6 @@ jobs:
   target:
     runs-on: ubuntu-latest
     outputs:
-      prefix: ${{ steps.target.outputs.prefix }}
       base_path: ${{ steps.target.outputs.base_path }}
       configured: ${{ steps.target.outputs.configured }}
     steps:
@@ -47,15 +46,15 @@ jobs:
           STAGING_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
           REPO: ${{ github.event.repository.name }}
         run: |
-          if [ "$TARGET" = production ]; then prefix=""; ref="$PRODUCTION_REF"; base="/$REPO/"
-          else prefix="STAGING_"; ref="$STAGING_REF"; base="/$REPO/staging/"; fi
+          if [ "$TARGET" = production ]; then ref="$PRODUCTION_REF"; base="/$REPO/"
+          else ref="$STAGING_REF"; base="/$REPO/staging/"; fi
           if [ "$TARGET" = staging ] && [ -n "$ref" ] && [ "$ref" = "$PRODUCTION_REF" ]; then
             echo "::error::STAGING_SUPABASE_PROJECT_REF points at the production project"; exit 1
           fi
           configured=false
           if [ -n "$ref" ]; then configured=true
           else echo "::notice title=Deploy skipped::The $TARGET project is not configured yet (README, Environments)."; fi
-          { echo "prefix=$prefix"; echo "base_path=$base"; echo "configured=$configured"; } >> "$GITHUB_OUTPUT"
+          { echo "base_path=$base"; echo "configured=$configured"; } >> "$GITHUB_OUTPUT"
 
   approve:
     needs: target
@@ -68,13 +67,16 @@ jobs:
       group: approve-${{ inputs.target }}
       cancel-in-progress: true
     steps:
-      - run: echo "Deploying ${{ github.sha }} to ${{ inputs.target }}"
+      - env:
+          TARGET: ${{ inputs.target }}
+        run: echo "Deploying $GITHUB_SHA to $TARGET"
 
   backup:
     needs: approve
     if: inputs.target == 'production' && !inputs.skip_backup
     uses: ./.github/workflows/backup.yml
-    secrets: inherit
+    # The backup reads its secrets by fixed names.
+    secrets: inherit # zizmor: ignore[secrets-inherit]
 
   backend:
     needs: [target, approve, backup]
@@ -88,14 +90,19 @@ jobs:
       cancel-in-progress: false
     outputs:
       anon_key: ${{ steps.anon.outputs.key }}
+    # Each per-target secret is named in full (no secrets[...] lookup, which
+    # would load every secret into the job), and exactly one side is non-empty:
+    # an unset production secret never falls back to the staging one.
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       DEPLOY_TARGET: ${{ inputs.target }}
-      SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}
-      SUPABASE_DB_PASSWORD: ${{ secrets[format('{0}SUPABASE_DB_PASSWORD', needs.target.outputs.prefix)] }}
+      SUPABASE_PROJECT_REF: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SUPABASE_PROJECT_REF || '', inputs.target != 'production' && secrets.STAGING_SUPABASE_PROJECT_REF || '') }}
+      SUPABASE_DB_PASSWORD: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SUPABASE_DB_PASSWORD || '', inputs.target != 'production' && secrets.STAGING_SUPABASE_DB_PASSWORD || '') }}
       SITE_URL: https://${{ github.repository_owner }}.github.io${{ needs.target.outputs.base_path }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           # An exact release: "latest" would run whatever was published last
@@ -122,11 +129,11 @@ jobs:
 
       - name: Configure the project
         env:
-          SMTP_HOST: ${{ secrets[format('{0}SMTP_HOST', needs.target.outputs.prefix)] }}
-          SMTP_PORT: ${{ secrets[format('{0}SMTP_PORT', needs.target.outputs.prefix)] }}
-          SMTP_USER: ${{ secrets[format('{0}SMTP_USER', needs.target.outputs.prefix)] }}
-          SMTP_PASS: ${{ secrets[format('{0}SMTP_PASS', needs.target.outputs.prefix)] }}
-          SMTP_SENDER: ${{ secrets[format('{0}SMTP_SENDER', needs.target.outputs.prefix)] }}
+          SMTP_HOST: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SMTP_HOST || '', inputs.target != 'production' && secrets.STAGING_SMTP_HOST || '') }}
+          SMTP_PORT: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SMTP_PORT || '', inputs.target != 'production' && secrets.STAGING_SMTP_PORT || '') }}
+          SMTP_USER: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SMTP_USER || '', inputs.target != 'production' && secrets.STAGING_SMTP_USER || '') }}
+          SMTP_PASS: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SMTP_PASS || '', inputs.target != 'production' && secrets.STAGING_SMTP_PASS || '') }}
+          SMTP_SENDER: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SMTP_SENDER || '', inputs.target != 'production' && secrets.STAGING_SMTP_SENDER || '') }}
         run: node scripts/supabase-admin.mjs configure
 
       - name: Read the anon key
@@ -165,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEPLOY_TARGET: ${{ inputs.target }}
-      SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}
+      SUPABASE_PROJECT_REF: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SUPABASE_PROJECT_REF || '', inputs.target != 'production' && secrets.STAGING_SUPABASE_PROJECT_REF || '') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -173,8 +180,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          # No cache: a deploy installs from the registry, never from a
+          # cache another workflow run could have written.
 
       - name: Build
         working-directory: web
@@ -235,7 +242,8 @@ jobs:
     env:
       DEPLOY_TARGET: ${{ inputs.target }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Keeps the token: this job pushes to the site branch, and runs no npm code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 # zizmor: ignore[artipacked]
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: site-${{ inputs.target }}
@@ -276,6 +284,8 @@ jobs:
       HEALTH_TARGET: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22

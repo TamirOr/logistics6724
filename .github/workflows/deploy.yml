@@ -42,20 +42,23 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   # The whole CI suite on the commit being deployed. Nothing deploys unless
   # it passes. On pushes to main this is the only CI run.
   test:
     uses: ./.github/workflows/ci.yml
-    secrets: inherit
 
   staging:
     needs: test
     if: github.event_name == 'push' || inputs.target == 'staging'
     uses: ./.github/workflows/deploy-target.yml
-    secrets: inherit
+    # Only the publish job inside uses it, to push to the site branch.
+    permissions:
+      contents: write
+    # deploy-target.yml reads each secret by its full name.
+    secrets: inherit # zizmor: ignore[secrets-inherit]
     with:
       target: staging
       admin_email: ${{ inputs.admin_email || '' }}
@@ -70,7 +73,11 @@ jobs:
       && ((github.event_name == 'push' && needs.staging.result == 'success')
           || inputs.target == 'production')
     uses: ./.github/workflows/deploy-target.yml
-    secrets: inherit
+    # Only the publish job inside uses it, to push to the site branch.
+    permissions:
+      contents: write
+    # deploy-target.yml reads each secret by its full name.
+    secrets: inherit # zizmor: ignore[secrets-inherit]
     with:
       target: production
       admin_email: ${{ inputs.admin_email || '' }}
