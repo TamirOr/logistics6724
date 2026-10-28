@@ -13,6 +13,7 @@
 // writes are never sent as another's.
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
+import { clearAllCaches } from "./cache";
 
 export type Mutation =
   | { kind: "insert"; table: string; row: Record<string, unknown> }
@@ -60,15 +61,27 @@ function load(user: string): QueueEntry[] {
   }
 }
 
-function setEntries(next: QueueEntry[]) {
-  entries = next;
-  if (userId) {
+// Unsent writes share storage with the screens' caches. Caches can be
+// fetched again and unsent writes cannot, so a full storage drops the
+// caches to make room.
+function save(user: string) {
+  const key = STORAGE_PREFIX + user;
+  const value = JSON.stringify(entries);
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    clearAllCaches();
     try {
-      localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify(entries));
+      localStorage.setItem(key, value);
     } catch {
-      // Storage full or blocked: the queue still works for this session.
+      // Storage blocked: the queue still works for this session.
     }
   }
+}
+
+function setEntries(next: QueueEntry[]) {
+  entries = next;
+  if (userId) save(userId);
   changeListeners.forEach((l) => l());
 }
 

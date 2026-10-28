@@ -261,6 +261,20 @@ describe("queue", () => {
     expect(stored()).toHaveLength(0);
   });
 
+  it("drops the screens' caches when storage is full, so the unsent write is saved", async () => {
+    const q = await freshQueue();
+    localStorage.setItem("cache-v2:units", "[]");
+    const setItem = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+      if (localStorage.getItem("cache-v2:units") !== null) throw new DOMException("full", "QuotaExceededError");
+      setItem.call(this, key, value);
+    });
+    q.enqueue({ kind: "rpc", fn: "mark_collected", args: {} }, [], 5000);
+    spy.mockRestore();
+    expect(localStorage.getItem("cache-v2:units")).toBeNull();
+    expect(stored()).toHaveLength(1);
+  });
+
   it("rejects an update that matched no row", async () => {
     const q = await freshQueue();
     send.mockResolvedValue({ data: null, error: null });
