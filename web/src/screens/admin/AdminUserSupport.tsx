@@ -10,7 +10,7 @@ import { fetchUserSupport } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import type { UserSupport } from "../../lib/types";
 import { UserFields } from "../../components/UserFields";
-import { useUsers } from "./useUsers";
+import { useUsers } from "../../hooks/useUsers";
 import { t } from "../../strings";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : t.never);

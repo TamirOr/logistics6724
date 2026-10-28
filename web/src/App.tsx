@@ -21,6 +21,8 @@ import { NewEvent } from "./screens/shared/NewEvent";
 import { Onboarding } from "./screens/shared/Onboarding";
 import { Outdated } from "./screens/shared/Outdated";
 import { SignIn } from "./screens/shared/SignIn";
+import { UnitUsers } from "./screens/shared/UnitUsers";
+import { UNIT_USERS_PATH } from "./screens/shared/unitUsers";
 import { Waiting } from "./screens/shared/Waiting";
 import { Catalog } from "./screens/supplier/Catalog";
 import { SupplierEvent } from "./screens/supplier/SupplierEvent";
@@ -36,6 +38,7 @@ const ROUTES: Record<UserRole, { path: string; element: JSX.Element }[]> = {
     { path: "/events/:id/duplicate", element: <NewEvent /> },
     { path: "/events/:id", element: <CustomerEvent /> },
     { path: "/history", element: <History /> },
+    { path: UNIT_USERS_PATH, element: <UnitUsers /> },
     { path: "/diagnostics", element: <Diagnostics /> },
   ],
   supplier: [
@@ -43,6 +46,7 @@ const ROUTES: Record<UserRole, { path: string; element: JSX.Element }[]> = {
     { path: "/events/:id", element: <SupplierEvent /> },
     { path: "/catalog", element: <Catalog /> },
     { path: "/history", element: <History /> },
+    { path: UNIT_USERS_PATH, element: <UnitUsers /> },
     { path: "/diagnostics", element: <Diagnostics /> },
   ],
   admin: [

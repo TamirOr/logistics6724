@@ -2,19 +2,19 @@
 // admins. The supplier and customer tables filter by unit and by active.
 // Each user can be deactivated or moved to another unit, company or
 // supplier (the server changes the role to match), and a supplier's
-// supplier units can be edited. A name opens the
-// user's page: profile and support.
+// supplier units can be edited. Customers and suppliers can be made super
+// users. A name opens the user's page: profile and support.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
-import { moveUser, setUserActive, setUserSuppliers } from "../../lib/api";
+import { moveUser, setSuperUser, setUserActive, setUserSuppliers } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
-import { unitNamesOf } from "../../lib/userUnits";
-import { useUsers } from "./useUsers";
+import { unitNamesOf, unitsOf } from "../../lib/userUnits";
+import { useUsers } from "../../hooks/useUsers";
 import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, type ActiveFilter, type UserFilter } from "./users";
 import { t } from "../../strings";
 
@@ -29,7 +29,8 @@ export function AdminUsers() {
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
   const approved = (role: UserRole) => users?.filter((u) => u.approval === "approved" && u.role === role) ?? [];
-  const table = { units, onMove: setMoving, onEditUnits: setEditingUnits, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)) };
+  const table = { units, onMove: setMoving, onEditUnits: setEditingUnits, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)),
+    onSetSuperUser: (u: Profile) => act(() => setSuperUser(u.id, !u.super_user)) };
 
   return (
     <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
@@ -69,8 +70,8 @@ interface SupplierUnitsSheetProps {
 
 // Active supplier units, plus any inactive one the supplier is still in.
 function SupplierUnitsSheet({ user, units, onClose, onSave }: SupplierUnitsSheetProps) {
-  const [picked, setPicked] = useState(user.supplier_ids);
-  const options = units.filter((u) => u.kind === "supplier" && (u.active || user.supplier_ids.includes(u.id)));
+  const [picked, setPicked] = useState(unitsOf(user));
+  const options = units.filter((u) => u.kind === "supplier" && (u.active || unitsOf(user).includes(u.id)));
   const toggle = (id: string, on: boolean) => setPicked((ids) => (on ? [...ids, id] : ids.filter((x) => x !== id)));
 
   return (
@@ -101,9 +102,10 @@ interface UserTableProps {
   onMove: (user: Profile) => void;
   onEditUnits: (user: Profile) => void;
   onSetActive: (user: Profile) => void;
+  onSetSuperUser: (user: Profile) => void;
 }
 
-function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive }: UserTableProps) {
+function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive, onSetSuperUser }: UserTableProps) {
   const me = useProfile();
   const [filter, setFilter] = useState<UserFilter>(filterKind ? DEFAULT_FILTER : NO_FILTER);
   const shown = filterUsers(users, filter);
@@ -141,6 +143,7 @@ function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSet
                   <td>
                     <Link dir="auto" to={`/users/${u.id}`}>{u.first_name} {u.last_name}</Link>
                     {u.id === me.id && <> <span className="tag">{t.me}</span></>}
+                    {u.super_user && <> <span className="tag">{t.superUser}</span></>}
                   </td>
                   <td>{unitNamesOf(u, units)}</td>
                   <td>{u.active ? t.active : <span className="tag">{t.inactive}</span>}</td>
@@ -149,7 +152,12 @@ function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSet
                       <button className="btn btn-ghost btn-small" onClick={() => onEditUnits(u)}>{t.supplierUnits}</button>
                     )}
                     {u.role !== "admin" && (
-                      <button className="btn btn-ghost btn-small" onClick={() => onMove(u)}>{t.moveToUnit}</button>
+                      <>
+                        <button className="btn btn-ghost btn-small" onClick={() => onMove(u)}>{t.moveToUnit}</button>
+                        <button className="btn btn-ghost btn-small" onClick={() => onSetSuperUser(u)}>
+                          {u.super_user ? t.unmakeSuperUser : t.makeSuperUser}
+                        </button>
+                      </>
                     )}
                     {/* The server refuses it too: an admin could lock themselves out. */}
                     {u.id !== me.id && (

@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 import { fetchSignupUnits, registerProfile } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import type { Unit, UserRole } from "../../lib/types";
+import { unitsOf } from "../../lib/userUnits";
 import { describeError } from "../../lib/errors";
 import { t } from "../../strings";
 
@@ -19,8 +20,7 @@ export function Onboarding() {
   const [serviceNumber, setServiceNumber] = useState(profile?.service_number ?? "");
   const [role, setRole] = useState<UserRole>(profile?.role === "supplier" ? "supplier" : "customer");
   // The first picked is the main unit.
-  const [unitIds, setUnitIds] = useState<string[]>(
-    profile?.supplier_ids?.length ? profile.supplier_ids : profile?.unit_id ? [profile.unit_id] : []);
+  const [unitIds, setUnitIds] = useState<string[]>(profile ? unitsOf(profile) : []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

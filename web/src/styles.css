@@ -310,3 +310,7 @@ h2 { font-size: 1.15rem; margin: 0; }
 .health-bad { background: var(--danger); color: #fff; }
 .section > .btn-block { margin-top: 10px; }
 .when > .field { flex: 1; min-width: 140px; }
+
+/* Super user: one card per member of the unit, the remove button at the end. */
+.member { align-items: center; flex-wrap: nowrap; }
+.member-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }

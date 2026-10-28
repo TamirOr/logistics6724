@@ -31,10 +31,14 @@ export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
 
 // A users row with its supplier units embedded, flattened into a Profile.
-const PROFILE_COLUMNS = "*, user_suppliers(supplier_id)";
-type ProfileRow = Omit<Profile, "supplier_ids"> & { user_suppliers: { supplier_id: string }[] };
-const toProfile = ({ user_suppliers, ...row }: ProfileRow): Profile =>
-  ({ ...row, supplier_ids: user_suppliers.map((s) => s.supplier_id) });
+const PROFILE_COLUMNS = "*, user_suppliers(supplier_id, approved)";
+type ProfileRow = Omit<Profile, "supplier_ids" | "pending_supplier_ids">
+  & { user_suppliers: { supplier_id: string; approved: boolean }[] };
+const toProfile = ({ user_suppliers, ...row }: ProfileRow): Profile => ({
+  ...row,
+  supplier_ids: user_suppliers.filter((s) => s.approved).map((s) => s.supplier_id),
+  pending_supplier_ids: user_suppliers.filter((s) => !s.approved).map((s) => s.supplier_id),
+});
 
 /** The signed-in user's profile; null before sign-up. Throws when offline. */
 export async function fetchMyProfile(userId: string): Promise<Profile | null> {
@@ -143,6 +147,10 @@ export const fetchUsers = async () =>
 export const approveUser = (id: string) => rpc<void>("approve_user", { p_user: id });
 export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user", { p_user: id, p_reason: reason });
 export const setUserActive = (id: string, active: boolean) => rpc<void>("set_user_active", { p_user: id, p_active: active });
+export const setSuperUser = (id: string, superUser: boolean) =>
+  rpc<void>("set_super_user", { p_user: id, p_super_user: superUser });
+/** Super users: deactivates the user, or takes only the caller's units from a supplier in other units too. */
+export const removeFromUnit = (id: string) => rpc<void>("remove_from_unit", { p_user: id });
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
 /** A supplier's supplier units; the main unit stays while it is among them. */
 export const setUserSuppliers = (id: string, supplierIds: string[]) =>

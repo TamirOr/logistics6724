@@ -9,6 +9,7 @@ import { useOpenEvents } from "../../hooks/useOpenEvents";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import { PushPrompt } from "../shared/PushPrompt";
+import { unitUsersNav } from "../shared/unitUsers";
 import { t } from "../../strings";
 
 export function CustomerHome() {
@@ -29,7 +30,7 @@ export function CustomerHome() {
   return (
     <Layout
       title={t.openEvents}
-      nav={[{ to: "/history", label: t.history }]}
+      nav={[{ to: "/history", label: t.history }, ...unitUsersNav(profile)]}
       bottom={
         <>
           <button className="btn btn-primary btn-big" onClick={() => navigate("/events/new")}>{t.newEvent}</button>

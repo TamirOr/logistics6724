@@ -168,7 +168,21 @@ export const t = {
   deactivate: "השבתה",
   activate: "הפעלה",
   moveToUnit: "העברה ליחידה",
-  moveChangesRole: "מעבר בין פלוגה לגורם אספקה משנה גם את התפקיד: בפלוגה לקוח, בגורם אספקה ספק.",
+  // Super users: "מפקד אחראי" to admins; to the super user, the soldiers of
+  // their company or of their supplier unit ("מחלקה").
+  superUser: "מפקד אחראי",
+  makeSuperUser: "הגדרה כמפקד אחראי",
+  unmakeSuperUser: "ביטול מפקד אחראי",
+  unitUsers: { customer: "חיילי הפלוגה", supplier: "חיילי המחלקה" } as Record<string, string>,
+  removeFromUnit: { customer: "הסרה מהפלוגה", supplier: "הסרה מהמחלקה" } as Record<string, string>,
+  confirmRemoveFromUnit: {
+    customer: (name: string) => `להסיר את ${name} מהפלוגה?`,
+    supplier: (name: string) => `להסיר את ${name} מהמחלקה?`,
+  } as Record<string, (name: string) => string>,
+  unitMembers: "חיילים פעילים",
+  noUnitMembers: "אין חיילים פעילים נוספים",
+  pendingUnit: (name: string) => `${name} (ממתין לאישור)`,
+  moveChangesRole: "מעבר בין פלוגה לגורם אספקה משנה גם את התפקיד: בפלוגה לקוח, בגורם אספקה ספק. המעבר מבטל גם הגדרה כמפקד אחראי.",
   active: "פעיל",
   inactive: "לא פעיל",
   me: "אני",

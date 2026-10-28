@@ -27,11 +27,15 @@ export interface Profile {
   service_number: string;
   role: UserRole;
   unit_id: string | null;
-  /** A supplier's supplier units, unit_id among them. Empty for customers and admins. */
+  /** The supplier units a supplier works in, unit_id among them once one approved them. Empty for customers and admins. */
   supplier_ids: string[];
+  /** A supplier's supplier units still to approve them. Each unit approves on its own. */
+  pending_supplier_ids: string[];
   approval: ApprovalStatus;
   rejection_reason: string | null;
   active: boolean;
+  /** Approves sign-ups to their units and removes users from them. Set by admins. */
+  super_user: boolean;
   created_at: string;
 }
 
