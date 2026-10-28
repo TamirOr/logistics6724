@@ -164,6 +164,16 @@ select id, role, unit_id, approval, active, created_at from users where email = 
 - No row: they never finished the sign-up form. Ask them to sign in again and fill it.
 - `approval = 'approved'` but still waiting: the app checks again every 30 seconds and when it comes to the front. Ask them to close and reopen it. `active = false` means they were deactivated (the screen then says "החשבון אינו פעיל").
 
+### Supplier doesn't see a supplier unit's requests
+
+A supplier in several supplier units (picked at sign-up) sees one unit at a time: the buttons on top of the home screen and the catalog switch between them. If the unit has no button, they are not in it:
+
+```sql
+select s.supplier_id, u.name from user_suppliers s join units u on u.id = s.supplier_id where s.user_id = '<user id>';
+```
+
+Moving a user (admin → משתמשים → העברה ליחידה) leaves them in only the new unit. The app has no screen yet to add a unit to an approved supplier; add the row directly: `insert into user_suppliers values ('<user id>', '<supplier unit id>');`
+
 ## Procedures
 
 ### VAPID mismatch after a key change

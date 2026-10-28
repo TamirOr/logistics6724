@@ -1,22 +1,23 @@
 // Cleanup outside live work: rename, hide, verify and merge catalog items.
 import { useState } from "react";
 import { Layout } from "../../components/Layout";
+import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { Sheet } from "../../components/Sheet";
 import { useAction, useToast } from "../../components/Toast";
 import { addItem, matchItem, mergeItem, updateItem } from "../../lib/api";
 import { describeError, isItemNameTaken } from "../../lib/errors";
 import { useLiveRows } from "../../lib/live";
-import { useProfile } from "../../lib/session";
+import { useActiveSupplier } from "../../lib/activeSupplier";
 import type { Item } from "../../lib/types";
 import { t } from "../../strings";
 
 const nameIncludes = (i: Item, q: string) => i.name.toLowerCase().includes(q.trim().toLowerCase());
 
 export function Catalog() {
-  const profile = useProfile();
+  const supplierId = useActiveSupplier();
   const runAction = useAction();
   const showToast = useToast();
-  const { rows: items, refetch } = useLiveRows<Item>("items", { column: "supplier_id", value: profile.unit_id });
+  const { rows: items, refetch } = useLiveRows<Item>("items", { column: "supplier_id", value: supplierId });
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<Item | null>(null);
   const [merging, setMerging] = useState<Item | null>(null);
@@ -46,11 +47,12 @@ export function Catalog() {
 
   return (
     <Layout title={t.catalog} back>
+      <SupplierSwitcher />
       <div className="toolbar">
         <input className="input" dir="auto" placeholder={t.searchCatalog} value={filter}
           onChange={(e) => setFilter(e.target.value)} />
         <button className="btn btn-secondary" disabled={!filter.trim()}
-          onClick={() => attempt(async () => { await addItem(profile.unit_id!, filter); setFilter(""); })}>
+          onClick={() => attempt(async () => { await addItem(supplierId, filter); setFilter(""); })}>
           {t.addCatalogItem}
         </button>
       </div>
