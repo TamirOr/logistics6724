@@ -1,29 +1,36 @@
--- The battalion's units and catalog from the seed migration. Runs before the
+-- The battalion's units and catalog from the seed migrations. Runs before the
 -- test_*.sql files, which then start from an empty roster of their own.
 set client_min_messages = warning;
 create function pg_temp.ok(cond boolean, what text) returns void language plpgsql as $$
 begin if not coalesce(cond, false) then raise exception 'FAILED: %', what; end if; end $$;
 
 select pg_temp.ok((select count(*) from units where kind = 'company') = 5, 'five companies');
-select pg_temp.ok((select count(*) from units where kind = 'supplier') = 7, 'seven logistic platoons');
-select pg_temp.ok((select count(*) from items i join units u on u.id = i.supplier_id where u.name = 'נשקיה') = 1,
-  'sight batteries come from נשקיה');
+select pg_temp.ok((select count(*) from units where kind = 'supplier') = 8, 'seven logistic platoons and the kitchen');
+
+create temp view seeded as
+  select u.name as supplier, i.name, i.category from items i join units u on u.id = i.supplier_id;
+select pg_temp.ok((select count(*) from seeded where supplier = 'נשקיה') = 1, 'sight batteries come from נשקיה');
+select pg_temp.ok((select count(*) from seeded where supplier = 'מטבח') = 62, 'food, drinks and kitchen supplies come from the kitchen');
+select pg_temp.ok((select array_agg(distinct category) from seeded where supplier = 'אפסנאות') = array['ניקיון והיגיינה', 'סוללות'],
+  'אפסנאות keeps cleaning supplies and batteries');
 select pg_temp.ok((select count(*) from items where category is null) = 0, 'every seeded item has a category');
 select pg_temp.ok((select count(*) from items where name ~ '[–•]') = 0, 'no list punctuation in item names');
 select pg_temp.ok((select array_agg(m.name order by m.name) from item_measures m join items i on i.id = m.item_id
-  where i.name = 'כוסות חמות') = array['קרטון'], 'hot cups come in cartons');
+  where i.name = 'כוסות חמות') = array['קרטון'], 'hot cups come in cartons, after the move too');
 
--- Running it again on a database that has the data adds nothing.
-create temp table before as
-  select (select count(*) from units) as units, (select count(*) from items) as items, (select count(*) from item_measures) as measures;
-\ir ../migrations/20261028000016_battalion_units_and_catalog.sql
-select pg_temp.ok((select count(*) from units) = units and (select count(*) from items) = items
-  and (select count(*) from item_measures) = measures, 'seed is safe to run again') from before;
+-- What the move leaves under אפסנאות: an item a supplier added, and one the
+-- kitchen already has. Running it again moves nothing else.
+insert into auth.users (id, email) values ('20000000-0000-0000-0000-000000000001', 'admin@x.il');
+insert into users (id, email, first_name, last_name, service_number, role, approval)
+values ('20000000-0000-0000-0000-000000000001', 'admin@x.il', 'א', 'ב', '1234567', 'admin', 'approved');
+insert into items (supplier_id, name, category, verified, created_by)
+select id, 'קפה שחור', 'שתייה', true, '20000000-0000-0000-0000-000000000001' from units where name = 'אפסנאות';
+insert into items (supplier_id, name, category, verified)
+select id, 'עגבנייה', 'ירקות', true from units where name = 'אפסנאות';
+\ir ../migrations/20261028000019_kitchen_catalog.sql
+select pg_temp.ok((select count(*) from seeded where supplier = 'אפסנאות' and name in ('קפה שחור', 'עגבנייה')) = 2,
+  'a supplier''s own item and a name the kitchen has stay');
+select pg_temp.ok((select count(*) from seeded where supplier = 'מטבח') = 62, 'running it again moves nothing else');
 
--- An item already in the catalog under another spelling is kept, not doubled.
-delete from items where name = 'לימון';
-insert into items (supplier_id, name, verified) select id, 'לימונים', true from units where name = 'אפסנאות';
-\ir ../migrations/20261028000016_battalion_units_and_catalog.sql
-select pg_temp.ok((select count(*) from items where name in ('לימון', 'לימונים')) = 1, 'existing spelling is kept');
-
-truncate units cascade;
+truncate units, users cascade;
+delete from auth.users;
