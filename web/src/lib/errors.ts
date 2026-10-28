@@ -7,6 +7,8 @@ const KNOWN_REASONS: [RegExp, string][] = [
   [/items_active_name_unique/, t.errItemNameTaken],
   [/item is hidden by the supplier/, t.errItemHidden],
   [/item is used by requests/, t.errItemInUse],
+  [/unit has users/, t.errUnitHasUsers],
+  [/unit is used by events/, t.errUnitInUse],
   [/wrong join code/, t.errWrongJoinCode],
   [/daily limit of new items reached/, t.errDailyItemLimit],
   [/violates check constraint "\w+_length"/, t.errTooLong],

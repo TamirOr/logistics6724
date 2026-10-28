@@ -173,6 +173,9 @@ export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
   if (error) throw error;
 }
 
+/** Refused while the unit has users or events use it: move the users or deactivate it instead. */
+export const deleteUnit = (id: string) => rpc<void>("delete_unit", { p_unit: id });
+
 // Push -----------------------------------------------------------------------------
 
 /** A tuning value from app_config, with the default to use if it is unset. */

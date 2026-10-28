@@ -1,10 +1,10 @@
-// Companies and suppliers: add, rename, set a company's headcount (סד״כ)
-// and deactivate.
+// Companies and suppliers: add, rename, set a company's headcount (סד״כ),
+// deactivate and delete.
 import { useEffect, useState } from "react";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
-import { saveUnit } from "../../lib/api";
+import { deleteUnit, saveUnit } from "../../lib/api";
 import { loadUnits } from "../../lib/live";
 import type { Unit, UnitKind } from "../../lib/types";
 import { t } from "../../strings";
@@ -17,12 +17,19 @@ export function AdminUnits() {
   const runAction = useAction();
   const [units, setUnits] = useState<Unit[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const saved = units.find((u) => u.id === draft?.id);
   const reload = () => loadUnits(true).then(setUnits);
   useEffect(() => {
     reload();
   }, []);
 
-  const save = (d: Draft) => runAction(() => saveUnit(d), () => { setDraft(null); return reload(); });
+  const closeAndReload = () => { setDraft(null); return reload(); };
+  const save = (d: Draft) => runAction(() => saveUnit(d), closeAndReload);
+  // Deleting cannot be undone, so unlike deactivating it asks first.
+  const remove = (u: Unit) => {
+    if (!window.confirm(t.confirmDeleteUnit(u.name))) return;
+    runAction(() => deleteUnit(u.id), closeAndReload);
+  };
 
   return (
     <Layout title={t.units} back
@@ -76,6 +83,9 @@ export function AdminUnits() {
             </label>
             <button className="btn btn-primary btn-block" disabled={!draft.name.trim()}
               onClick={() => save({ ...draft, name: draft.name.trim() })}>{t.save}</button>
+            {saved && (
+              <button className="btn btn-danger btn-block" onClick={() => remove(saved)}>{t.deleteUnit}</button>
+            )}
           </div>
         </Sheet>
       )}
