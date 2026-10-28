@@ -1,9 +1,10 @@
 // Companies and suppliers: add, rename, set a company's headcount (סד״כ),
-// deactivate and delete.
+// deactivate and delete. The admin may also work in an active unit as its user.
 import { useEffect, useState } from "react";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
+import { useWorkAs } from "../../hooks/useWorkAs";
 import { deleteUnit, saveUnit } from "../../lib/api";
 import { loadUnits } from "../../lib/live";
 import type { Unit, UnitKind } from "../../lib/types";
@@ -15,6 +16,7 @@ const kindLabel = (k: UnitKind) => (k === "company" ? t.kindCompany : t.kindSupp
 
 export function AdminUnits() {
   const runAction = useAction();
+  const workAs = useWorkAs();
   const [units, setUnits] = useState<Unit[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const saved = units.find((u) => u.id === draft?.id);
@@ -46,6 +48,7 @@ export function AdminUnits() {
                   {u.headcount != null && <span className="muted">{t.headcountOf(u.headcount)}</span>}
                   {!u.active && <span className="tag">{t.inactive}</span>}
                 </button>
+                {u.active && <button className="btn btn-ghost btn-small" onClick={() => workAs(u.id)}>{t.workAs[u.kind]}</button>}
               </li>
             ))}
           </ul>
