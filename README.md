@@ -84,9 +84,9 @@ Migrations must keep working with the previous web build for one release (expand
 
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
 2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
-3. Reload the app. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
-4. Open מנהלים וספקים (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
-5. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
+3. Reload the app. The battalion's companies and logistic platoons come from the seed migration; as admin, check them under "פלוגות ומחלקות" and set each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
+4. Open מנהלים ומחלקות לוגיסטיות (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
+5. The initial catalog comes from the same seed migration (`20261028000014_battalion_units_and_catalog.sql`). Suppliers edit it in the app.
 
 ### Sign-in emails (needed for 6-digit codes)
 
