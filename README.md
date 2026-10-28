@@ -52,7 +52,7 @@ There are two Supabase projects, which is what the free plan allows:
 | Deploys on | every push to `main` | the same run, after you approve it |
 | Before deploying | the full CI suite | the full CI suite |
 | Before migrations | nothing | a fresh encrypted backup |
-| After deploy | nothing | health check 10 minutes later |
+| After deploy | nothing | health check 2 minutes later |
 | Data | fake units and catalog (Deploy → "Seed staging") | real |
 | Sentry environment | `staging` | `production` |
 | Push keys, email | its own VAPID keys; `STAGING_SMTP_*` (a test inbox) | its own; `SMTP_*` |
@@ -76,7 +76,7 @@ Both builds live on the `site` branch, which GitHub Pages serves. Source maps go
 
 ### Deploying to production
 
-Every merge to `main` starts one Deploy run: it runs every test suite, deploys staging, then **waits for your approval**. GitHub emails you, and the run shows **Review deployments** under Actions. Check the change on staging, then approve, and the same run takes a backup (once backups are set up), migrates and deploys production, and checks health 10 minutes later. If you merge again before approving, the waiting run is cancelled and the newer one waits instead, so an approval always ships the latest `main`. To ship nothing, just don't approve: the request expires after 30 days. To undo a change, revert its PR and merge (see docs/runbook.md).
+Every merge to `main` starts one Deploy run: it runs every test suite, deploys staging, then **waits for your approval**. GitHub emails you, and the run shows **Review deployments** under Actions. Check the change on staging, then approve, and the same run takes a backup (once backups are set up), migrates and deploys production, and checks health 2 minutes later. If you merge again before approving, the waiting run is cancelled and the newer one waits instead, so an approval always ships the latest `main`. To ship nothing, just don't approve: the request expires after 30 days. To undo a change, revert its PR and merge (see docs/runbook.md).
 
 Migrations must keep working with the previous web build for one release (expand, then contract), because phones update only when the user taps the update banner. CI asks for the `db-breaking` label on a PR whose new migration drops, renames or changes a column type; see the runbook for `min_client_version`.
 

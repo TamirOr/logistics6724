@@ -134,22 +134,6 @@ jobs:
           SMTP_SENDER: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SMTP_SENDER || '', inputs.target != 'production' && secrets.STAGING_SMTP_SENDER || '') }}
         run: node scripts/supabase-admin.mjs configure
 
-      - name: Read the anon key
-        # Public anyway (it ships in the bundle); handed to the web build so
-        # that job needs no token. As a file, not a job output: GitHub drops
-        # an output equal to a value hidden from the logs ("Skip output ...
-        # may contain secret"), which once left the build without a key.
-        run: |
-          mkdir -p "$RUNNER_TEMP/anon-key"
-          node scripts/supabase-admin.mjs anon-key > "$RUNNER_TEMP/anon-key/key"
-          [ -s "$RUNNER_TEMP/anon-key/key" ] || { echo "::error::Could not read the anon key"; exit 1; }
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: anon-key-${{ inputs.target }}
-          path: ${{ runner.temp }}/anon-key/key
-          retention-days: 1
-
       - name: Rotate the cron secret
         if: inputs.rotate_cron_secret
         run: node scripts/supabase-admin.mjs rotate-cron-secret
@@ -173,11 +157,40 @@ jobs:
           echo "::add-mask::$ADMIN_EMAIL"
           node scripts/supabase-admin.mjs make-admin
 
+  anon-key:
+    # Public anyway (it ships in the bundle); read in its own job so the web
+    # build needs no token and can run while the backup and migrations do.
+    # As a file, not a job output: GitHub drops an output equal to a value
+    # hidden from the logs ("Skip output ... may contain secret"), which once
+    # left the build without a key.
+    needs: approve
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ format('{0}{1}', inputs.target == 'production' && secrets.SUPABASE_PROJECT_REF || '', inputs.target != 'production' && secrets.STAGING_SUPABASE_PROJECT_REF || '') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Read the anon key
+        run: |
+          mkdir -p "$RUNNER_TEMP/anon-key"
+          node scripts/supabase-admin.mjs anon-key > "$RUNNER_TEMP/anon-key/key"
+          [ -s "$RUNNER_TEMP/anon-key/key" ] || { echo "::error::Could not read the anon key"; exit 1; }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: anon-key-${{ inputs.target }}
+          path: ${{ runner.temp }}/anon-key/key
+          retention-days: 1
+
   web:
     # Installs and runs npm packages, so it holds no Supabase token and
     # cannot write to the repository; install scripts never run.
-    needs: [target, backend]
-    if: always() && needs.backend.result == 'success'
+    # Builds alongside the backup and migrations; only publish waits for them.
+    needs: [target, anon-key]
     runs-on: ubuntu-latest
     env:
       DEPLOY_TARGET: ${{ inputs.target }}
@@ -206,7 +219,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           VITE_SUPABASE_ANON_KEY="$(cat "$RUNNER_TEMP/anon-key/key")"
-          [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo "::error::The backend job passed no anon key"; exit 1; }
+          [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo "::error::The anon-key job passed no anon key"; exit 1; }
           export VITE_SUPABASE_ANON_KEY
           export VITE_SUPABASE_URL="https://$SUPABASE_PROJECT_REF.supabase.co"
           export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
@@ -245,9 +258,10 @@ jobs:
 
   publish:
     # The only job that can push, and it runs no npm code: it copies the
-    # built files onto the site branch.
-    needs: web
-    if: always() && needs.web.result == 'success'
+    # built files onto the site branch. Waits for the backend too, so the new
+    # build never goes live before its migrations and functions.
+    needs: [web, backend]
+    if: always() && needs.web.result == 'success' && needs.backend.result == 'success'
     runs-on: ubuntu-latest
     # Production and staging share the site branch; one publish at a time.
     concurrency:
@@ -291,6 +305,8 @@ jobs:
 
   verify:
     # Production must still be healthy once the new build has run for a while.
+    # Two minutes catches a broken API or RPC; slower signals (a stuck
+    # dispatcher, a backlog) are left to the half-hourly Health workflow.
     needs: publish
     if: always() && needs.publish.result == 'success' && inputs.target == 'production'
     runs-on: ubuntu-latest
@@ -305,5 +321,5 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - run: sleep 600
+      - run: sleep 120
       - run: node scripts/supabase-admin.mjs health
