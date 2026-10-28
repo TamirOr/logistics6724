@@ -152,6 +152,12 @@ $$;
 -- previous web build still calls; they stay below as wrappers until a later
 -- release removes them (expand, then contract).
 
+-- search_catalog sets pg_trgm.word_similarity_threshold. As in
+-- 20261027000015: the Supabase migration role is not a superuser, and
+-- Postgres refuses that setting until the pg_trgm library is loaded in the
+-- session. Calling any pg_trgm function loads it.
+select extensions.word_similarity('', '');
+
 -- The body is search_items' from 20261027000015, plus each item's measures
 -- and this company's last measure for it.
 create function search_catalog(p_supplier uuid, p_q text, p_limit int default 8)
