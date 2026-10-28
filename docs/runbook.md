@@ -254,7 +254,7 @@ psql "$SESSION_POOLER_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/r
 
 | Secret | Where | Rotate | If it changes |
 | --- | --- | --- | --- |
-| `SUPABASE_ACCESS_TOKEN` | GitHub secret | Supabase → Account → Access tokens; replace the secret | Nothing else |
+| `SUPABASE_ACCESS_TOKEN` | GitHub secret | Supabase → Account → Access tokens (organization-wide, not one project); replace the secret | Nothing else |
 | `SUPABASE_DB_PASSWORD` / `STAGING_…` | GitHub secret | Supabase → Project Settings → Database → Reset password; replace the secret | Nothing else |
 | `cron_secret` | `app_config` (database only) | Deploy → "Replace the cron secret" | Nothing else |
 | `vapid_private_key` / `vapid_public_key` | `app_config` | Only if leaked: delete both rows, run Deploy | Every device must re-subscribe (see VAPID mismatch) |
