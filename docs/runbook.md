@@ -155,14 +155,14 @@ select at, actor, op, changed from audit_log where table_name = 'requests' and r
 
 ### User stuck on "ממתין לאישור"
 
-They signed up and an admin has not approved them yet: admin home → בקשות הצטרפות. If they are not listed:
+They signed up and nobody has approved them yet: admin home → בקשות הצטרפות, or a super user of their unit → משתמשי היחידה. A super user sees a sign-up only when every unit it picked is one of theirs; a supplier who also picked another unit needs an admin. If they are not listed:
 
 ```sql
 select id, role, unit_id, approval, active, created_at from users where email = '<their email>';
 ```
 
 - No row: they never finished the sign-up form. Ask them to sign in again and fill it.
-- `approval = 'approved'` but still waiting: the app checks again every 30 seconds and when it comes to the front. Ask them to close and reopen it. `active = false` means they were deactivated (the screen then says "החשבון אינו פעיל").
+- `approval = 'approved'` but still waiting: the app checks again every 30 seconds and when it comes to the front. Ask them to close and reopen it. `active = false` means they were deactivated (the screen then says "החשבון אינו פעיל"), by an admin or by a super user who removed them from the unit; an admin reactivates them on the users screen.
 
 ### Supplier doesn't see a supplier unit's requests
 

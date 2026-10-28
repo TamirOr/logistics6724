@@ -9,7 +9,7 @@ import { fetchAccessReview, fetchJoinCode, rotateJoinCode } from "../../lib/api"
 import { describeError } from "../../lib/errors";
 import { useUnits } from "../../lib/live";
 import type { AccessReviewRow } from "../../lib/types";
-import { useUsers } from "./useUsers";
+import { useUsers } from "../../hooks/useUsers";
 import { t } from "../../strings";
 
 export function AccessReview() {

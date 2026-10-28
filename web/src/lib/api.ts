@@ -137,6 +137,10 @@ export const fetchUsers = async () =>
 export const approveUser = (id: string) => rpc<void>("approve_user", { p_user: id });
 export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user", { p_user: id, p_reason: reason });
 export const setUserActive = (id: string, active: boolean) => rpc<void>("set_user_active", { p_user: id, p_active: active });
+export const setSuperUser = (id: string, superUser: boolean) =>
+  rpc<void>("set_super_user", { p_user: id, p_super_user: superUser });
+/** Super users: deactivates the user, or takes only the caller's units from a supplier in other units too. */
+export const removeFromUnit = (id: string) => rpc<void>("remove_from_unit", { p_user: id });
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
 /** A supplier's supplier units; the main unit stays while it is among them. */
 export const setUserSuppliers = (id: string, supplierIds: string[]) =>

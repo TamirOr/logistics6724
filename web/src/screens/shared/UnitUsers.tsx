@@ -1,0 +1,50 @@
+// A super user's screen: sign-ups to their units to approve or reject, then
+// the active users of their units, each removable from them.
+import { Layout } from "../../components/Layout";
+import { PendingSignups } from "../../components/PendingSignups";
+import { useAction } from "../../components/Toast";
+import { useUsers } from "../../hooks/useUsers";
+import { removeFromUnit } from "../../lib/api";
+import { useUnits } from "../../lib/live";
+import { useProfile } from "../../lib/session";
+import type { Profile } from "../../lib/types";
+import { unitNamesOf } from "../../lib/userUnits";
+import { splitUnitUsers } from "./unitUsers";
+import { t } from "../../strings";
+
+export function UnitUsers() {
+  const me = useProfile();
+  const runAction = useAction();
+  const units = useUnits();
+  const { users, reload } = useUsers();
+  const { pending, members } = splitUnitUsers(users ?? [], me.id);
+
+  const act = (action: () => Promise<void>) => runAction(action, reload);
+  const remove = (u: Profile) => {
+    if (window.confirm(t.confirmRemoveFromUnit(`${u.first_name} ${u.last_name}`))) act(() => removeFromUnit(u.id));
+  };
+
+  return (
+    <Layout title={t.unitUsers} back>
+      <PendingSignups pending={pending} units={units} act={act} />
+
+      <h2 className="section-title">{t.unitMembers} <span className="muted count">({members.length})</span></h2>
+      {members.length <= 1 && <p className="muted empty">{t.noUnitMembers}</p>}
+      {members.map((u) => (
+        <article key={u.id} className="card row member">
+          <div className="member-name">
+            <div dir="auto">
+              {u.first_name} {u.last_name}
+              {u.id === me.id && <> <span className="tag">{t.me}</span></>}
+              {u.super_user && <> <span className="tag">{t.superUser}</span></>}
+            </div>
+            <div className="muted">{unitNamesOf(u, units)}</div>
+          </div>
+          {u.id !== me.id && (
+            <button className="btn btn-ghost btn-small" onClick={() => remove(u)}>{t.removeFromUnit}</button>
+          )}
+        </article>
+      ))}
+    </Layout>
+  );
+}

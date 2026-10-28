@@ -32,6 +32,8 @@ export interface Profile {
   approval: ApprovalStatus;
   rejection_reason: string | null;
   active: boolean;
+  /** Approves sign-ups to their units and removes users from them. Set by admins. */
+  super_user: boolean;
   created_at: string;
 }
 

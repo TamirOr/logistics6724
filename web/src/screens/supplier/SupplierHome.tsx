@@ -17,6 +17,7 @@ import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
 import type { LogisticsEvent, MergeSuggestion, Request } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
+import { unitUsersNav } from "../shared/unitUsers";
 import { AggregateView, aggregateTotals } from "./AggregateView";
 import { SupplierRequestSheet } from "./SupplierRequestSheet";
 import { SupplierRow } from "./SupplierRow";
@@ -98,7 +99,7 @@ export function SupplierHome() {
   return (
     <Layout
       title={t.appName}
-      nav={[{ to: "/catalog", label: t.catalog }, { to: "/history", label: t.history }]}
+      nav={[{ to: "/catalog", label: t.catalog }, { to: "/history", label: t.history }, ...unitUsersNav(profile, t.unitUsers)]}
       actions={
         <button className="btn btn-ghost btn-small"
           onClick={() => view === "aggregate"
