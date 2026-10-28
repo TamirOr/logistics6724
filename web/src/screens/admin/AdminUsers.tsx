@@ -1,6 +1,6 @@
 // Approved users in a table per side: suppliers, then customers, then
 // admins. The supplier and customer tables filter by unit and by active.
-// Each user can be deactivated or moved to another unit, company or
+// Each user can be deactivated, deleted or moved to another unit, company or
 // supplier (the server changes the role to match), and a supplier's
 // supplier units can be edited. Customers and suppliers can be made super
 // users. A name opens the user's page: profile and support.
@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
-import { moveUser, setSuperUser, setUserActive, setUserSuppliers } from "../../lib/api";
+import { deleteUser, moveUser, setSuperUser, setUserActive, setUserSuppliers } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
@@ -28,9 +28,13 @@ export function AdminUsers() {
   const [editingUnits, setEditingUnits] = useState<Profile | null>(null);
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
+  // Deleting cannot be undone, so unlike deactivating it asks first.
+  const remove = (u: Profile) => {
+    if (window.confirm(t.confirmDeleteUser(`${u.first_name} ${u.last_name}`))) act(() => deleteUser(u.id));
+  };
   const approved = (role: UserRole) => users?.filter((u) => u.approval === "approved" && u.role === role) ?? [];
   const table = { units, onMove: setMoving, onEditUnits: setEditingUnits, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)),
-    onSetSuperUser: (u: Profile) => act(() => setSuperUser(u.id, !u.super_user)) };
+    onSetSuperUser: (u: Profile) => act(() => setSuperUser(u.id, !u.super_user)), onDelete: remove };
 
   return (
     <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
@@ -103,9 +107,10 @@ interface UserTableProps {
   onEditUnits: (user: Profile) => void;
   onSetActive: (user: Profile) => void;
   onSetSuperUser: (user: Profile) => void;
+  onDelete: (user: Profile) => void;
 }
 
-function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive, onSetSuperUser }: UserTableProps) {
+function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive, onSetSuperUser, onDelete }: UserTableProps) {
   const me = useProfile();
   const [filter, setFilter] = useState<UserFilter>(filterKind ? DEFAULT_FILTER : NO_FILTER);
   const shown = filterUsers(users, filter);
@@ -157,6 +162,7 @@ function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSet
                         <button className="btn btn-ghost btn-small" onClick={() => onSetSuperUser(u)}>
                           {u.super_user ? t.unmakeSuperUser : t.makeSuperUser}
                         </button>
+                        <button className="btn btn-ghost btn-small" onClick={() => onDelete(u)}>{t.deleteUser}</button>
                       </>
                     )}
                     {/* The server refuses it too: an admin could lock themselves out. */}

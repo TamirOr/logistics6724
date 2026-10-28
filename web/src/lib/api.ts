@@ -161,6 +161,8 @@ export const setSuperUser = (id: string, superUser: boolean) =>
   rpc<void>("set_super_user", { p_user: id, p_super_user: superUser });
 /** Super users: deactivates the user, or takes only the caller's units from a supplier in other units too. */
 export const removeFromUnit = (id: string) => rpc<void>("remove_from_unit", { p_user: id });
+/** Removes the profile for good. Their sign-in stays: signing in again starts a new sign-up. */
+export const deleteUser = (id: string) => rpc<void>("delete_user", { p_user: id });
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
 /** A supplier's supplier units; the main unit stays while it is among them. */
 export const setUserSuppliers = (id: string, supplierIds: string[]) =>
@@ -179,6 +181,9 @@ export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
     : await supabase.from("units").insert(unit);
   if (error) throw error;
 }
+
+/** Refused while the unit has users or events use it: move the users or deactivate it instead. */
+export const deleteUnit = (id: string) => rpc<void>("delete_unit", { p_unit: id });
 
 // Push -----------------------------------------------------------------------------
 
