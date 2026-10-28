@@ -53,7 +53,7 @@ select status_code, error_msg, left(content::text, 200), created from net._http_
 select key from app_config where key in ('functions_url', 'cron_secret', 'vapid_public_key', 'vapid_private_key');
 ```
 
-- `net._http_response` shows 401: the function and the database disagree on the cron secret. Run the Deploy workflow (it does not change the secret), or rotate it (below).
+- `net._http_response` shows 401: the function and the database disagree on the cron secret. Run the Deploy workflow (it copies `app_config.cron_secret` to the functions' `CRON_SECRET` secret without changing it), or rotate it (below).
 - 404: the function is not deployed. Run the Deploy workflow.
 - 5xx: open Sentry (the `push-dispatch` issue), or Supabase → Edge Functions → push-dispatch → Logs. Each run logs one JSON line with `run_id`, `claimed`, `sent`, `failed` and `error`.
 - `functions_url` missing: run the Deploy workflow, whose configure step stores it.
@@ -174,6 +174,26 @@ select s.supplier_id, u.name from user_suppliers s join units u on u.id = s.supp
 
 Fix: admin → משתמשים → יחידות אספקה on their row, tick the unit, save. Moving a user (העברה ליחידה) leaves them in only the new unit.
 
+### An admin lost their authenticator app
+
+Admin rights need the app's code on every sign-in, so a lost phone locks the admin out of admin screens (nothing else changes). In the Supabase dashboard → Authentication → Users, open the admin, and under MFA factors delete the TOTP factor. On the next sign-in the app shows a new QR code. Check first that the request really comes from that admin, by phone or in person: this is the one step that bypasses the second factor.
+
+### "The sign-up form shows no units" / "wrong join code"
+
+New users need the battalion's join code (10 digits) before the form lists units. An admin finds it under מנהלים וספקים. If it was replaced, users who already signed up are not affected; only new sign-ups need the new code.
+
+### Health run fails with `privilege drift`
+
+The health workflow runs `privilege_drift()` against each project. It lists every function anon or authenticated can run beyond the allowlist, every table without row-level security, any anon grant on a table or view, and any view that runs as its owner. In the CI tests the list is empty, so a line here means the live project changed outside the migrations (a dashboard edit, a function created in the SQL editor, a platform default).
+
+```sql
+select * from privilege_drift();
+```
+
+- `authenticated can execute <fn>` for a function the app does not call: `revoke execute on function <fn> from authenticated, anon, public;`.
+- A function the app does need: it was added without a migration. Write the migration, with its grant, and add it to the allowlist in `privilege_drift()` (a new migration that replaces the function).
+- `no row-level security on <table>`: `alter table <table> enable row level security;`, then add its policies in a migration.
+
 ## Procedures
 
 ### VAPID mismatch after a key change
@@ -194,7 +214,7 @@ Never rotate VAPID keys on purpose unless the private key leaked: it cuts off ev
 
 ### Rotating the cron secret
 
-Actions → Deploy → Run workflow → target, tick "Replace the cron secret". pg_cron, `wake_dispatcher` and both functions read it from `app_config` on each run, so nothing else changes. Do it if the secret may have leaked.
+Actions → Deploy → Run workflow → target, tick "Replace the cron secret". pg_cron and `wake_dispatcher` read it from `app_config` on each run; the workflow copies the new value to the functions' `CRON_SECRET` secret, so nothing else changes. Do it if the secret may have leaked.
 
 ### A breaking schema change (`min_client_version`)
 
@@ -236,7 +256,7 @@ Nightly at 01:37 UTC and before every production deploy, the **Backup** workflow
 ### Restore drill (before launch, then every quarter)
 
 1. Add your private key as the GitHub secret `BACKUP_AGE_KEY` (the whole content of the key file).
-2. Actions → Restore drill → Run workflow. It restores the newest backup into **staging**, checks each table's row count against the dump, then removes the restored data and seeds staging again. Staging keeps its own settings and gets none of production's devices, so it cannot notify real phones.
+2. Actions → Restore drill → Run workflow. It restores the newest backup into a throwaway Postgres inside the runner, built from the migrations, and checks each table's row count against the dump. No Supabase project is touched: staging never holds real users' data, and the copy is gone when the job ends. Auth tables load as text columns (the runner has no Supabase Auth); the public schema loads into its real tables.
 3. Delete the `BACKUP_AGE_KEY` secret.
 4. Log it below.
 
@@ -250,14 +270,14 @@ Target: back within 2 hours, losing at most a day.
 
 1. Create a new Supabase project. Put its ref and database password in `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD`.
 2. Actions → Deploy → Run workflow → production (from `main`, whose migrations include the backup's `manifest.json` version), and approve it. This creates the schema, functions and settings.
-3. Restore the data with the same SQL the drill uses, from a computer with `psql` and `age` (connection string: Supabase → Connect → Session pooler):
+3. Restore the data with the same `prepare.sql` the drill uses, from a computer with `psql` and `age` (connection string: Supabase → Connect → Session pooler):
 
 ```bash
 age --decrypt -i logistics-backup-key.txt backup-production-YYYY-MM-DD.tar.gz.age | tar -xz
 psql "$SESSION_POOLER_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/restore/prepare.sql -f data.sql
 ```
 
-   Unlike the drill, skip `finish.sql`: production needs the restored `app_config` (its VAPID keys keep phones subscribed) and the restored `push_subscriptions`. Then run the Deploy workflow again so `functions_url` and `site_url` point at the new project.
+   The restored `app_config` keeps production's VAPID keys, so phones stay subscribed. Then run the Deploy workflow again so `functions_url` and `site_url` point at the new project.
 4. The anon key changed, so the deploy rebuilds the web app. Phones pick it up on the next update.
 
 ## Secrets inventory
@@ -266,7 +286,7 @@ psql "$SESSION_POOLER_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/r
 | --- | --- | --- | --- |
 | `SUPABASE_ACCESS_TOKEN` | GitHub secret | Supabase → Account → Access tokens (organization-wide, not one project); replace the secret | Nothing else |
 | `SUPABASE_DB_PASSWORD` / `STAGING_…` | GitHub secret | Supabase → Project Settings → Database → Reset password; replace the secret | Nothing else |
-| `cron_secret` | `app_config` (database only) | Deploy → "Replace the cron secret" | Nothing else |
+| `cron_secret` | `app_config`, copied to the functions' `CRON_SECRET` secret | Deploy → "Replace the cron secret" | Nothing else |
 | `vapid_private_key` / `vapid_public_key` | `app_config` | Only if leaked: delete both rows, run Deploy | Every device must re-subscribe (see VAPID mismatch) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` | Edge Function secrets **and** GitHub secrets | Google Cloud console → new client secret or token; update both places | Archive and backups fail until both are updated |
 | `SMTP_PASS` / `STAGING_SMTP_PASS` | GitHub secret | New app password at the provider; replace the secret; run Deploy | Sign-in emails fail until deployed |

@@ -3,8 +3,9 @@ set client_min_messages = warning;
 create schema tst;
 create table tst.t (k text primary key, v uuid);
 
-create function tst.act(p_user uuid) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', p_user)::text, false)
+-- Signs in as p_user. aal2 unless told otherwise: admins need a second factor.
+create function tst.act(p_user uuid, p_aal text default 'aal2') returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('sub', p_user, 'aal', p_aal)::text, false)
 $$;
 create function tst.ok(cond boolean, what text) returns void language plpgsql as $$
 begin if not coalesce(cond, false) then raise exception 'FAILED: %', what; end if; end $$;
@@ -515,13 +516,13 @@ reset role;
 -- A shared phone's push subscription follows the signed-in user -------------------
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-000000000002');
-select register_push_subscription('https://push.example/abc', 'k', 'a');
+select register_push_subscription('https://fcm.googleapis.com/fcm/send/abc', 'k', 'a');
 select tst.act('10000000-0000-0000-0000-000000000004');
-select register_push_subscription('https://push.example/abc', 'k2', 'a2');
+select register_push_subscription('https://fcm.googleapis.com/fcm/send/abc', 'k2', 'a2');
 select tst.ok((select count(*) from push_subscriptions) = 1, 'the new user owns the phone''s subscription');
 select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok((select count(*) from push_subscriptions) = 0, 'the previous user no longer has it');
 reset role;
-select tst.ok((select user_id from push_subscriptions where endpoint = 'https://push.example/abc')
+select tst.ok((select user_id from push_subscriptions where endpoint = 'https://fcm.googleapis.com/fcm/send/abc')
   = '10000000-0000-0000-0000-000000000004', 'subscription moved');
 delete from push_subscriptions;

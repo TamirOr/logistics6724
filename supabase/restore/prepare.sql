@@ -1,11 +1,9 @@
--- Restore drill, part 1 of 3. psql runs prepare.sql, the backup's data.sql
--- and finish.sql in one transaction against the staging project, so a
--- failure leaves staging as it was. Triggers stay off while rows load.
+-- Empties the public and auth schemas before a backup's data.sql loads.
+-- psql runs prepare.sql and data.sql in one transaction, so a failure
+-- leaves the database as it was. Used by the restore drill (a throwaway
+-- database in the runner) and by disaster recovery (docs/runbook.md).
+-- Triggers stay off while rows load.
 set session_replication_role = replica;
-
--- Staging keeps its own settings: production's would point its jobs at
--- production's functions and sign pushes with production's keys.
-create temp table staging_config on commit drop as select * from public.app_config;
 
 -- Delete rather than truncate: on Supabase the postgres role may delete
 -- from the auth tables but does not own them. With triggers off, the order

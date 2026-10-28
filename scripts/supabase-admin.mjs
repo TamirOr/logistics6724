@@ -12,7 +12,8 @@
 //   node scripts/supabase-admin.mjs seed-staging   loads fake units and catalog (staging only)
 //   node scripts/supabase-admin.mjs pg -- <tool> <args>  runs pg_dump or psql against the project
 //   node scripts/supabase-admin.mjs backup-manifest       prints what a backup holds (no data)
-//   node scripts/supabase-admin.mjs verify-restore <dump> compares row counts with a data dump
+//   node scripts/supabase-admin.mjs restore-scaffold <dump> auth tables the drill database needs for a dump
+//   node scripts/supabase-admin.mjs verify-restore <dump> compares the drill database's row counts with a dump
 //
 // Environment: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, and for
 // configure SITE_URL plus the optional SMTP_HOST, SMTP_PORT, SMTP_USER,
@@ -84,6 +85,10 @@ export function authSettings({ siteUrl, otpTemplate, smtp = null }) {
     // of them behind one carrier address; low enough to stop guessing.
     rate_limit_otp: 30,
     rate_limit_verify: 30,
+    // Admin rights need a TOTP second factor (is_admin() checks aal2).
+    // Included on the free plan.
+    mfa_totp_enroll_enabled: true,
+    mfa_totp_verify_enabled: true,
   };
   if (smtp) {
     Object.assign(settings, {
@@ -142,6 +147,15 @@ async function ensureVapidKeys({ sql }) {
   console.log("Generated VAPID keys");
 }
 
+// pg_cron reads the cron secret from app_config; the functions check it
+// against their CRON_SECRET secret before touching the database. This keeps
+// the two equal.
+async function syncCronSecret({ api, sql }) {
+  const [row] = await sql("select value from app_config where key = 'cron_secret'");
+  if (!row) throw new Error("app_config has no cron_secret");
+  await api("POST", "/secrets", [{ name: "CRON_SECRET", value: row.value }]);
+}
+
 async function configureAuth({ api }, env) {
   const otpTemplate = await readFile(new URL("../supabase/templates/otp.html", import.meta.url), "utf8");
   const smtp = smtpFromEnv(env);
@@ -152,7 +166,9 @@ async function configureAuth({ api }, env) {
 async function configure(env) {
   if (!env.SITE_URL) throw new Error("SITE_URL is required");
   const project = client(env);
-  const steps = { "server URLs": storeServerUrls, "VAPID keys": ensureVapidKeys, "auth settings": configureAuth };
+  const steps = {
+    "server URLs": storeServerUrls, "VAPID keys": ensureVapidKeys, "cron secret": syncCronSecret, "auth settings": configureAuth,
+  };
   const failures = [];
   for (const [name, step] of Object.entries(steps)) {
     try {
@@ -181,7 +197,8 @@ async function makeAdmin(env) {
   const email = env.ADMIN_EMAIL?.trim();
   if (!email) throw new Error("ADMIN_EMAIL is required");
   await sql(`select promote_admin(${sqlLiteral(email)})`);
-  console.log(`${email} is now an admin`);
+  // Not the address: the run page is public.
+  console.log("admin promoted");
 }
 
 // What the status report checks. The repository is public and so are its
@@ -264,6 +281,19 @@ async function health(env) {
     const failing = report.checks.filter((c) => !c.ok).map((c) => c.name).join(", ");
     throw new Error(`unhealthy: ${failing}. See docs/runbook.md`);
   }
+  await checkPrivileges(project);
+}
+
+/**
+ * The live privilege check: the same privilege_drift() the SQL tests
+ * assert, run on the hosted project, where a dashboard edit or a platform
+ * default could grant what the migrations never did. Function and table
+ * names only.
+ */
+async function checkPrivileges({ sql }) {
+  const drift = (await sql("select privilege_drift() as problem")).map((r) => r.problem);
+  if (drift.length) throw new Error(`privilege drift (docs/runbook.md):\n${drift.join("\n")}`);
+  console.log("PASS privilege_drift = 0");
 }
 
 async function recordBackup(env) {
@@ -274,11 +304,13 @@ async function recordBackup(env) {
     values ('backup', ${sqlLiteral(startedAt.toISOString())}, true, jsonb_build_object('bytes', ${bytes}))`);
 }
 
-// pg_cron, wake_dispatcher and the functions all read the secret from
-// app_config when they run, so replacing it there is the whole rotation.
+// pg_cron and wake_dispatcher read the secret from app_config when they
+// run; the functions get the new value as their CRON_SECRET secret.
 async function rotateCronSecret(env) {
-  await client(env).sql(`update app_config
+  const project = client(env);
+  await project.sql(`update app_config
     set value = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') where key = 'cron_secret'`);
+  await syncCronSecret(project);
   console.log("cron secret rotated");
 }
 
@@ -316,6 +348,14 @@ async function backupManifest(env) {
   process.stdout.write(JSON.stringify({ created_at: new Date().toISOString(), migration: version, target: env.DEPLOY_TARGET }));
 }
 
+/** Each COPY block's table and column list in a pg_dump data file, in dump order. */
+export function copyHeaders(dump) {
+  return [...dump.matchAll(/^COPY ([\w."]+) \(([^)]*)\) FROM stdin;$/gm)].map(([, table, columns]) => ({
+    table,
+    columns: columns.split(",").map((c) => c.trim()),
+  }));
+}
+
 /** Rows per table in a pg_dump data file (COPY format). */
 export function copyRowCounts(dump) {
   const counts = new Map();
@@ -336,20 +376,44 @@ export function copyRowCounts(dump) {
   return counts;
 }
 
-// The restore drill replaces these with the staging project's own (see
-// supabase/restore/finish.sql), so they never match the dump.
-export const NOT_RESTORED = ["public.app_config", "public.push_subscriptions", "public.notification_outbox"];
+/**
+ * The restore drill loads the backup into a throwaway Postgres built from
+ * the migrations and the test stub of the auth schema. The stub has a few
+ * auth columns; Supabase has many more. This adds every auth table and
+ * column the dump holds, as text, so its rows load and can be counted.
+ * The public schema is restored into its real tables and types.
+ */
+export function authScaffold(dump) {
+  return copyHeaders(dump)
+    .filter(({ table }) => table.startsWith("auth."))
+    .flatMap(({ table, columns }) => [
+      `create table if not exists ${table} ();`,
+      ...columns.map((c) => `alter table ${table} add column if not exists ${c} text;`),
+    ])
+    .join("\n");
+}
 
-/** After a restore drill: every table holds as many rows as the dump. Prints counts only. */
-async function verifyRestore(env) {
+/** Prints the SQL that lets the dump's auth rows load into the drill database. */
+async function restoreScaffold() {
+  const file = process.argv[3];
+  if (!file) throw new Error("usage: restore-scaffold <data.sql>");
+  process.stdout.write(authScaffold(await readFile(file, "utf8")));
+}
+
+/**
+ * After a restore drill: every table holds as many rows as the dump.
+ * Counts the drill database named by the PG* environment, never a project.
+ * Prints counts only.
+ */
+async function verifyRestore() {
   const file = process.argv[3];
   if (!file) throw new Error("usage: verify-restore <data.sql>");
   const expected = copyRowCounts(await readFile(file, "utf8"));
-  const { sql } = client(env);
   const mismatches = [];
   for (const [table, rows] of expected) {
-    if (NOT_RESTORED.includes(table.replaceAll('"', ""))) continue;
-    const [{ count }] = await sql(`select count(*)::int as count from ${table}`);
+    const result = spawnSync("psql", ["-XAtq", "-v", "ON_ERROR_STOP=1", "-c", `select count(*) from ${table}`], { encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`counting ${table}: ${result.stderr.trim()}`);
+    const count = Number(result.stdout.trim());
     console.log(`${count === rows ? "ok  " : "DIFF"} ${table}: ${count} of ${rows}`);
     if (count !== rows) mismatches.push(table);
   }
@@ -359,7 +423,7 @@ async function verifyRestore(env) {
 const commands = {
   configure, "anon-key": anonKey, "make-admin": makeAdmin, status, health,
   "record-backup": recordBackup, "rotate-cron-secret": rotateCronSecret, "seed-staging": seedStaging,
-  pg, "backup-manifest": backupManifest, "verify-restore": verifyRestore,
+  pg, "backup-manifest": backupManifest, "restore-scaffold": restoreScaffold, "verify-restore": verifyRestore,
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

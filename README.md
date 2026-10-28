@@ -68,9 +68,11 @@ Both builds live on the `site` branch, which GitHub Pages serves. Source maps go
    - `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`: production
    - `STAGING_SUPABASE_PROJECT_REF`, `STAGING_SUPABASE_DB_PASSWORD`: staging (until they exist, pushes to `main` only run the tests)
 4. **GitHub Pages.** Settings → Pages → Build and deployment → Source: **Deploy from a branch**, branch `site`, folder `/ (root)`. The branch appears after the first deploy; until then, run a deploy first and come back.
-5. **Production approval.** Settings → Environments → `production` (it appears after the first deploy; or "New environment") → tick **Required reviewers**, add yourself, Save. Without it, production deploys right after staging with no pause.
-6. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning** and **Push protection**.
-7. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow" and pick a target.
+5. **Production approval.** Settings → Environments → `production` (it appears after the first deploy; or "New environment") → tick **Required reviewers**, add yourself; under Deployment branches and tags choose "Selected branches and tags" and add `main`. Save. Without reviewers, production deploys right after staging with no pause; without the branch rule, a run started from another branch could be approved.
+6. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning**, **Push protection** and **CodeQL analysis** (Default setup). CI also runs zizmor (workflow security), gitleaks (secrets in history) and `npm audit`; the Scorecard workflow reports repository hygiene under Security → Code scanning.
+7. **Two-factor sign-in** on every account that can reach production: GitHub, Supabase, the Google account(s) for Drive and the SMTP sender, Sentry and the uptime monitor. A passkey or an authenticator app; keep the recovery codes offline.
+8. **Bot protection for sign-in** (optional but recommended): create a free Cloudflare Turnstile widget for the site's host, then Supabase → Authentication → Attack Protection → Enable CAPTCHA protection → Turnstile, with its secret key. The app does not send a CAPTCHA token yet, so turn this on only together with that app change.
+9. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow" and pick a target.
 
 ### Deploying to production
 
@@ -81,9 +83,11 @@ Migrations must keep working with the previous web build for one release (expand
 ### First admin and units
 
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
-2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it.
-3. Reload the app. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
-4. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
+2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
+3. Reload the app. Admins confirm every sign-in with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password...): the first time, the app shows a QR code to scan; after that it asks for the app's 6-digit code.
+4. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
+5. Open מנהלים וספקים (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
+6. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 
 ### Sign-in emails (needed for 6-digit codes)
 
@@ -138,10 +142,12 @@ Every setting, where it lives, and its value per environment ("secret" means: ne
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` | Edge Function secrets (archive) and GitHub secrets (backups) | optional | secret |
 | `BACKUP_AGE_KEY` | GitHub secret, only during a restore drill | — | — |
 | `APP_VERSION`, `SENTRY_ENVIRONMENT` | Edge Function secrets, set by Deploy | git SHA, `staging` | git SHA, `production` |
+| `CRON_SECRET` | Edge Function secret, copied from `app_config.cron_secret` by Deploy | secret | secret |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | build, set by Deploy (the build fails without them) | staging | production |
 | `VITE_APP_VERSION`, `VITE_APP_BUILT_AT`, `VITE_SENTRY_ENVIRONMENT` | build, set by Deploy | git SHA, commit time, `staging` | same, `production` |
 | `functions_url`, `site_url` | `app_config`, set by Deploy | staging URLs | production URLs |
 | `cron_secret`, `vapid_private_key` | `app_config`, server-only, generated | secret | secret |
+| `join_code` | `app_config`, server-only, generated; admins read and replace it in the app | own code | own code |
 | `vapid_public_key` | `app_config`, readable by the app | generated | generated |
 | `ops/backup-recipients.txt` | repository | — | age public keys |
 | Tuning values and health thresholds | `app_config` (below) | defaults | defaults |
@@ -157,6 +163,7 @@ These live in `app_config` and can change without a deploy:
 | `missing_window_cap_minutes` | 15 | Latest send time, counted from the first mark |
 | `retention_days` | 90 | Age at which events move to Drive; also how far back history shows |
 | `auto_close_quiet_minutes` | 30 | How long an event must be done, with no changes, before it closes |
+| `max_new_items_per_company_day` | 100 | Unverified items one company may add to the catalogs in 24 hours |
 | `min_client_version` | 0 | Builds with an older commit time (Unix seconds) stop writing and ask to update; see the runbook |
 
 Health thresholds (server-only, read by `health_report()`):

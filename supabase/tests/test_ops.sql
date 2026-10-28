@@ -144,7 +144,7 @@ select tst.ok((select count(*) from notification_outbox where kind = 'test'
 
 -- Support view and access review ------------------------------------------------------
 insert into push_subscriptions (user_id, endpoint, p256dh, auth) values
-  ('10000000-0000-0000-0000-000000000004', 'https://push.example/support', 'k', 'a');
+  ('10000000-0000-0000-0000-000000000004', 'https://fcm.googleapis.com/fcm/send/support', 'k', 'a');
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-000000000001');
 select tst.ok(jsonb_array_length(user_support('10000000-0000-0000-0000-000000000004') -> 'devices') = 1,

@@ -26,18 +26,27 @@ export function errorKey(event: ErrorEvent): string {
   return exception ? `${exception.type}: ${exception.value}` : String(event.message ?? event.fingerprint?.join("|") ?? "");
 }
 
-const withoutQuery = (url: unknown) => (typeof url === "string" ? url.split("?")[0] : url);
+/**
+ * A URL without its query and fragment. Queries can hold what the user
+ * typed; an emailed sign-in link lands with #access_token=... in the
+ * fragment.
+ */
+export const pathOnly = (url: unknown) => (typeof url === "string" ? url.split(/[?#]/)[0] : url);
 
 /**
  * Keeps a network breadcrumb's method, status and path only: request
  * bodies and PostgREST query strings can hold what the user typed.
- * Console breadcrumbs are dropped.
+ * Navigation breadcrumbs keep paths only. Console breadcrumbs are dropped.
  */
 export function scrubBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
   if (crumb.category === "console") return null;
   if (crumb.category === "fetch" || crumb.category === "xhr") {
     const { method, status_code, url } = crumb.data ?? {};
-    return { ...crumb, data: { method, status_code, url: withoutQuery(url) } };
+    return { ...crumb, data: { method, status_code, url: pathOnly(url) } };
+  }
+  if (crumb.category === "navigation") {
+    const { from, to } = crumb.data ?? {};
+    return { ...crumb, data: { from: pathOnly(from), to: pathOnly(to) } };
   }
   return crumb;
 }
@@ -56,7 +65,7 @@ export function initMonitoring() {
     beforeBreadcrumb: scrubBreadcrumb,
     beforeSend: (event) => {
       if (!allow(errorKey(event))) return null;
-      if (event.request) event.request = { url: withoutQuery(event.request.url) as string | undefined };
+      if (event.request) event.request = { url: pathOnly(event.request.url) as string | undefined };
       return event;
     },
   });

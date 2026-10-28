@@ -26,6 +26,8 @@ jobs:
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - run: supabase/tests/run.sh
 
   web:
@@ -35,12 +37,15 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
+      # Install scripts never run in CI; nothing in the app needs one.
+      - run: npm ci --ignore-scripts
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
@@ -56,6 +61,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -65,10 +72,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: v2.x
       - run: deno check supabase/functions/push-dispatch/index.ts supabase/functions/archive/index.ts
+
+  workflows:
+    # Workflow security: unpinned tools, secrets in scope, template injection.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: zizmor
+        run: pipx run zizmor==1.30.1 --offline --min-severity medium .github/workflows/
+
+  secrets:
+    # Every commit on every branch, so a secret committed and then removed
+    # is still caught. A finding fails the run; --redact keeps it out of the log.
+    # Not the site branch: it holds the built app, whose bundles carry the
+    # anon key, a JWT that is public by design.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks
+        env:
+          VERSION: 8.28.0
+          SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/gitleaks.tgz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v$VERSION/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/gitleaks.tgz" | sha256sum --check --quiet
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --log-opts="--exclude=refs/remotes/origin/site --all" --redact --verbose --no-banner .
 
   migrations-dry-run:
     # Shows which migrations the staging deploy will apply. Skipped until
@@ -81,9 +122,11 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
-          version: latest
+          version: 2.120.0 # same as deploy-target.yml
       - name: supabase db push --dry-run (staging)
         run: |
           if [ -z "$SUPABASE_PROJECT_REF" ]; then echo "::notice::Staging is not configured; skipping the dry run."; exit 0; fi
