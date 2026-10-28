@@ -87,8 +87,8 @@ export function CustomerEvent() {
               ))}
             </ul>
             {editable && (
-              <ItemAdder supplierId={s.id} onAdd={(itemId, quantity) => addRequest({
-                listId: list.id, eventId: event.id, companyId: list.company_id, supplierId: s.id, itemId, quantity,
+              <ItemAdder supplierId={s.id} onAdd={(itemId, quantity, measure) => addRequest({
+                listId: list.id, eventId: event.id, companyId: list.company_id, supplierId: s.id, itemId, quantity, measure,
               })} />
             )}
             {editable && canCollect && (

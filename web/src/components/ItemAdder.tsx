@@ -1,5 +1,7 @@
-// The add row at the end of a supplier section: quantity, then a name with
-// autocomplete from that supplier's catalog. An unknown name first offers
+// The add row at the end of a supplier section: a name with autocomplete
+// from that supplier's catalog, then a measure, then the quantity. A picked
+// item offers its measures in a dropdown; a new item takes a typed one. The
+// measure is optional either way. An unknown name first offers
 // "התכוונת ל...?", and creates an unverified item only if the user insists.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { addItem, matchItem, searchItems } from "../lib/api";
@@ -10,15 +12,33 @@ import { t } from "../strings";
 
 interface Props {
   supplierId: string;
-  onAdd: (itemId: string, quantity: number) => void;
+  onAdd: (itemId: string, quantity: number, measure: string) => void;
+}
+
+interface Defaults { default_quantity: number | null; default_measure: string | null }
+interface Entered { quantity: number; quantityTouched: boolean; measure: string; measureTouched: boolean }
+
+const NO_DEFAULTS: Defaults = { default_quantity: null, default_measure: null };
+
+/** What the user entered, with the company's last quantity and measure for what they left alone. */
+export function resolveAddition(entered: Entered, defaults: Defaults = NO_DEFAULTS) {
+  const quantity = entered.quantityTouched || defaults.default_quantity == null ? entered.quantity : defaults.default_quantity;
+  const measure = entered.measureTouched ? entered.measure : defaults.default_measure ?? entered.measure;
+  return { quantity: Math.max(1, quantity), measure };
 }
 
 const SEARCH_DEBOUNCE_MS = 150;
+const MEASURE_MAX_LENGTH = 30;
+// The dropdown's "new measure" option. Stored measures are trimmed, so none equals it.
+const NEW_MEASURE = "\n";
 
 export function ItemAdder({ supplierId, onAdd }: Props) {
+  const [name, setName] = useState("");
+  const [measure, setMeasure] = useState("");
+  const [measureTouched, setMeasureTouched] = useState(false);
+  const [typingMeasure, setTypingMeasure] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [quantityTouched, setQuantityTouched] = useState(false);
-  const [name, setName] = useState("");
   const [results, setResults] = useState<ItemSearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ItemSearchResult | null>(null);
@@ -26,6 +46,10 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const runAction = useAction();
+
+  const measureOptions = selected?.measures ?? [];
+  const showMeasureDropdown = measureOptions.length > 0 && !typingMeasure
+    && (measure === "" || measureOptions.includes(measure));
 
   useEffect(() => {
     if (!open || selected) return;
@@ -40,14 +64,17 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
     setSelected(null);
     setSuggestions(null);
     setResults([]);
+    setMeasure("");
+    setMeasureTouched(false);
+    setTypingMeasure(false);
     setQuantity(1);
     setQuantityTouched(false);
     nameRef.current?.focus();
   };
 
-  /** With a default from history, unless the user set the quantity. */
-  const add = (itemId: string, defaultQuantity: number | null = null) => {
-    onAdd(itemId, Math.max(1, quantityTouched || defaultQuantity == null ? quantity : defaultQuantity));
+  const add = (itemId: string, defaults?: Defaults) => {
+    const addition = resolveAddition({ quantity, quantityTouched, measure, measureTouched }, defaults);
+    onAdd(itemId, addition.quantity, addition.measure);
     reset();
   };
 
@@ -55,7 +82,27 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
     setSelected(item);
     setName(item.name);
     setOpen(false);
+    setTypingMeasure(false);
+    if (!measureTouched) setMeasure(item.default_measure ?? "");
     if (!quantityTouched) setQuantity(item.default_quantity ?? 1);
+  };
+
+  const changeName = (value: string) => {
+    setName(value);
+    setSelected(null);
+    setSuggestions(null);
+    setOpen(true);
+    if (!measureTouched) setMeasure("");
+  };
+
+  const chooseMeasure = (value: string) => {
+    setMeasureTouched(true);
+    if (value === NEW_MEASURE) {
+      setTypingMeasure(true);
+      setMeasure("");
+    } else {
+      setMeasure(value);
+    }
   };
 
   const runBusy = async (action: () => Promise<unknown>) => {
@@ -76,7 +123,7 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
       // finds "ג׳ריקן מים" without asking.
       const matches = await matchItem(supplierId, typed);
       const exact = matches.find((m) => m.exact);
-      if (exact) add(exact.id, exact.default_quantity);
+      if (exact) add(exact.id, exact);
       else if (matches.length) setSuggestions(matches);
       else await create();
     });
@@ -85,7 +132,6 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
   return (
     <form className="adder" onSubmit={submit}>
       <div className="adder-row">
-        <QuantityInput value={quantity} onChange={(v) => { setQuantity(v); setQuantityTouched(true); }} />
         <div className="combo">
           <input
             ref={nameRef}
@@ -98,7 +144,7 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
             enterKeyHint="done"
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            onChange={(e) => { setName(e.target.value); setSelected(null); setSuggestions(null); setOpen(true); }}
+            onChange={(e) => changeName(e.target.value)}
           />
           {open && results.length > 0 && (
             <ul className="combo-list" role="listbox">
@@ -106,13 +152,40 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
                 <li key={r.id}>
                   <button type="button" className="combo-option" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(r)}>
                     <span dir="auto" className="user-text">{r.name}</span>
-                    {r.default_quantity != null && <span className="muted">{r.default_quantity}</span>}
+                    {r.default_quantity != null && (
+                      <span className="muted">{r.default_quantity}{r.default_measure && ` ${r.default_measure}`}</span>
+                    )}
                   </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
+      </div>
+
+      <div className="adder-row">
+        {showMeasureDropdown ? (
+          <select className="input measure-field" aria-label={t.measure} value={measure}
+            onChange={(e) => chooseMeasure(e.target.value)}>
+            <option value="">{t.noMeasure}</option>
+            {measureOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+            <option value={NEW_MEASURE}>{t.newMeasure}</option>
+          </select>
+        ) : (
+          <input
+            className="input measure-field"
+            dir="auto"
+            placeholder={t.measurePlaceholder}
+            aria-label={t.measure}
+            value={measure}
+            maxLength={MEASURE_MAX_LENGTH}
+            autoComplete="off"
+            autoFocus={typingMeasure}
+            enterKeyHint="done"
+            onChange={(e) => { setMeasure(e.target.value); setMeasureTouched(true); }}
+          />
+        )}
+        <QuantityInput value={quantity} onChange={(v) => { setQuantity(v); setQuantityTouched(true); }} />
         <button className="btn btn-primary" type="submit" disabled={busy || !name.trim()}>{t.add}</button>
       </div>
 

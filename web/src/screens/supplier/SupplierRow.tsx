@@ -1,5 +1,6 @@
 // One request in the supplier's by-company view. One tap marks it ready.
 import { RequestNotes } from "../../components/RequestNotes";
+import { RequestQuantity } from "../../components/RequestQuantity";
 import { StatusBadge } from "../../components/StatusBadge";
 import type { Item, MergeSuggestion, Request } from "../../lib/types";
 import { t } from "../../strings";
@@ -21,7 +22,7 @@ export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAck
     <li className={`req req-${r.status} ${r.urgent ? "req-urgent" : ""}`}>
       <button className="req-main" onClick={cancelled ? undefined : onTap}>
         {r.urgent && <span className="urgent-dot" aria-label={t.urgent} />}
-        <span className="req-qty">{r.quantity}</span>
+        <RequestQuantity quantity={r.quantity} measure={r.measure} />
         <span className="req-name user-text" dir="auto">{item?.name ?? "…"}</span>
         <StatusBadge status={r.status} />
       </button>

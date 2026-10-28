@@ -108,7 +108,7 @@ export const fetchListOverviews = (eventIds: string[]) =>
 export const searchItems = (supplierId: string, q: string) =>
   rpc<ItemSearchResult[]>("search_items", { p_supplier: supplierId, p_q: q });
 
-export interface ItemMatch { id: string; name: string; exact: boolean; default_quantity: number | null }
+export type ItemMatch = Pick<ItemSearchResult, "id" | "name" | "default_quantity" | "measures" | "default_measure"> & { exact: boolean };
 
 /** The exact catalog match for a typed name, or else up to 3 "did you mean" suggestions. */
 export const matchItem = (supplierId: string, name: string) =>
