@@ -17,14 +17,6 @@ export const t = {
   resendCode: "שליחה חוזרת",
   invalidCode: "הקוד שגוי או שפג תוקפו",
 
-  // Admin second factor
-  mfaTitle: "אימות דו-שלבי",
-  mfaEnrollHint: "למנהלים נדרש אימות נוסף. סרקו את הקוד באפליקציית אימות (כמו Google Authenticator), ואז הקלידו את הקוד בן 6 הספרות שהיא מציגה.",
-  mfaQrAlt: "קוד QR להגדרת אפליקציית האימות",
-  mfaSecretLabel: "אי אפשר לסרוק? הזינו באפליקציה את המפתח הזה:",
-  mfaVerifyHint: "הקלידו את הקוד בן 6 הספרות מאפליקציית האימות.",
-  mfaCodeLabel: "קוד מהאפליקציה",
-  mfaInvalidCode: "הקוד שגוי. נסו את הקוד הנוכחי באפליקציה.",
 
   // Onboarding
   profileTitle: "פרטים אישיים",

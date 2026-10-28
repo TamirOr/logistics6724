@@ -4,7 +4,6 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { fetchMyProfile } from "./api";
 import { clearAllCaches, readCache, writeCache } from "./cache";
-import { currentAal, type Aal } from "./mfa";
 import { disablePush } from "./push";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
@@ -12,8 +11,6 @@ import type { Profile } from "./types";
 interface SessionState {
   session: Session | null;
   profile: Profile | null;
-  /** aal2 once a second factor was verified in this session (lib/mfa.ts). */
-  aal: Aal;
   loading: boolean;
   reloadProfile: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -25,7 +22,6 @@ const PROFILE_CACHE = "profile";
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [aal, setAal] = useState<Aal>(null);
   const [loading, setLoading] = useState(true);
 
   // The cached profile shows the app at once; the fresh one replaces it. With
@@ -35,7 +31,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const user = data.session?.user.id ?? null;
     setQueueUser(user);
     setSession(data.session);
-    setAal(await currentAal());
     if (!user) {
       setProfile(null);
       setLoading(false);
@@ -59,7 +54,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     reloadProfile();
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "MFA_CHALLENGE_VERIFIED") reloadProfile();
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") reloadProfile();
     });
     return () => data.subscription.unsubscribe();
   }, [reloadProfile]);
@@ -88,7 +83,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <SessionContext.Provider value={{ session, profile, aal, loading, reloadProfile, signOut }}>
+    <SessionContext.Provider value={{ session, profile, loading, reloadProfile, signOut }}>
       {children}
     </SessionContext.Provider>
   );

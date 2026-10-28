@@ -3,9 +3,8 @@ set client_min_messages = warning;
 create schema tst;
 create table tst.t (k text primary key, v uuid);
 
--- Signs in as p_user. aal2 unless told otherwise: admins need a second factor.
-create function tst.act(p_user uuid, p_aal text default 'aal2') returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', p_user, 'aal', p_aal)::text, false)
+create function tst.act(p_user uuid) returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('sub', p_user)::text, false)
 $$;
 create function tst.ok(cond boolean, what text) returns void language plpgsql as $$
 begin if not coalesce(cond, false) then raise exception 'FAILED: %', what; end if; end $$;

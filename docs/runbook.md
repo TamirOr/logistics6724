@@ -174,10 +174,6 @@ select s.supplier_id, u.name from user_suppliers s join units u on u.id = s.supp
 
 Fix: admin → משתמשים → יחידות אספקה on their row, tick the unit, save. Moving a user (העברה ליחידה) leaves them in only the new unit.
 
-### An admin lost their authenticator app
-
-Admin rights need the app's code on every sign-in, so a lost phone locks the admin out of admin screens (nothing else changes). In the Supabase dashboard → Authentication → Users, open the admin, and under MFA factors delete the TOTP factor. On the next sign-in the app shows a new QR code. Check first that the request really comes from that admin, by phone or in person: this is the one step that bypasses the second factor.
-
 ### "The sign-up form shows no units" / "wrong join code"
 
 New users need the battalion's join code (10 digits) before the form lists units. An admin finds it under מנהלים וספקים. If it was replaced, users who already signed up are not affected; only new sign-ups need the new code.

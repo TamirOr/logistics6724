@@ -92,15 +92,13 @@ set role service_role;
 select tst.ok((select count(*) from server_configs(array['cron_secret', 'functions_url'])) = 2, 'service role reads several configs');
 reset role;
 
--- F2: admin rights need a second factor (aal2) -------------------------------
+-- Admin rights come with the email-code sign-in; no second factor --------
 set role authenticated;
-select tst.act('10000000-0000-0000-0000-000000000001', 'aal1');
-select tst.ok(not is_admin(), 'an admin with only the email code is not an admin');
-select tst.fails($$select approve_user('10000000-0000-0000-0000-000000000006')$$, 'aal1 admin approves a user');
-select tst.ok((select count(*) from users) = 1, 'aal1 admin reads only their own profile');
 select tst.act('10000000-0000-0000-0000-000000000001');
-select tst.ok(is_admin(), 'an admin with aal2 is an admin');
-select tst.ok((select count(*) from users) > 1, 'aal2 admin reads all profiles');
+select tst.ok(is_admin(), 'an admin signed in with the email code is an admin');
+select tst.ok((select count(*) from users) > 1, 'an admin reads all profiles');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok(not is_admin(), 'a customer is not an admin');
 
 -- F4: the unit roster needs approval or the join code --------------------------
 reset role;
@@ -121,9 +119,6 @@ select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok((select count(*) from units) > 0, 'an approved user sees units');
 select tst.fails($$select join_code()$$, 'a customer reads the join code');
 select tst.fails($$select rotate_join_code()$$, 'a customer rotates the join code');
-select tst.act('10000000-0000-0000-0000-000000000001');
-select tst.act('10000000-0000-0000-0000-000000000001', 'aal1');
-select tst.fails($$select join_code()$$, 'an admin without the second factor reads the join code');
 select tst.act('10000000-0000-0000-0000-000000000001');
 select tst.ok(join_code() = '1234567890', 'an admin reads the join code');
 select tst.ok(rotate_join_code() ~ '^[0-9]{10}$', 'rotation returns a new ten-digit code');

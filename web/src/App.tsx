@@ -4,7 +4,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Crash } from "./components/Crash";
 import { ToastProvider } from "./components/Toast";
 import { useOutdated } from "./lib/appUpdate";
-import { needsSecondFactor } from "./lib/mfa";
 import { MonitoredErrorBoundary, setMonitoringUser } from "./lib/monitoring";
 import { refreshPush } from "./lib/push";
 import { SessionProvider, useSession } from "./lib/session";
@@ -14,7 +13,6 @@ import { AdminUnits } from "./screens/admin/AdminUnits";
 import { AccessReview } from "./screens/admin/AccessReview";
 import { AdminUserSupport } from "./screens/admin/AdminUserSupport";
 import { AdminUsers } from "./screens/admin/AdminUsers";
-import { SecondFactor } from "./screens/admin/SecondFactor";
 import { CustomerEvent } from "./screens/customer/CustomerEvent";
 import { CustomerHome } from "./screens/customer/CustomerHome";
 import { Diagnostics } from "./screens/shared/Diagnostics";
@@ -62,7 +60,7 @@ const ROUTES: Record<UserRole, { path: string; element: JSX.Element }[]> = {
 };
 
 function Gate() {
-  const { session, profile, aal, loading } = useSession();
+  const { session, profile, loading } = useSession();
   const outdated = useOutdated(!!session);
 
   useEffect(() => {
@@ -78,7 +76,6 @@ function Gate() {
   if (outdated) return <Outdated />;
   if (!profile || profile.approval === "rejected") return <Onboarding />;
   if (profile.approval === "pending" || !profile.active) return <Waiting />;
-  if (needsSecondFactor(profile.role, aal)) return <SecondFactor />;
 
   return (
     <Routes>
