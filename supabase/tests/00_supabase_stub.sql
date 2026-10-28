@@ -26,3 +26,9 @@ do $$ begin execute format('alter database %I set search_path = "$user", public,
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+
+-- The platform's event trigger function that turns on RLS for new tables,
+-- created with the default grants above, as on the live projects.
+create function public.rls_auto_enable() returns event_trigger language plpgsql as $$
+begin
+end $$;
