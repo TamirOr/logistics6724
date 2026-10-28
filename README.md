@@ -70,7 +70,7 @@ Both builds live on the `site` branch, which GitHub Pages serves. Source maps go
 4. **GitHub Pages.** Settings → Pages → Build and deployment → Source: **Deploy from a branch**, branch `site`, folder `/ (root)`. The branch appears after the first deploy; until then, run a deploy first and come back.
 5. **Production approval.** Settings → Environments → `production` (it appears after the first deploy; or "New environment") → tick **Required reviewers**, add yourself; under Deployment branches and tags choose "Selected branches and tags" and add `main`. Save. Without reviewers, production deploys right after staging with no pause; without the branch rule, a run started from another branch could be approved.
 6. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning**, **Push protection** and **CodeQL analysis** (Default setup). CI also runs zizmor (workflow security), gitleaks (secrets in history) and `npm audit`; the Scorecard workflow reports repository hygiene under Security → Code scanning.
-7. **Two-factor sign-in** on every account that can reach production: GitHub, Supabase, the Google account(s) for Drive and the SMTP sender, Sentry and the uptime monitor. A passkey or an authenticator app; keep the recovery codes offline.
+7. **Two-factor sign-in** on every account that can reach production: GitHub, Supabase, the Google account(s) for Drive and the SMTP sender, every admin's mailbox (an admin signs in to the app with the email code alone), Sentry and the uptime monitor. A passkey or an authenticator app; keep the recovery codes offline.
 8. **Bot protection for sign-in** (optional but recommended): create a free Cloudflare Turnstile widget for the site's host, then Supabase → Authentication → Attack Protection → Enable CAPTCHA protection → Turnstile, with its secret key. The app does not send a CAPTCHA token yet, so turn this on only together with that app change.
 9. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow" and pick a target.
 
@@ -84,10 +84,9 @@ Migrations must keep working with the previous web build for one release (expand
 
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
 2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
-3. Reload the app. Admins confirm every sign-in with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password...): the first time, the app shows a QR code to scan; after that it asks for the app's 6-digit code.
-4. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
-5. Open מנהלים וספקים (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
-6. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
+3. Reload the app. As admin, add the companies and suppliers under "יחידות", with each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
+4. Open מנהלים וספקים (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
+5. The initial catalog goes in later as a new seed migration. The app works with an empty catalog.
 
 ### Sign-in emails (needed for 6-digit codes)
 
