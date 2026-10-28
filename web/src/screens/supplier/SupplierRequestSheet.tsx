@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { QuantityInput } from "../../components/QuantityInput";
 import { Sheet } from "../../components/Sheet";
-import { setNote, setStatus } from "../../lib/requests";
+import { setStatus, setSupplierNote } from "../../lib/requests";
 import type { Item, Request } from "../../lib/types";
 import { t } from "../../strings";
 
@@ -21,12 +21,12 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
 
   const change = (status: Request["status"], suppliedQuantity: number | null = null) => {
     setStatus(r, status, suppliedQuantity);
-    if (note !== (r.supplier_note ?? "")) setNote(r, note);
+    if (note !== (r.supplier_note ?? "")) setSupplierNote(r, note);
     onStatusChanged(r);
     onClose();
   };
   const saveNote = () => {
-    setNote(r, note);
+    setSupplierNote(r, note);
     onClose();
   };
 

@@ -12,8 +12,8 @@ import { useUnits } from "../../lib/live";
 import type { Profile } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
 import { HealthStrip } from "./HealthStrip";
+import { UserFields } from "./UserFields";
 import { useUsers } from "./useUsers";
-import { unitNamesOf } from "./users";
 import { t } from "../../strings";
 
 export function AdminHome() {
@@ -42,12 +42,7 @@ export function AdminHome() {
       {pending.map((u) => (
         <article key={u.id} className="card signup">
           <div className="signup-name" dir="auto">{u.first_name} {u.last_name}</div>
-          <dl className="signup-fields">
-            <dt>{t.serviceNumber}</dt><dd><bdi dir="ltr">{u.service_number}</bdi></dd>
-            <dt>{t.emailLabel}</dt><dd><bdi dir="ltr">{u.email}</bdi></dd>
-            <dt>{t.side}</dt><dd>{t.roleLabels[u.role]}</dd>
-            <dt>{t.unit}</dt><dd>{unitNamesOf(u, units)}</dd>
-          </dl>
+          <UserFields user={u} units={units} />
           <div className="row">
             <button className="btn btn-success" onClick={() => act(() => approveUser(u.id))}>{t.approve}</button>
             <button className="btn btn-danger" onClick={() => { setRejecting(u); setReason(""); }}>{t.reject}</button>
