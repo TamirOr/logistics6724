@@ -116,7 +116,7 @@ export const matchItem = (supplierId: string, name: string) =>
 
 /** A category given here applies to a new item only; a known item keeps its own. */
 export const addItem = (supplierId: string, name: string, category = "") =>
-  rpc<string>("add_item", { p_supplier: supplierId, p_name: name, p_category: category.trim() || null });
+  rpc<string>("add_catalog_item", { p_supplier: supplierId, p_name: name, p_category: category.trim() || null });
 
 export const supplierCategories = (supplierId: string) =>
   rpc<string[]>("supplier_categories", { p_supplier: supplierId });

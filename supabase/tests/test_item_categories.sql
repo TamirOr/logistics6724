@@ -7,9 +7,9 @@ set role authenticated;
 
 -- The kitchen sets up its catalog with categories.
 select tst.act('10000000-0000-0000-0000-000000000005');
-insert into tst.t select 'c_tomato', add_item('00000000-0000-0000-0000-0000000000a2', 'עגבניה', '  ירקות   ופירות ');
-insert into tst.t select 'c_milk', add_item('00000000-0000-0000-0000-0000000000a2', 'חלב', 'מוצרי חלב');
-insert into tst.t select 'c_salt', add_item('00000000-0000-0000-0000-0000000000a2', 'מלח');
+insert into tst.t select 'c_tomato', add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'עגבניה', '  ירקות   ופירות ');
+insert into tst.t select 'c_milk', add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'חלב', 'מוצרי חלב');
+insert into tst.t select 'c_salt', add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'מלח');
 select tst.ok(category = 'ירקות ופירות', 'category is trimmed') from items where id = (select v from tst.t where k = 'c_tomato');
 select tst.ok(category is null, 'an item may have no category') from items where id = (select v from tst.t where k = 'c_salt');
 
@@ -25,13 +25,14 @@ select tst.ok((select array_agg(c) from supplier_categories('00000000-0000-0000-
 
 -- A customer gives a category to a new item only; a known item keeps its own.
 select tst.act('10000000-0000-0000-0000-000000000002');
-insert into tst.t select 'c_orange', add_item('00000000-0000-0000-0000-0000000000a2', 'תפוז', 'ירקות  ופירות');
+insert into tst.t select 'c_orange', add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'תפוז', 'ירקות  ופירות');
 select tst.ok(category = 'ירקות ופירות', 'customer''s new item joins the existing category')
 from items where id = (select v from tst.t where k = 'c_orange');
-select tst.ok(add_item('00000000-0000-0000-0000-0000000000a2', 'חלב', 'משקאות') = (select v from tst.t where k = 'c_milk'),
+select tst.ok(add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'חלב', 'משקאות') = (select v from tst.t where k = 'c_milk'),
   'a known item is reused');
 select tst.ok(category = 'מוצרי חלב', 'a known item keeps its category') from items where id = (select v from tst.t where k = 'c_milk');
-select tst.ok(add_item('00000000-0000-0000-0000-0000000000a2', 'שמן') is not null, 'the previous build''s call still works');
+select tst.ok(category is null, 'the previous build''s call adds an item without a category')
+from items where id = add_item(p_supplier => '00000000-0000-0000-0000-0000000000a2', p_name => 'שמן');
 
 -- Export rows carry the category.
 insert into tst.t select 'c_ev', create_event('ארוחת ערב', 'company');
@@ -55,7 +56,7 @@ select tst.fails($$update items set category = repeat('א', 31) where id = (sele
 select merge_item((select v from tst.t where k = 'c_orange'), (select v from tst.t where k = 'c_salt'));
 select tst.ok(category = 'ירקות ופירות', 'merge into an item without a category takes the source''s')
 from items where id = (select v from tst.t where k = 'c_salt');
-insert into tst.t select 'c_milk2', add_item('00000000-0000-0000-0000-0000000000a2', 'חלב עמיד', 'משקאות');
+insert into tst.t select 'c_milk2', add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'חלב עמיד', 'משקאות');
 select merge_item((select v from tst.t where k = 'c_milk2'), (select v from tst.t where k = 'c_milk'));
 select tst.ok(category = 'מוצרי חלב', 'merge keeps the target''s category') from items where id = (select v from tst.t where k = 'c_milk');
 

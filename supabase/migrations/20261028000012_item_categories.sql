@@ -38,11 +38,11 @@ language sql stable set search_path = public as $$
 $$;
 grant execute on function supplier_categories to authenticated;
 
--- The body is 20261028000004's, plus the category of a new item. The
--- previous web build calls add_item with two named arguments, which the
--- default answers; a second overload would make that call ambiguous.
-drop function add_item(uuid, text);
-create function add_item(p_supplier uuid, p_name text, p_category text default null) returns uuid
+-- add_catalog_item is add_item with the category of a new item. Adding a
+-- parameter to add_item would need a drop, and the previous web build still
+-- calls it; it stays below as a wrapper until a later release removes it
+-- (expand, then contract). The body is add_item's from 20261028000004.
+create function add_catalog_item(p_supplier uuid, p_name text, p_category text default null) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare
   v_role user_role := my_role();
@@ -88,7 +88,13 @@ begin
   end;
   return v_id;
 end $$;
-grant execute on function add_item to authenticated;
+grant execute on function add_catalog_item to authenticated;
+
+-- The previous web build's call, answered by the new function.
+create or replace function add_item(p_supplier uuid, p_name text) returns uuid
+language sql set search_path = public as $$
+  select add_catalog_item(p_supplier, p_name)
+$$;
 
 -- The body is 20261028000011's, plus: the item merged into keeps its
 -- category, or takes the merged item's if it had none.
@@ -155,7 +161,7 @@ join units c on c.id = r.company_id
 join units s on s.id = r.supplier_id
 join items i on i.id = r.item_id;
 
--- 20261028000011's list of functions the app may call, plus supplier_categories.
+-- 20261028000011's list of functions the app may call, plus add_catalog_item and supplier_categories.
 create or replace function privilege_drift() returns setof text
 language sql stable security definer set search_path = public as $$
   with fns as (
@@ -167,7 +173,7 @@ language sql stable security definer set search_path = public as $$
   union all
   select 'authenticated can execute ' || signature from fns
   where has_function_privilege('authenticated', oid, 'execute') and proname not in (
-    'access_review', 'add_item', 'admin_health', 'approve_user', 'cancel_event', 'close_event', 'config',
+    'access_review', 'add_catalog_item', 'add_item', 'admin_health', 'approve_user', 'cancel_event', 'close_event', 'config',
     'create_event', 'customer_request_rules', 'delete_request', 'derive_list_status', 'duplicate_event',
     'escape_like_pattern', 'exact_item', 'find_exact_item', 'health', 'is_admin', 'is_approved', 'is_client',
     'item_measure_names', 'join_code',
