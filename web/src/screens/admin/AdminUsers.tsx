@@ -1,4 +1,6 @@
-// Every user, with deactivate and move to another unit, company or
+// Approved users in a table per side: suppliers, then customers, then
+// admins. The supplier and customer tables filter by unit and by active.
+// Each user can be deactivated or moved to another unit, company or
 // supplier (the server changes the role to match). A name opens the
 // user's support view.
 import { useState } from "react";
@@ -9,43 +11,28 @@ import { useAction } from "../../components/Toast";
 import { moveUser, setUserActive } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
-import type { Profile, UnitKind } from "../../lib/types";
+import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
 import { useUsers } from "./useUsers";
+import { filterUsers, NO_FILTER, toggleUnit, unitNamesOf, type ActiveFilter, type UserFilter } from "./users";
 import { t } from "../../strings";
 
+const ACTIVE_FILTERS: ActiveFilter[] = ["all", "active", "inactive"];
+
 export function AdminUsers() {
-  const me = useProfile();
   const runAction = useAction();
   const units = useUnits();
   const { users, reload } = useUsers();
   const [moving, setMoving] = useState<Profile | null>(null);
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
-  const unitName = (id: string | null) => units.find((u) => u.id === id)?.name ?? "";
+  const approved = (role: UserRole) => users?.filter((u) => u.approval === "approved" && u.role === role) ?? [];
+  const table = { units, onMove: setMoving, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)) };
 
   return (
     <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
-      <ul className="req-list">
-        {users?.filter((u) => u.approval === "approved").map((u) => (
-          <li key={u.id} className={`req ${u.active ? "" : "req-cancelled"}`}>
-            <div className="req-main">
-              <Link className="req-name" dir="auto" to={`/users/${u.id}`}>{u.first_name} {u.last_name}</Link>
-              <span className="muted">{t.roleLabels[u.role]} {unitName(u.unit_id)}</span>
-              {u.id === me.id && <span className="tag">{t.me}</span>}
-              {!u.active && <span className="tag">{t.inactive}</span>}
-            </div>
-            {u.role !== "admin" && (
-              <button className="btn btn-ghost btn-small" onClick={() => setMoving(u)}>{t.moveToUnit}</button>
-            )}
-            {/* The server refuses it too: an admin could lock themselves out. */}
-            {u.id !== me.id && (
-              <button className="btn btn-ghost btn-small" onClick={() => act(() => setUserActive(u.id, !u.active))}>
-                {u.active ? t.deactivate : t.activate}
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <UserTable title={t.suppliersTable} users={approved("supplier")} filterKind="supplier" {...table} />
+      <UserTable title={t.customersTable} users={approved("customer")} filterKind="company" {...table} />
+      <UserTable title={t.adminsTable} users={approved("admin")} {...table} />
       {moving && (
         <Sheet title={`${t.moveToUnit}: ${moving.first_name} ${moving.last_name}`} onClose={() => setMoving(null)}>
           <div className="stack">
@@ -63,5 +50,77 @@ export function AdminUsers() {
         </Sheet>
       )}
     </Layout>
+  );
+}
+
+interface UserTableProps {
+  title: string;
+  users: Profile[];
+  units: Unit[];
+  /** The kind of unit to filter by; no filters without it. */
+  filterKind?: UnitKind;
+  onMove: (user: Profile) => void;
+  onSetActive: (user: Profile) => void;
+}
+
+function UserTable({ title, users, units, filterKind, onMove, onSetActive }: UserTableProps) {
+  const me = useProfile();
+  const [filter, setFilter] = useState<UserFilter>(NO_FILTER);
+  const shown = filterUsers(users, filter);
+
+  return (
+    <section className="section">
+      <h2 className="section-title">{title} <span className="muted count">({shown.length})</span></h2>
+      {filterKind && (
+        <div className="stack filters">
+          <div className="chips" role="group" aria-label={t.filterByUnit}>
+            {units.filter((u) => u.kind === filterKind).map((u) => (
+              <button key={u.id} className={`chip ${filter.unitIds.includes(u.id) ? "active" : ""}`}
+                aria-pressed={filter.unitIds.includes(u.id)} onClick={() => setFilter(toggleUnit(filter, u.id))}>
+                {u.name}
+              </button>
+            ))}
+          </div>
+          <div className="segmented" role="group" aria-label={t.filterByActive}>
+            {ACTIVE_FILTERS.map((a) => (
+              <button key={a} className={filter.active === a ? "active" : ""} aria-pressed={filter.active === a}
+                onClick={() => setFilter({ ...filter, active: a })}>{t.activeFilters[a]}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {shown.length === 0 ? <p className="muted empty">{t.noUsersMatch}</p> : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr><th>{t.name}</th><th>{t.unit}</th><th>{t.userState}</th><th aria-label={t.actions} /></tr>
+            </thead>
+            <tbody>
+              {shown.map((u) => (
+                <tr key={u.id} className={u.active ? "" : "row-inactive"}>
+                  <td>
+                    <Link dir="auto" to={`/users/${u.id}`}>{u.first_name} {u.last_name}</Link>
+                    {u.id === me.id && <> <span className="tag">{t.me}</span></>}
+                  </td>
+                  <td>{unitNamesOf(u, units)}</td>
+                  <td>{u.active ? t.active : <span className="tag">{t.inactive}</span>}</td>
+                  <td className="table-actions">
+                    {u.role !== "admin" && (
+                      <button className="btn btn-ghost btn-small" onClick={() => onMove(u)}>{t.moveToUnit}</button>
+                    )}
+                    {/* The server refuses it too: an admin could lock themselves out. */}
+                    {u.id !== me.id && (
+                      <button className="btn btn-ghost btn-small" onClick={() => onSetActive(u)}>
+                        {u.active ? t.deactivate : t.activate}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
