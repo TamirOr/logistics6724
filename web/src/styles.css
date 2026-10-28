@@ -164,6 +164,8 @@ h2 { font-size: 1.15rem; margin: 0; }
 .event-card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; }
 .event-card-meta, .event-card-counts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 0.9rem; }
 .event-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+.profile-card > summary { cursor: pointer; }
+.profile-name { font-weight: 700; }
 .highlight > .card { border-color: var(--warning); border-width: 2px; }
 .tag {
   display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
