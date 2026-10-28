@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterUsers, NO_FILTER, toggleUnit, unitNamesOf, unitsOf } from "./users";
+import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, unitNamesOf, unitsOf } from "./users";
 import { makeProfile } from "../../test/fixtures";
 
 const cook = makeProfile({ role: "supplier", unit_id: "kitchen", supplier_ids: ["kitchen", "closing"] });
@@ -30,6 +30,10 @@ describe("filterUsers", () => {
 
   it("keeps everyone with no filter", () => {
     expect(filterUsers(users, NO_FILTER)).toEqual(users);
+  });
+
+  it("shows only active users by default", () => {
+    expect(filterUsers(users, DEFAULT_FILTER)).toEqual([cook]);
   });
 
   it("keeps a user in any of the picked units, including a second supplier unit", () => {
