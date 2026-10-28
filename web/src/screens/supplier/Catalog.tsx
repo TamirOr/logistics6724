@@ -1,4 +1,4 @@
-// Cleanup outside live work: rename, categorize, hide, verify and merge
+// Cleanup outside live work: rename, categorize, hide, verify, merge and delete
 // catalog items. Items show under their categories.
 import { useState } from "react";
 import { CategorizedList } from "../../components/CategorizedList";
@@ -7,7 +7,7 @@ import { Layout } from "../../components/Layout";
 import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { Sheet } from "../../components/Sheet";
 import { useAction, useToast } from "../../components/Toast";
-import { addItem, matchItem, mergeItem, updateItem } from "../../lib/api";
+import { addItem, deleteItem, matchItem, mergeItem, updateItem } from "../../lib/api";
 import { describeError, isItemNameTaken } from "../../lib/errors";
 import { itemCache, useLiveRows } from "../../lib/live";
 import { useActiveSupplier } from "../../lib/activeSupplier";
@@ -73,7 +73,8 @@ export function Catalog() {
       {editing && (
         <ItemSheet item={editing} onClose={() => setEditing(null)}
           onSave={(patch) => saveItem(editing, patch)}
-          onMerge={() => { setMerging(editing); setEditing(null); }} />
+          onMerge={() => { setMerging(editing); setEditing(null); }}
+          onDelete={() => attempt(() => deleteItem(editing.id))} />
       )}
       {merging && (
         <MergeSheet source={merging} candidates={items.filter((i) => i.id !== merging.id && i.active)}
@@ -84,8 +85,8 @@ export function Catalog() {
   );
 }
 
-function ItemSheet({ item, onClose, onSave, onMerge }: {
-  item: Item; onClose: () => void; onSave: (patch: Partial<Item>) => void; onMerge: () => void;
+function ItemSheet({ item, onClose, onSave, onMerge, onDelete }: {
+  item: Item; onClose: () => void; onSave: (patch: Partial<Item>) => void; onMerge: () => void; onDelete: () => void;
 }) {
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category ?? "");
@@ -95,6 +96,12 @@ function ItemSheet({ item, onClose, onSave, onMerge }: {
   };
   const save = (patch: Partial<Item>) => {
     onSave(patch);
+    onClose();
+  };
+  // Deleting cannot be undone, so unlike hiding it asks first.
+  const confirmAndDelete = () => {
+    if (!window.confirm(t.confirmDeleteItem(item.name))) return;
+    onDelete();
     onClose();
   };
   return (
@@ -114,6 +121,7 @@ function ItemSheet({ item, onClose, onSave, onMerge }: {
             {item.active ? t.hide : t.show}
           </button>
           <button className="btn btn-secondary" onClick={onMerge}>{t.merge}</button>
+          <button className="btn btn-danger" onClick={confirmAndDelete}>{t.deleteItem}</button>
         </div>
       </div>
     </Sheet>
