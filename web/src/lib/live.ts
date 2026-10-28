@@ -5,6 +5,7 @@ import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isFresh, readCache, writeCache } from "./cache";
 import { noteSynced } from "./diagnostics";
+import { onReturn } from "./foreground";
 import { applyEffects, onCommitted, useQueue } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
@@ -109,11 +110,12 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
       else if (m.table === table && m.kind === "delete") remove(m.id);
     });
 
-    const onVisible = () => document.visibilityState === "visible" && refetch();
-    document.addEventListener("visibilitychange", onVisible);
+    // A sleeping phone can miss changes before Realtime notices the
+    // socket dropped, so a return after a while reloads.
+    const stopReturn = onReturn(refetch);
     return () => {
       stopCommits();
-      document.removeEventListener("visibilitychange", onVisible);
+      stopReturn();
     };
   }, [table, column, value, cacheKey, refetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
