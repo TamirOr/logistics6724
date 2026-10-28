@@ -52,6 +52,8 @@ describe("applyEffects", async () => {
 describe("queue", () => {
   beforeEach(() => {
     vi.resetModules();
+    // Earlier tests' queue modules may still have a flush scheduled.
+    vi.clearAllTimers();
     vi.useFakeTimers();
     send.mockReset();
     refreshSession.mockClear();
@@ -200,6 +202,63 @@ describe("queue", () => {
     await flushTimers();
     expect(send).toHaveBeenCalledTimes(1);
     expect(stored()).toHaveLength(1);
+  });
+
+  it("drops a write the server refuses with a bare HTTP error, so later writes go out", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValueOnce({ data: null, status: 413, error: { message: "Payload Too Large" } })
+      .mockResolvedValue({ data: { id: "r2" }, status: 200, error: null });
+    const rejected = vi.fn();
+    q.onRejected(rejected);
+    q.enqueue({ kind: "rpc", fn: "mark_collected", args: {} });
+    q.enqueue({ kind: "update", table: "requests", id: "r2", patch: { urgent: true } });
+    await flushTimers();
+    expect(rejected).toHaveBeenCalledWith(expect.anything(), "Payload Too Large", undefined);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(stored()).toHaveLength(0);
+  });
+
+  it("retries a server error page a few times, then drops the write", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValue({ data: null, status: 502, error: { message: "<html>Bad Gateway</html>" } });
+    const rejected = vi.fn();
+    q.onRejected(rejected);
+    q.enqueue({ kind: "rpc", fn: "mark_collected", args: {} });
+    await flushTimers();
+    expect(stored()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(send).toHaveBeenCalledTimes(9);
+    expect(rejected).toHaveBeenCalledTimes(1);
+    expect(stored()).toHaveLength(0);
+  });
+
+  it("keeps retrying while the server cannot be reached at all", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValue({ data: null, status: 0, error: { message: "TypeError: Failed to fetch", code: "" } });
+    const rejected = vi.fn();
+    q.onRejected(rejected);
+    q.enqueue({ kind: "rpc", fn: "mark_collected", args: {} });
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(send.mock.calls.length).toBeGreaterThan(9);
+    expect(rejected).not.toHaveBeenCalled();
+    expect(stored()).toHaveLength(1);
+  });
+
+  it("keeps sending after a listener throws", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValue({ data: { id: "r1" }, status: 200, error: null });
+    q.onCommitted(() => {
+      throw new Error("listener bug");
+    });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    q.enqueue({ kind: "update", table: "requests", id: "r1", patch: { urgent: true } });
+    q.enqueue({ kind: "update", table: "requests", id: "r1", patch: { urgent: false } });
+    await flushTimers();
+    await vi.advanceTimersByTimeAsync(5000);
+    process.off("unhandledRejection", unhandled);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(stored()).toHaveLength(0);
   });
 
   it("rejects an update that matched no row", async () => {
