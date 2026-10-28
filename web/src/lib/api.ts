@@ -128,6 +128,9 @@ export const supplierCategories = (supplierId: string) =>
 export const mergeItem = (sourceId: string, targetId: string) =>
   rpc<void>("merge_item", { p_source: sourceId, p_target: targetId });
 
+/** Refused while any request uses the item: hide or merge it instead. */
+export const deleteItem = (id: string) => rpc<void>("delete_item", { p_item: id });
+
 export const mergeSuggestions = (supplierId: string) =>
   rpc<MergeSuggestion[]>("merge_suggestions", { p_supplier: supplierId });
 
