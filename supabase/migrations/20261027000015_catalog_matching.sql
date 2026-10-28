@@ -9,6 +9,13 @@
 --   score, and the "did you mean" threshold applies to that, not to a
 --   score that includes prefix boosts.
 
+-- search_items below sets pg_trgm.word_similarity_threshold. On Supabase
+-- the migration role is not a superuser, and Postgres refuses that setting
+-- until the pg_trgm library is loaded in the session; a deploy that starts
+-- at this migration has not loaded it yet. Calling any pg_trgm function
+-- loads it.
+select extensions.word_similarity('', '');
+
 -- The merge itself, without the permission check, so this migration can
 -- use it too. merge_item keeps the check.
 create function merge_items(p_source uuid, p_target uuid) returns void
