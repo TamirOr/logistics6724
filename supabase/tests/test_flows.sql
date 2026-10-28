@@ -440,6 +440,14 @@ select tst.ok((select count(*) from match_item('00000000-0000-0000-0000-00000000
 select tst.ok(not exists (select 1 from match_item('00000000-0000-0000-0000-0000000000a1', 'גריקן') where exact), 'exact is not fuzzy');
 select tst.ok((select bool_and(similarity <= score) from search_items('00000000-0000-0000-0000-0000000000a1', 'סול')),
   'similarity excludes the ranking boost');
+-- The previous app build still calls exact_item and suggest_items.
+select tst.ok((select name from exact_item('00000000-0000-0000-0000-0000000000a1', 'גריקן מים')) = 'ג׳ריקן מים',
+  'exact_item still answers the previous build');
+select tst.ok((select count(*) from suggest_items('00000000-0000-0000-0000-0000000000a1', 'ג׳ריקנים')) >= 1,
+  'suggest_items still answers the previous build');
+reset role;
+set role anon;
+select tst.fails($$select * from suggest_items('00000000-0000-0000-0000-0000000000a1', 'x')$$, 'anon calls suggest_items');
 reset role;
 select tst.fails($$insert into items (supplier_id, name, verified) values ('00000000-0000-0000-0000-0000000000a1', 'ג''ריקן  מים', true)$$,
   'a second active item with the same normalized name');
