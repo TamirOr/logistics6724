@@ -161,9 +161,6 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
             </ul>
           )}
         </div>
-      </div>
-
-      <div className="adder-row">
         {showMeasureDropdown ? (
           <select className="input measure-field" aria-label={t.measure} value={measure}
             onChange={(e) => chooseMeasure(e.target.value)}>
@@ -175,6 +172,7 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
           <input
             className="input measure-field"
             dir="auto"
+            placeholder={t.measure}
             aria-label={t.measure}
             value={measure}
             maxLength={MEASURE_MAX_LENGTH}
@@ -184,8 +182,11 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
             onChange={(e) => { setMeasure(e.target.value); setMeasureTouched(true); }}
           />
         )}
+      </div>
+
+      <div className="adder-row">
         <QuantityInput value={quantity} onChange={(v) => { setQuantity(v); setQuantityTouched(true); }} />
-        <button className="btn btn-primary" type="submit" disabled={busy || !name.trim()}>{t.add}</button>
+        <button className="btn btn-primary adder-submit" type="submit" disabled={busy || !name.trim()}>{t.add}</button>
       </div>
 
       {suggestions && (

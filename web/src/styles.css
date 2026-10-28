@@ -227,7 +227,9 @@ h2 { font-size: 1.15rem; margin: 0; }
 .adder-row .btn { padding-inline: 12px; }
 .adder-row + .adder-row { margin-top: 6px; }
 .combo { position: relative; flex: 1; min-width: 0; }
-.measure-field { flex: 1; min-width: 0; }
+/* Wide enough for its placeholder; the name takes the rest of the line. */
+.measure-field { flex: 0 0 8em; min-width: 0; }
+.adder-submit { flex: 1; }
 .combo-list {
   position: absolute; inset-inline: 0; top: 100%; z-index: 20; list-style: none; margin: 4px 0 0; padding: 4px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
