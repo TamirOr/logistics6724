@@ -22,7 +22,7 @@ begin
 end $$;
 grant execute on function delete_user to authenticated;
 
--- 20261028000016's delete_unit. Rejected sign-ups hold nothing but the
+-- 20261028000017's delete_unit. Rejected sign-ups hold nothing but the
 -- rejection and are not listed anywhere, so they go with the unit instead
 -- of blocking it.
 create or replace function delete_unit(p_unit uuid) returns void
@@ -46,7 +46,7 @@ begin
   delete from units where id = p_unit;
 end $$;
 
--- 20261028000016's list of functions the app may call, plus delete_user.
+-- 20261028000017's list of functions the app may call, plus delete_user.
 create or replace function privilege_drift() returns setof text
 language sql stable security definer set search_path = public as $$
   with fns as (

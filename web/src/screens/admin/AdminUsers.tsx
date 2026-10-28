@@ -140,7 +140,7 @@ function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSet
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>{t.name}</th><th>{t.unit}</th><th>{t.userState}</th><th aria-label={t.actions} /></tr>
+              <tr><th>{t.name}</th><th>{filterKind ? t.unitOf[filterKind] : t.unit}</th><th>{t.userState}</th><th aria-label={t.actions} /></tr>
             </thead>
             <tbody>
               {shown.map((u) => (

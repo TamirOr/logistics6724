@@ -6,5 +6,6 @@ set -euo pipefail
 cd "$(dirname "$0")"
 DB=${TEST_DB:-logistics_test}
 ./schema.sh "$DB"
+echo "== seed_battalion.sql"; psql -q -X -v ON_ERROR_STOP=1 -d "$DB" -f seed_battalion.sql -o /dev/null
 for f in test_*.sql; do echo "== $f"; psql -q -X -v ON_ERROR_STOP=1 -d "$DB" -f "$f" -o /dev/null; done
 echo "all tests passed"

@@ -7,7 +7,7 @@ import { useState, type FormEvent } from "react";
 import { fetchSignupUnits, registerProfile } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import type { Unit, UserRole } from "../../lib/types";
-import { unitsOf } from "../../lib/userUnits";
+import { unitKindOf, unitsOf } from "../../lib/userUnits";
 import { describeError } from "../../lib/errors";
 import { t } from "../../strings";
 
@@ -24,8 +24,7 @@ export function Onboarding() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const kind = role === "customer" ? "company" : "supplier";
-  const options = (units ?? []).filter((u) => u.kind === kind);
+  const options = (units ?? []).filter((u) => u.kind === unitKindOf(role));
 
   const submitJoinCode = async (e: FormEvent) => {
     e.preventDefault();
@@ -105,7 +104,7 @@ export function Onboarding() {
               </div>
             </fieldset>
             {role === "customer" ? (
-              <label className="field"><span>{t.unit}</span>
+              <label className="field"><span>{t.unitOf.company}</span>
                 <select className="input" required value={unitIds[0] ?? ""} onChange={(e) => setUnitIds([e.target.value])}>
                   <option value="" disabled>{t.pickUnit}</option>
                   {options.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
