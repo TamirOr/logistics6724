@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  annotation, authSettings, copyRowCounts, formatHealth, formatStatus, generateVapidKeys, smtpFromEnv, sqlLiteral, STATUS_CHECKS,
+  annotation, authScaffold, authSettings, copyHeaders, copyRowCounts, formatHealth, formatStatus, generateVapidKeys, smtpFromEnv, sqlLiteral, STATUS_CHECKS,
 } from "./supabase-admin.mjs";
 
 // web-push rejects keys that are not exactly these sizes.
@@ -118,4 +118,21 @@ test("copyRowCounts counts the rows of each COPY block", () => {
     "\\.",
   ].join("\n");
   assert.deepEqual([...copyRowCounts(dump)], [["auth.users", 2], ["public.units", 0], ['public."audit_log"', 1]]);
+});
+
+test("copyHeaders lists each COPY block's table and columns", () => {
+  const dump = ["COPY auth.users (id, email, phone) FROM stdin;", "\\.", 'COPY public."units" (id) FROM stdin;', "\\."].join("\n");
+  assert.deepEqual(copyHeaders(dump), [
+    { table: "auth.users", columns: ["id", "email", "phone"] },
+    { table: 'public."units"', columns: ["id"] },
+  ]);
+});
+
+test("authScaffold adds auth tables and columns as text, and leaves public alone", () => {
+  const dump = ["COPY auth.users (id, phone) FROM stdin;", "\\.", "COPY public.units (id) FROM stdin;", "\\."].join("\n");
+  assert.equal(authScaffold(dump), [
+    "create table if not exists auth.users ();",
+    "alter table auth.users add column if not exists id text;",
+    "alter table auth.users add column if not exists phone text;",
+  ].join("\n"));
 });

@@ -236,7 +236,7 @@ Nightly at 01:37 UTC and before every production deploy, the **Backup** workflow
 ### Restore drill (before launch, then every quarter)
 
 1. Add your private key as the GitHub secret `BACKUP_AGE_KEY` (the whole content of the key file).
-2. Actions → Restore drill → Run workflow. It restores the newest backup into **staging**, checks each table's row count against the dump, then removes the restored data and seeds staging again. Staging keeps its own settings and gets none of production's devices, so it cannot notify real phones.
+2. Actions → Restore drill → Run workflow. It restores the newest backup into a throwaway Postgres inside the runner, built from the migrations, and checks each table's row count against the dump. No Supabase project is touched: staging never holds real users' data, and the copy is gone when the job ends. Auth tables load as text columns (the runner has no Supabase Auth); the public schema loads into its real tables.
 3. Delete the `BACKUP_AGE_KEY` secret.
 4. Log it below.
 
@@ -250,14 +250,14 @@ Target: back within 2 hours, losing at most a day.
 
 1. Create a new Supabase project. Put its ref and database password in `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD`.
 2. Actions → Deploy → Run workflow → production (from `main`, whose migrations include the backup's `manifest.json` version), and approve it. This creates the schema, functions and settings.
-3. Restore the data with the same SQL the drill uses, from a computer with `psql` and `age` (connection string: Supabase → Connect → Session pooler):
+3. Restore the data with the same `prepare.sql` the drill uses, from a computer with `psql` and `age` (connection string: Supabase → Connect → Session pooler):
 
 ```bash
 age --decrypt -i logistics-backup-key.txt backup-production-YYYY-MM-DD.tar.gz.age | tar -xz
 psql "$SESSION_POOLER_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/restore/prepare.sql -f data.sql
 ```
 
-   Unlike the drill, skip `finish.sql`: production needs the restored `app_config` (its VAPID keys keep phones subscribed) and the restored `push_subscriptions`. Then run the Deploy workflow again so `functions_url` and `site_url` point at the new project.
+   The restored `app_config` keeps production's VAPID keys, so phones stay subscribed. Then run the Deploy workflow again so `functions_url` and `site_url` point at the new project.
 4. The anon key changed, so the deploy rebuilds the web app. Phones pick it up on the next update.
 
 ## Secrets inventory
