@@ -25,10 +25,15 @@ export function useEvent(id: string | undefined) {
     refetch();
   }, [id, refetch]);
 
+  // Deletes arrive for every event (Realtime cannot filter them), so the
+  // id is checked; an archived or deleted event leaves the screen.
   useRealtime<LogisticsEvent>("events", id ? `id=eq.${id}` : null, (c) => {
     if (c.eventType === "UPDATE") {
       eventCache.put([c.new as LogisticsEvent]);
       setEvent(c.new as LogisticsEvent);
+    } else if (id && c.eventType === "DELETE" && (c.old as { id?: string }).id === id) {
+      eventCache.drop(id);
+      setEvent(null);
     }
   }, refetch);
 

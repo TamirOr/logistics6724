@@ -6,6 +6,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { registerSW } from "virtual:pwa-register";
 import { fetchTuning } from "./api";
+import { onReturn } from "./foreground";
 import { setQueuePaused } from "./queue";
 import { APP_BUILT_AT, isOutdated } from "./version";
 
@@ -29,7 +30,7 @@ export function startUpdates() {
       if (!registration) return;
       const check = () => registration.update().catch(() => {});
       setInterval(check, CHECK_EVERY_MS);
-      document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && check());
+      onReturn(check);
     },
   });
 }
@@ -84,9 +85,7 @@ export function useOutdated(signedIn: boolean): boolean {
       .then((min) => setOutdated(isOutdated(APP_BUILT_AT, min)))
       .catch(() => {}); // Offline: keep the last answer.
     check();
-    const onVisible = () => document.visibilityState === "visible" && check();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    return onReturn(check);
   }, [signedIn]);
   useEffect(() => setQueuePaused(outdated), [outdated]);
   return outdated;

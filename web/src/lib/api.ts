@@ -2,6 +2,7 @@
 // sign-up, opening events, catalog lookups and admin actions. Request
 // edits go through lib/requests.ts instead, so they work offline.
 import { supabase } from "./supabase";
+import { allRows } from "./paging";
 import type {
   AccessReviewRow, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
   Profile, Unit, UnitKind, UserRole,
@@ -11,12 +12,6 @@ async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T
   const { data, error } = await supabase.rpc(fn, args);
   if (error) throw error;
   return data as T;
-}
-
-async function rows<T>(query: PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []) as T[];
 }
 
 // Auth and profile -------------------------------------------------------------
@@ -99,20 +94,23 @@ export async function fetchCompanyList(eventId: string, companyId: string): Prom
   return data as List | null;
 }
 
-export const fetchEvents = (status: "open" | "history", sinceIso?: string, untilIso?: string) => {
-  let q = supabase.from("events").select("*").order("created_at", { ascending: false });
-  q = status === "open" ? q.eq("status", "open") : q;
-  if (sinceIso) q = q.gte("created_at", sinceIso);
-  if (untilIso) q = q.lt("created_at", untilIso);
-  return rows<LogisticsEvent>(q);
-};
+export const fetchEvents = (status: "open" | "history", sinceIso?: string, untilIso?: string) =>
+  allRows<LogisticsEvent>(() => {
+    let q = supabase.from("events").select("*").order("created_at", { ascending: false }).order("id");
+    q = status === "open" ? q.eq("status", "open") : q;
+    if (sinceIso) q = q.gte("created_at", sinceIso);
+    if (untilIso) q = q.lt("created_at", untilIso);
+    return q;
+  });
 
 /** Counts for every list of every open event the viewer can see. */
 export const fetchOpenListOverviews = () =>
-  rows<ListOverview>(supabase.from("list_overview").select("*").eq("event_status", "open"));
+  allRows<ListOverview>(() => supabase.from("list_overview").select("*").eq("event_status", "open").order("id"));
 
 export const fetchListOverviews = (eventIds: string[]) =>
-  eventIds.length ? rows<ListOverview>(supabase.from("list_overview").select("*").in("event_id", eventIds)) : Promise.resolve([]);
+  eventIds.length
+    ? allRows<ListOverview>(() => supabase.from("list_overview").select("*").in("event_id", eventIds).order("id"))
+    : Promise.resolve([]);
 
 // Catalog ------------------------------------------------------------------------
 
@@ -151,8 +149,8 @@ export async function updateItem(id: string, patch: { name?: string; active?: bo
 // Admin --------------------------------------------------------------------------
 
 export const fetchUsers = async () =>
-  (await rows<ProfileRow>(supabase.from("users").select(PROFILE_COLUMNS).order("created_at", { ascending: false })))
-    .map(toProfile);
+  (await allRows<ProfileRow>(() =>
+    supabase.from("users").select(PROFILE_COLUMNS).order("created_at", { ascending: false }).order("id"))).map(toProfile);
 
 export const approveUser = (id: string) => rpc<void>("approve_user", { p_user: id });
 export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user", { p_user: id, p_reason: reason });

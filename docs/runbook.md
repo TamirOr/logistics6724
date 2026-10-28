@@ -43,7 +43,7 @@ select job, ok, finished_at, summary, error from job_runs where job = 'push-disp
 
 ### `dispatch_last_ok_minutes`: push-dispatch is not running
 
-No successful run in 10 minutes. Either pg_cron stopped calling it, or every run fails.
+No successful run in 70 minutes. pg_cron calls it when a notification is waiting and at least once an hour, so either pg_cron stopped calling it, or every run fails.
 
 ```sql
 select jobname, schedule, active from cron.job order by jobname;
@@ -120,7 +120,7 @@ Check https://www.githubstatus.com. If GitHub is fine, open Settings → Pages: 
 
 ### `rpc/health` down: project paused or Supabase down
 
-Open the Supabase dashboard. A paused project shows "Restore project". Restoring takes a few minutes and keeps all data. Then check why the Health workflow did not keep it awake (it calls `rpc/health` every 30 minutes): is the workflow enabled under Actions? GitHub disables scheduled workflows after 60 days without repository activity; re-enable it there. If Supabase itself is down: https://status.supabase.com, nothing to do but wait.
+Open the Supabase dashboard. A paused project shows "Restore project". Restoring takes a few minutes and keeps all data. Then check why the Health workflow did not keep it awake (it calls `rpc/health` every hour): is the workflow enabled under Actions? GitHub disables scheduled workflows after 60 days without repository activity; re-enable it there. If Supabase itself is down: https://status.supabase.com, nothing to do but wait.
 
 ## Sentry
 

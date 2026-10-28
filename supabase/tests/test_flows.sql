@@ -351,6 +351,16 @@ select tst.ok(needed_on = '2026-11-10' and needed_by is null
 from events where id = (select v from tst.t where k = 'dated2');
 select tst.ok(exists (select 1 from information_schema.columns
   where table_name = 'export_rows' and column_name = 'needed_on'), 'export_rows has needed_on');
+select tst.ok((select count(*) = count(distinct request_id) and count(*) = (select count(*) from requests) from export_rows),
+  'export_rows has one row per request, keyed by request_id, so the export pages without ties');
+-- open_requests is "select r.*", which Postgres expands once, when the view
+-- is created. A column added to requests later is missing from it until the
+-- view is recreated, and the supplier home screen loads rows without it.
+select tst.ok(not exists (
+  select column_name from information_schema.columns where table_schema = 'public' and table_name = 'requests'
+  except
+  select column_name from information_schema.columns where table_schema = 'public' and table_name = 'open_requests'),
+  'open_requests has every column of requests; recreate the view after adding one');
 select tst.ok(not exists (select 1 from pg_proc where proname = 'create_event' and pronargs = 3), 'old create_event overload is gone');
 reset role;
 

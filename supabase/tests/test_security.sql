@@ -35,6 +35,7 @@ select tst.ok(config('vapid_private_key') is null, 'config() hides the VAPID pri
 select tst.denied($$select * from server_configs(array['cron_secret'])$$, 'authenticated calls server_configs()');
 select tst.denied($$select flush_missing_queue()$$, 'authenticated calls flush_missing_queue()');
 select tst.denied($$select claim_outbox(1)$$, 'authenticated calls claim_outbox()');
+select tst.denied($$select dispatch_due()$$, 'authenticated calls dispatch_due()');
 select tst.denied($$select notify('x', 'y')$$, 'authenticated calls notify()');
 select tst.denied($$select item_names(array[]::uuid[])$$, 'authenticated calls item_names()');
 select tst.denied($$select health_report()$$, 'authenticated calls health_report()');
@@ -68,8 +69,12 @@ reset role;
 
 -- Outbox lifecycle ---------------------------------------------------------------
 truncate notification_outbox;
+delete from missing_queue;
+select tst.ok(not dispatch_due(), 'nothing to dispatch: the push cron stays quiet');
 select notify('approved', 'one', p_user => '10000000-0000-0000-0000-000000000002');
+select tst.ok(dispatch_due(), 'an unsent notification is due');
 select tst.ok((select count(*) from claim_outbox(10)) = 1, 'claim takes the row');
+select tst.ok(not dispatch_due(), 'a row under lease is not due');
 select tst.ok((select count(*) from claim_outbox(10)) = 0, 'a claimed row is not claimed twice');
 update notification_outbox set claimed_at = now() - interval '6 minutes';
 select tst.ok((select count(*) from claim_outbox(10)) = 1, 'an expired lease is claimed again');
@@ -77,6 +82,13 @@ select release_outbox(id, 'boom') from notification_outbox;
 select tst.ok((select count(*) from claim_outbox(10)) = 1, 'a released row is claimed again');
 select mark_outbox_sent(id) from notification_outbox;
 select tst.ok((select count(*) from claim_outbox(10)) = 0, 'a sent row is never claimed');
+select tst.ok(not dispatch_due(), 'a sent row is not due');
+insert into missing_queue (list_id, supplier_id, send_after)
+select l.id, s.id, now() + interval '1 minute' from lists l, units s where s.kind = 'supplier' limit 1;
+select tst.ok(not dispatch_due(), 'grouped missing notifications wait for their time');
+update missing_queue set send_after = now() - interval '1 second';
+select tst.ok(dispatch_due(), 'grouped missing notifications are due on time');
+delete from missing_queue;
 select notify('approved', 'two', p_user => '10000000-0000-0000-0000-000000000002');
 update notification_outbox set attempts = 5, created_at = now() - interval '2 days' where body = 'two';
 select tst.ok((select count(*) from claim_outbox(10)) = 0, 'a row with 5 attempts is abandoned');

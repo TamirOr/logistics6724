@@ -1,5 +1,6 @@
 // "ייצוא לאקסל": builds the file in the browser from export_rows.
 import { supabase } from "./supabase";
+import { allRows } from "./paging";
 import { t } from "../strings";
 import {
   addRequestRows, fillTotalsSheet, REQUEST_SHEET, setupRequestSheet, TOTALS_SHEET, type ExportRow, type TotalRow,
@@ -22,15 +23,15 @@ async function download(build: (wb: import("exceljs").Workbook) => void, fileNam
 interface RowFilter { eventId?: string; sinceIso?: string; untilIso?: string; openOnly?: boolean }
 
 async function fetchRows(filter: RowFilter): Promise<ExportRow[]> {
-  let q = supabase.from("export_rows").select("*")
-    .order("event_created_at").order("company_name").order("supplier_name").order("item_name");
-  if (filter.eventId) q = q.eq("event_id", filter.eventId);
-  if (filter.sinceIso) q = q.gte("event_created_at", filter.sinceIso);
-  if (filter.untilIso) q = q.lt("event_created_at", filter.untilIso);
-  if (filter.openOnly) q = q.eq("event_status", "open").neq("status", "collected");
-  const { data, error } = await q;
-  if (error) throw error;
-  return data as ExportRow[];
+  return allRows<ExportRow>(() => {
+    let q = supabase.from("export_rows").select("*")
+      .order("event_created_at").order("company_name").order("supplier_name").order("item_name").order("request_id");
+    if (filter.eventId) q = q.eq("event_id", filter.eventId);
+    if (filter.sinceIso) q = q.gte("event_created_at", filter.sinceIso);
+    if (filter.untilIso) q = q.lt("event_created_at", filter.untilIso);
+    if (filter.openOnly) q = q.eq("event_status", "open").neq("status", "collected");
+    return q;
+  });
 }
 
 function sheetFromRows(rows: ExportRow[]) {

@@ -67,6 +67,16 @@ truncate job_runs;
 insert into job_runs (job, started_at, finished_at, ok, summary) values
   ('push-dispatch', now() - interval '61 days', now() - interval '31 days', true, '{}');
 select tst.ok((purge_expired() ->> 'job_runs')::int = 1, 'job runs are kept 30 days');
+
+-- pg_cron's run history, with a stand-in for the table pg_cron creates.
+select tst.ok(purge_expired() ->> 'cron_runs' is null, 'the purge skips cron history where pg_cron is missing');
+create schema cron;
+create table cron.job_run_details (runid bigserial primary key, status text, start_time timestamptz);
+insert into cron.job_run_details (status, start_time) values
+  ('succeeded', now() - interval '8 days'), ('succeeded', now() - interval '6 days');
+select tst.ok((purge_expired() ->> 'cron_runs')::int = 1, 'cron runs older than 7 days are purged');
+select tst.ok((select count(*) from cron.job_run_details) = 1, 'cron runs of the last week are kept');
+drop schema cron cascade;
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-000000000001');
 select tst.fails($$select * from job_runs$$, 'an admin reads job runs directly');

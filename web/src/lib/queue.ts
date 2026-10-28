@@ -4,7 +4,8 @@
 // localStorage, its optimistic effects show on screen at once (see
 // applyEffects), and it is sent in the background in order. Network errors
 // keep the entry and retry with backoff; so does an expired session, after
-// a refresh. Errors from the server (a rule or permission) drop the entry
+// a refresh, and a server error page, a few times. Errors from the server
+// (a rule or permission, or a request it refuses outright) drop the entry
 // and notify listeners, so the screen falls back to the server state.
 //
 // The queue belongs to the signed-in user: it is stored per user id and
@@ -12,6 +13,7 @@
 // writes are never sent as another's.
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
+import { clearAllCaches } from "./cache";
 
 export type Mutation =
   | { kind: "insert"; table: string; row: Record<string, unknown> }
@@ -59,15 +61,27 @@ function load(user: string): QueueEntry[] {
   }
 }
 
-function setEntries(next: QueueEntry[]) {
-  entries = next;
-  if (userId) {
+// Unsent writes share storage with the screens' caches. Caches can be
+// fetched again and unsent writes cannot, so a full storage drops the
+// caches to make room.
+function save(user: string) {
+  const key = STORAGE_PREFIX + user;
+  const value = JSON.stringify(entries);
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    clearAllCaches();
     try {
-      localStorage.setItem(STORAGE_PREFIX + userId, JSON.stringify(entries));
+      localStorage.setItem(key, value);
     } catch {
-      // Storage full or blocked: the queue still works for this session.
+      // Storage blocked: the queue still works for this session.
     }
   }
+}
+
+function setEntries(next: QueueEntry[]) {
+  entries = next;
+  if (userId) save(userId);
   changeListeners.forEach((l) => l());
 }
 
@@ -166,9 +180,18 @@ async function send(m: Mutation) {
 
 type SendError = { code?: string; message?: string };
 
-// A Postgres error carries a SQLSTATE code. A failed fetch has none.
-function isNetworkError(error: SendError): boolean {
-  return !navigator.onLine || !error.code || /fetch|network/i.test(error.message ?? "");
+// A failed fetch has neither a SQLSTATE code nor an HTTP status: the server
+// was not reached, so the write is kept for as long as that lasts.
+function isNetworkError(error: SendError, status: number): boolean {
+  return !navigator.onLine || (!error.code && !status) || /fetch|network/i.test(error.message ?? "");
+}
+
+// A gateway or server failure without a SQLSTATE code (an HTML 502 page, a
+// timeout) may pass, so it is retried, but only a few times: a write the
+// server can never take would otherwise block every write after it.
+const MAX_SERVER_TRIES = 8;
+function isServerHiccup(error: SendError, status: number, entry: QueueEntry): boolean {
+  return !error.code && status >= 500 && entry.tries < MAX_SERVER_TRIES;
 }
 
 // PostgREST answers PGRST301 when the access token expired, typical after
@@ -202,44 +225,52 @@ function retryLater(entry: QueueEntry) {
   setEntries(entries.map((e) => (e.id === entry.id ? { ...e, tries: e.tries + 1, notBefore: Date.now() + backoff } : e)));
 }
 
+/** Sends one entry. Returns false when the queue should stop for now. */
+async function sendEntry(entry: QueueEntry, owner: string): Promise<boolean> {
+  const result = await send(entry.mutation);
+  const { data, status } = result;
+  const missed = !result.error && entry.mutation.kind === "update" && data == null;
+  const error = missed ? { code: "0ROWS", message: UPDATE_MISSED } : result.error;
+  // Signed out or switched user while this was in flight: leave the queue
+  // as it is now.
+  if (userId !== owner) return false;
+
+  if (!error || (error.code === "23505" && entry.mutation.kind === "insert")) {
+    // A duplicate-key insert means an earlier try already landed.
+    setEntries(without(entry));
+    commitListeners.forEach((l) => l(entry, data));
+    return true;
+  }
+  if (isExpiredSession(error)) {
+    await supabase.auth.refreshSession();
+    retryLater(entry);
+    return false;
+  }
+  if (isNetworkError(error, status) || isServerHiccup(error, status, entry)) {
+    retryLater(entry);
+    return false;
+  }
+  setEntries(without(entry));
+  rejectListeners.forEach((l) => l(entry, error.message ?? "", error.code || undefined));
+  return true;
+}
+
 async function flush() {
   if (flushing || paused || !userId) return;
   flushing = true;
   const owner = userId;
+  let entry: QueueEntry | undefined;
   try {
-    for (;;) {
-      const entry = nextToSend(Date.now());
-      if (!entry) break;
-
-      const result = await send(entry.mutation);
-      const { data } = result;
-      const missed = !result.error && entry.mutation.kind === "update" && data == null;
-      const error = missed ? { code: "0ROWS", message: UPDATE_MISSED } : result.error;
-      // Signed out or switched user while this was in flight: leave the
-      // queue as it is now.
-      if (userId !== owner) break;
-
-      if (!error || (error.code === "23505" && entry.mutation.kind === "insert")) {
-        // A duplicate-key insert means an earlier try already landed.
-        setEntries(without(entry));
-        commitListeners.forEach((l) => l(entry, data));
-      } else if (isExpiredSession(error)) {
-        await supabase.auth.refreshSession();
-        retryLater(entry);
-        break;
-      } else if (isNetworkError(error)) {
-        retryLater(entry);
-        break;
-      } else {
-        setEntries(without(entry));
-        rejectListeners.forEach((l) => l(entry, error.message ?? "", error.code));
-      }
-    }
+    while ((entry = nextToSend(Date.now())) && (await sendEntry(entry, owner)));
+  } catch (e) {
+    // Back off rather than retry at once, then let the error reach Sentry.
+    if (entry) retryLater(entry);
+    throw e;
   } finally {
     flushing = false;
+    const next = Math.min(...entries.map((e) => e.notBefore));
+    if (Number.isFinite(next)) scheduleFlush(Math.max(0, next - Date.now()));
   }
-  const next = Math.min(...entries.map((e) => e.notBefore));
-  if (Number.isFinite(next)) scheduleFlush(Math.max(0, next - Date.now()));
 }
 
 // Back online: retry failed entries now. Entries still inside their undo

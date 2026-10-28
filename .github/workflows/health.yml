@@ -1,8 +1,8 @@
-# Every 30 minutes: is each project up and healthy? Fails the run when a
+# Hourly: is each project up and healthy? Fails the run when a
 # threshold in health_report() is crossed, and GitHub emails the failure to
 # whoever last changed this schedule (the repository owner). Calling the
 # database this often also keeps a free project from pausing; this replaces
-# the old keepalive workflow.
+# the old keepalive workflow. Off the hour, when GitHub's queue is busiest.
 #
 # The repository is public, so the log shows check names and numbers only.
 # What each failing check means and how to fix it: docs/runbook.md.
@@ -10,7 +10,7 @@ name: Health
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 permissions:

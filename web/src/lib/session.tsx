@@ -1,9 +1,11 @@
 // Signed-in user and their profile, for the whole app.
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { fetchMyProfile, workAsUnit } from "./api";
 import { clearAllCaches, readCache, writeCache } from "./cache";
+import { onReturn } from "./foreground";
+import { latestRequest } from "./latest";
 import { disablePush } from "./push";
 import { clearQueue, setQueueUser } from "./queue";
 import type { Profile } from "./types";
@@ -29,12 +31,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const userId = useRef<string | null>(null);
+  const requests = useRef(latestRequest()).current;
 
   // The cached profile shows the app at once; the fresh one replaces it. With
   // no signal the cached one stays, so the app still opens offline.
+  // Reloads overlap (sign-in, the foreground, the pending poll); only the
+  // newest one's answer is applied.
   const reloadProfile = useCallback(async () => {
+    const isLatest = requests.start();
     const { data } = await supabase.auth.getSession();
+    if (!isLatest()) return;
     const user = data.session?.user.id ?? null;
+    userId.current = user;
     setQueueUser(user);
     setSession(data.session);
     if (!user) {
@@ -49,29 +58,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     try {
       const fresh = await fetchMyProfile(user);
+      if (!isLatest()) return;
       setProfile(fresh);
       if (fresh) writeCache(PROFILE_CACHE, fresh);
     } catch {
       // Offline: keep the cached profile, if there is one.
     }
     setLoading(false);
-  }, []);
+  }, [requests]);
 
   useEffect(() => {
     reloadProfile();
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") reloadProfile();
+    // supabase-js also reports SIGNED_IN for the same user when a tab
+    // regains focus; the return to the foreground reloads that already.
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === "SIGNED_OUT" || (event === "SIGNED_IN" && next?.user.id !== userId.current)) reloadProfile();
     });
     return () => data.subscription.unsubscribe();
   }, [reloadProfile]);
 
   // An admin may approve, move (new unit and role) or deactivate a user while
   // the app is open. Check again whenever it comes back to the foreground.
-  useEffect(() => {
-    const onVisible = () => document.visibilityState === "visible" && reloadProfile();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [reloadProfile]);
+  useEffect(() => onReturn(reloadProfile), [reloadProfile]);
 
   // A pending user waits on screen for approval, so also check every 30 s.
   useEffect(() => {

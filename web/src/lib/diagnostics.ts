@@ -1,7 +1,7 @@
 // What the diagnostics screen shows about this phone, and the text its copy
 // button produces for a support chat. Rejected writes are kept on the phone
 // only and leave it only when the user copies them.
-import { readCache, writeCache } from "./cache";
+import { readCache, writeCache, writeCacheSoon } from "./cache";
 import type { Mutation } from "./queue";
 
 export interface RejectedWrite { at: number; kind: Mutation["kind"]; target: string; code: string }
@@ -23,7 +23,7 @@ export function noteRejected(mutation: Mutation, code: string | undefined, at = 
 }
 
 /** Called whenever the server answered: a write committed or rows loaded. */
-export const noteSynced = (at = Date.now()) => writeCache(LAST_SYNC_KEY, at);
+export const noteSynced = (at = Date.now()) => writeCacheSoon(LAST_SYNC_KEY, at);
 export const readLastSync = () => readCache<number>(LAST_SYNC_KEY);
 
 export interface DiagnosticsInfo {

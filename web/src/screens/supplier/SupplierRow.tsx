@@ -1,4 +1,7 @@
 // One request in the supplier's by-company view. One tap marks it ready.
+// Memoized: a change re-renders only the rows it touched, so the handlers
+// take the request and stay the same between renders.
+import { memo } from "react";
 import { RequestNotes } from "../../components/RequestNotes";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -9,27 +12,29 @@ interface Props {
   request: Request;
   item: Item | undefined;
   suggestion: MergeSuggestion | undefined;
-  onTap: () => void;
-  onMenu: () => void;
-  onAcknowledge: () => void;
+  onTap: (r: Request) => void;
+  onMenu: (r: Request) => void;
+  onAcknowledge: (r: Request) => void;
   onMerge: (s: MergeSuggestion) => void;
-  onVerify: () => void;
+  onVerify: (itemId: string) => void;
 }
 
-export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAcknowledge, onMerge, onVerify }: Props) {
+export const SupplierRow = memo(function SupplierRow(
+  { request: r, item, suggestion, onTap, onMenu, onAcknowledge, onMerge, onVerify }: Props,
+) {
   const cancelled = r.status === "cancelled";
   return (
     <li className={`req req-${r.status} ${r.urgent ? "req-urgent" : ""}`}>
-      <button className="req-main" onClick={cancelled ? undefined : onTap}>
+      <button className="req-main" onClick={cancelled ? undefined : () => onTap(r)}>
         <RequestQuantity quantity={r.quantity} measure={r.measure} />
         <span className="req-name user-text" dir="auto">{item?.name ?? "…"}</span>
         {r.urgent && <span className="tag tag-danger urgent-tag">{t.urgent}</span>}
         <StatusBadge status={r.status} />
       </button>
       {cancelled ? (
-        <button className="btn btn-secondary btn-small" onClick={onAcknowledge}>{t.acknowledgeCancel}</button>
+        <button className="btn btn-secondary btn-small" onClick={() => onAcknowledge(r)}>{t.acknowledgeCancel}</button>
       ) : (
-        <button className="icon-btn" aria-label={t.edit} onClick={onMenu}>⋯</button>
+        <button className="icon-btn" aria-label={t.edit} onClick={() => onMenu(r)}>⋯</button>
       )}
       {r.changed_after_handling && <div className="req-sub tag tag-warning">{t.changedAfterHandling}</div>}
       {r.status === "partial" && r.supplied_quantity != null && (
@@ -44,9 +49,9 @@ export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAck
               <span dir="auto">{t.mergeInto(suggestion.suggested_name)}</span>
             </button>
           )}
-          <button className="btn btn-ghost btn-small" onClick={onVerify}>{t.keepAsNew}</button>
+          <button className="btn btn-ghost btn-small" onClick={() => onVerify(r.item_id)}>{t.keepAsNew}</button>
         </div>
       )}
     </li>
   );
-}
+});

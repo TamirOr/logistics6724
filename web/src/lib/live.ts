@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { isFresh, readCache, writeCache } from "./cache";
+import { isFresh, readCache, writeCache, writeCacheSoon } from "./cache";
 import { noteSynced } from "./diagnostics";
-import { applyEffects, onCommitted, useQueue } from "./queue";
+import { onReturn } from "./foreground";
+import { latestRequest } from "./latest";
+import { applyEffects, onCommitted, useQueue, type QueueEntry } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
 type Change<T> = RealtimePostgresChangesPayload<T & Record<string, unknown>>;
@@ -42,6 +44,17 @@ export function useRealtime<T>(table: string, filter: string | null, onChange: (
   }, [table, filter]);
 }
 
+/**
+ * Rows after a confirmed RPC. An RPC returns no rows, so its effects stay
+ * applied (they are what the server just did) until Realtime delivers the
+ * changed rows; reloading the whole list instead would fetch the same
+ * changes a second time.
+ */
+export function applyCommitted<T extends { id: string }>(table: string, rows: Map<string, T>, entry: QueueEntry) {
+  if (!entry.effects.some((e) => e.table === table)) return rows;
+  return new Map(applyEffects(table, [...rows.values()], [entry]).map((r) => [r.id, r]));
+}
+
 interface LiveOptions<T> {
   /** Server-side filter column, also used for the realtime subscription. */
   column: string;
@@ -63,18 +76,23 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
   const optsRef = useRef(opts);
   optsRef.current = opts;
   const queue = useQueue();
+  const requests = useRef(latestRequest()).current;
 
   const refetch = useCallback(async () => {
     if (!value) return;
+    const isLatest = requests.start();
     let q = supabase.from(optsRef.current.source ?? table).select("*").eq(column, value);
     if (optsRef.current.narrow) q = optsRef.current.narrow(q);
     const { data, error } = await q;
+    // A refetch for the previous value (another unit, another list) that
+    // answers late must not replace this one's rows.
+    if (!isLatest()) return;
     if (!error) {
       setRows(new Map((data as T[]).map((r) => [r.id, r])));
       noteSynced();
     }
     setLoading(false);
-  }, [table, column, value]);
+  }, [table, column, value, requests]);
 
   const upsert = (row: T) => setRows((m) => new Map(m).set(row.id, row));
   const remove = (id: string) =>
@@ -101,24 +119,25 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
     setLoading(!cached);
     refetch();
 
-    // A confirmed write returns the row; RPCs return no rows, so refetch.
+    // A confirmed write returns the row; an RPC keeps its effects instead.
     const stopCommits = onCommitted((entry, data) => {
       const m = entry.mutation;
-      if (m.kind === "rpc") refetch();
+      if (m.kind === "rpc") setRows((current) => applyCommitted(table, current, entry));
       else if (m.table === table && m.kind !== "delete" && data) upsert(data as T);
       else if (m.table === table && m.kind === "delete") remove(m.id);
     });
 
-    const onVisible = () => document.visibilityState === "visible" && refetch();
-    document.addEventListener("visibilitychange", onVisible);
+    // A sleeping phone can miss changes before Realtime notices the
+    // socket dropped, so a return after a while reloads.
+    const stopReturn = onReturn(refetch);
     return () => {
       stopCommits();
-      document.removeEventListener("visibilitychange", onVisible);
+      stopReturn();
     };
   }, [table, column, value, cacheKey, refetch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (cacheKey && !loading) writeCache(cacheKey, [...rows.values()]);
+    if (cacheKey && !loading) writeCacheSoon(cacheKey, [...rows.values()]);
   }, [cacheKey, rows, loading]);
 
   const visible = useMemo(() => {
@@ -154,6 +173,12 @@ function createCache<T extends { id: string }>(table: string) {
     listeners.forEach((l) => l());
   };
 
+  const save = () => {
+    const now = Date.now();
+    writeCacheSoon(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
+    notify();
+  };
+
   return {
     get: (id: string) => byId.get(id),
     put(rows: T[]) {
@@ -162,8 +187,13 @@ function createCache<T extends { id: string }>(table: string) {
         byId.set(r.id, r);
         seenAt.set(r.id, now);
       });
-      writeCache(cacheKey, [...byId.values()].map((row) => ({ row, at: seenAt.get(row.id) ?? now })));
-      notify();
+      save();
+    },
+    /** Forgets a row the server deleted. */
+    drop(id: string) {
+      if (!byId.delete(id)) return;
+      seenAt.delete(id);
+      save();
     },
     async ensure(ids: Iterable<string>) {
       const missing = [...new Set(ids)].filter((id) => !byId.has(id) && !inFlight.has(id));

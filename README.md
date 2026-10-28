@@ -118,7 +118,7 @@ Add the same four values as GitHub secrets too: the nightly **Backup** workflow 
 
 All free plans. Every alert ends in an email; nobody needs to watch a dashboard.
 
-- **Health workflow** (`.github/workflows/health.yml`) runs every 30 minutes for both projects and fails when a threshold in `health_report()` is crossed. GitHub emails the failure. It also keeps the free projects from pausing.
+- **Health workflow** (`.github/workflows/health.yml`) runs hourly for both projects and fails when a threshold in `health_report()` is crossed. GitHub emails the failure. It also keeps the free projects from pausing.
 - **Sentry** (https://sentry.io, free Developer plan). Create a React project, then add GitHub secrets `SENTRY_DSN` (Settings → Client Keys), and for readable stack traces `SENTRY_AUTH_TOKEN` (Settings → Auth Tokens, scope `project:releases`), `SENTRY_ORG` and `SENTRY_PROJECT` (the slugs). The web app and both Edge Functions report to it, tagged with the git SHA and the environment. Under Alerts, create an issue alert: "A new issue is created" or "The issue is seen more than 20 times in one hour", action: email.
 - **Uptime monitor** (https://uptimerobot.com or https://betterstack.com/uptime, free). Two HTTP monitors every 5 minutes, alerting by email:
   1. the production site URL, expecting 200;

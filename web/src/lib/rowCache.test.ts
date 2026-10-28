@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_AGE_MS } from "./cache";
+import { flushCacheWrites, MAX_AGE_MS, PREFIX } from "./cache";
 
 vi.mock("./supabase", () => ({ supabase: {} }));
 
 describe("event and item caches", () => {
   it("drop rows not seen within the max age when they load", async () => {
     const now = Date.now();
-    localStorage.setItem("cache-v2:rows:events", JSON.stringify({
+    localStorage.setItem(`${PREFIX}rows:events`, JSON.stringify({
       savedAt: now,
       value: [
         { row: { id: "old", name: "ישן" }, at: now - MAX_AGE_MS - 1 },
@@ -16,5 +16,17 @@ describe("event and item caches", () => {
     const { eventCache } = await import("./live");
     expect(eventCache.get("old")).toBeUndefined();
     expect(eventCache.get("recent")?.name).toBe("חדש");
+  });
+
+  it("forget a dropped row, in storage too", async () => {
+    const { eventCache } = await import("./live");
+    eventCache.put([{ id: "gone", name: "נמחק" } as never]);
+    flushCacheWrites();
+    expect(localStorage.getItem(`${PREFIX}rows:events`)).toContain("gone");
+    eventCache.drop("gone");
+    flushCacheWrites();
+    expect(eventCache.get("gone")).toBeUndefined();
+    const saved = JSON.parse(localStorage.getItem(`${PREFIX}rows:events`) ?? "{}");
+    expect(saved.value.some((r: { row: { id: string } }) => r.row.id === "gone")).toBe(false);
   });
 });

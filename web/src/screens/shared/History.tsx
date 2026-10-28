@@ -8,6 +8,7 @@ import { Layout } from "../../components/Layout";
 import { useAction } from "../../components/Toast";
 import { fetchEvents, fetchListOverviews, fetchTuning } from "../../lib/api";
 import { exportHistory } from "../../lib/exportExcel";
+import { loadWhenOnline } from "../../lib/online";
 import { useProfile } from "../../lib/session";
 import { daysAgo } from "../../lib/time";
 import type { ListOverview, LogisticsEvent } from "../../lib/types";
@@ -24,12 +25,20 @@ export function History({ pick = false }: { pick?: boolean }) {
   const [from, setFrom] = useState(toDateInput(daysAgo(30)));
   const [to, setTo] = useState(toDateInput(new Date().toISOString()));
 
-  useEffect(() => {
-    fetchTuning("retention_days", "90").then((days) => fetchEvents("history", daysAgo(Number(days)))).then(async (evs) => {
+  const [offline, setOffline] = useState(false);
+
+  useEffect(() => loadWhenOnline(async () => {
+    try {
+      const days = await fetchTuning("retention_days", "90");
+      const evs = await fetchEvents("history", daysAgo(Number(days)));
       setEvents(evs);
       if (profile.role === "customer") setLists(await fetchListOverviews(evs.map((e) => e.id)));
-    });
-  }, [profile.role]);
+      setOffline(false);
+    } catch (error) {
+      setOffline(true);
+      throw error;
+    }
+  }), [profile.role]);
 
   const canDuplicate = (e: LogisticsEvent) =>
     profile.role === "customer" || (profile.role === "admin" && e.scope === "battalion");
@@ -53,7 +62,7 @@ export function History({ pick = false }: { pick?: boolean }) {
           <button className="btn btn-secondary" onClick={exportRange}>{t.exportExcel}</button>
         </section>
       )}
-      {events === null && <p className="muted">{t.loading}</p>}
+      {events === null && <p className="muted">{offline ? t.offline : t.loading}</p>}
       {events?.length === 0 && <p className="muted">{t.noHistory}</p>}
       {events?.map((e) => (
         <EventCard key={e.id} event={e} list={lists.find((l) => l.event_id === e.id)}>

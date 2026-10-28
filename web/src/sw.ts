@@ -4,6 +4,7 @@
 // version waits until the app asks it to take over (see lib/appUpdate.ts).
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
 import { NavigationRoute, registerRoute } from "workbox-routing";
+import { openFromNotification } from "./lib/notificationClick";
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -42,13 +43,5 @@ self.addEventListener("notificationclick", (event) => {
   // under a sub-path, so resolve them against the service worker scope.
   const path = String(event.notification.data?.url ?? "/").replace(/^\//, "");
   const url = new URL(path, self.registration.scope).href;
-  event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const open = windows[0];
-    if (open) {
-      await open.focus();
-      return open.navigate(url);
-    }
-    return self.clients.openWindow(url);
-  })());
+  event.waitUntil(openFromNotification(self.clients, url));
 });

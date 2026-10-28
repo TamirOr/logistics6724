@@ -2,7 +2,7 @@
 // then every open request for this supplier, by event, company and item
 // category, urgent first. The aggregate view sums each item across companies for pulling
 // stock in one pass.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CategorizedList } from "../../components/CategorizedList";
 import { Layout } from "../../components/Layout";
@@ -22,12 +22,10 @@ import { unitUsersNav } from "../shared/unitUsers";
 import { AggregateView, aggregateTotals } from "./AggregateView";
 import { SupplierRequestSheet } from "./SupplierRequestSheet";
 import { SupplierRow } from "./SupplierRow";
+import { groupByEventAndCompany } from "./supplierGroups";
 import { t } from "../../strings";
 
 type View = "byCompany" | "aggregate";
-
-const byUrgencyThenAge = (a: Request, b: Request) =>
-  Number(b.urgent) - Number(a.urgent) || a.created_at.localeCompare(b.created_at);
 
 const byNeededAt = (a: LogisticsEvent, b: LogisticsEvent) =>
   a.needed_at.localeCompare(b.needed_at) || a.created_at.localeCompare(b.created_at);
@@ -76,8 +74,11 @@ export function SupplierHome() {
       .filter((e): e is LogisticsEvent => !!e).sort(byNeededAt),
     [open, eventOf],
   );
-  const shown = eventFilter ? open.filter((r) => r.event_id === eventFilter) : open;
-  const companyName = (id: string) => units.find((u) => u.id === id)?.name ?? "";
+  const shown = useMemo(() => (eventFilter ? open.filter((r) => r.event_id === eventFilter) : open), [open, eventFilter]);
+  const unitNames = useMemo(() => new Map(units.map((u) => [u.id, u.name])), [units]);
+  const companyName = useCallback((id: string) => unitNames.get(id) ?? "", [unitNames]);
+  const groups = useMemo(() => groupByEventAndCompany(shown, companyName), [shown, companyName]);
+  const suggestionOf = useMemo(() => new Map(suggestions.map((s) => [s.item_id, s])), [suggestions]);
 
   const markReady = (r: Request) => {
     if (r.status === "ready") return setMenuFor(r);
@@ -91,6 +92,17 @@ export function SupplierHome() {
     runAction(() => mergeItem(s.item_id, s.suggested_id), async () => { await refetch(); loadSuggestions(); });
   const verify = (itemId: string) =>
     runAction(() => updateItem(itemId, { verified: true }), () => itemCache.put([{ ...itemOf(itemId)!, verified: true }]));
+
+  // Stable handlers for the memoized rows, calling this render's functions.
+  const latest = useRef({ markReady, setMenuFor, merge, verify });
+  latest.current = { markReady, setMenuFor, merge, verify };
+  const rowHandlers = useMemo(() => ({
+    onTap: (r: Request) => latest.current.markReady(r),
+    onMenu: (r: Request) => latest.current.setMenuFor(r),
+    onAcknowledge: acknowledgeCancel,
+    onMerge: (s: MergeSuggestion) => latest.current.merge(s),
+    onVerify: (itemId: string) => latest.current.verify(itemId),
+  }), []);
 
   // Events ordered by when they are needed; urgent events first.
   const eventsShown = openEvents
@@ -129,9 +141,7 @@ export function SupplierHome() {
       {view === "aggregate" ? (
         <AggregateView requests={shown} itemOf={itemOf} units={units} />
       ) : eventsShown.map((e) => {
-        const eventRows = shown.filter((r) => r.event_id === e.id);
-        const companies = [...new Set(eventRows.map((r) => r.company_id))]
-          .sort((a, b) => companyName(a).localeCompare(companyName(b), "he"));
+        const companies = groups.get(e.id) ?? [];
         return (
           <section key={e.id} className="section">
             <h2 className="section-title">
@@ -139,14 +149,12 @@ export function SupplierHome() {
               {formatNeededBy(e) && <span className="muted"> · {t.neededBy} {formatNeededBy(e)}</span>}
             </h2>
             {companies.map((c) => (
-              <div key={c} className="company-group">
-                <h3 className="company-title">{companyName(c)}</h3>
-                <CategorizedList rows={eventRows.filter((r) => r.company_id === c).sort(byUrgencyThenAge)}
+              <div key={c.companyId} className="company-group">
+                <h3 className="company-title">{companyName(c.companyId)}</h3>
+                <CategorizedList rows={c.rows}
                   categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
                     <SupplierRow key={r.id} request={r} item={itemOf(r.item_id)}
-                      suggestion={suggestions.find((s) => s.item_id === r.item_id)}
-                      onTap={() => markReady(r)} onMenu={() => setMenuFor(r)}
-                      onAcknowledge={() => acknowledgeCancel(r)} onMerge={merge} onVerify={() => verify(r.item_id)} />
+                      suggestion={suggestionOf.get(r.item_id)} {...rowHandlers} />
                   )} />
               </div>
             ))}
