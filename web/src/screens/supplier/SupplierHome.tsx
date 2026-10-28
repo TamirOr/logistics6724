@@ -4,12 +4,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Layout } from "../../components/Layout";
+import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { useAction, useToast } from "../../components/Toast";
 import { mergeItem, mergeSuggestions, updateItem } from "../../lib/api";
 import { exportOpenRequests, exportTotals } from "../../lib/exportExcel";
 import { eventCache, itemCache, useCached, useLiveRows, useRealtime, useUnits } from "../../lib/live";
 import { acknowledgeCancel, setStatus } from "../../lib/requests";
-import { useProfile } from "../../lib/session";
+import { useActiveSupplier } from "../../lib/activeSupplier";
 import { formatNeededBy } from "../../lib/time";
 import type { LogisticsEvent, MergeSuggestion, Request } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
@@ -27,8 +28,7 @@ const byNeededAt = (a: LogisticsEvent, b: LogisticsEvent) =>
   a.needed_at.localeCompare(b.needed_at) || a.created_at.localeCompare(b.created_at);
 
 export function SupplierHome() {
-  const profile = useProfile();
-  const supplierId = profile.unit_id!;
+  const supplierId = useActiveSupplier();
   const { id: routeEventId } = useParams();
   const showToast = useToast();
   const runAction = useAction();
@@ -105,6 +105,7 @@ export function SupplierHome() {
       }
     >
       <PushPrompt />
+      <SupplierSwitcher />
       <div className="toolbar">
         <div className="segmented">
           <button className={view === "byCompany" ? "active" : ""} onClick={() => setView("byCompany")}>{t.byCompany}</button>

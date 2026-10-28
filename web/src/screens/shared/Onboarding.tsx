@@ -1,5 +1,5 @@
-// First sign-in: name, service number, side and unit. Also shown again
-// after a rejection, with the reason.
+// First sign-in: name, service number, side and unit. A supplier may pick
+// several supplier units. Also shown again after a rejection, with the reason.
 import { useState, type FormEvent } from "react";
 import { registerProfile } from "../../lib/api";
 import { useUnits } from "../../lib/live";
@@ -15,19 +15,25 @@ export function Onboarding() {
   const [lastName, setLastName] = useState(profile?.last_name ?? "");
   const [serviceNumber, setServiceNumber] = useState(profile?.service_number ?? "");
   const [role, setRole] = useState<UserRole>(profile?.role === "supplier" ? "supplier" : "customer");
-  const [unitId, setUnitId] = useState(profile?.unit_id ?? "");
+  // The first picked is the main unit.
+  const [unitIds, setUnitIds] = useState<string[]>(
+    profile?.supplier_ids?.length ? profile.supplier_ids : profile?.unit_id ? [profile.unit_id] : []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const kind = role === "customer" ? "company" : "supplier";
   const options = units.filter((u) => u.kind === kind && u.active);
 
+  const toggleUnit = (id: string, on: boolean) =>
+    setUnitIds((ids) => (on ? [...ids, id] : ids.filter((x) => x !== id)));
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (unitIds.length === 0) return setError(t.pickAtLeastOneUnit);
     setBusy(true);
     setError(null);
     try {
-      await registerProfile({ firstName, lastName, serviceNumber, role, unitId });
+      await registerProfile({ firstName, lastName, serviceNumber, role, unitIds });
       await reloadProfile();
     } catch (error) {
       setError(describeError(error));
@@ -62,18 +68,31 @@ export function Onboarding() {
             <div className="segmented">
               {(["customer", "supplier"] as const).map((r) => (
                 <button type="button" key={r} className={role === r ? "active" : ""}
-                  onClick={() => { setRole(r); setUnitId(""); }}>
+                  onClick={() => { setRole(r); setUnitIds([]); }}>
                   {r === "customer" ? t.sideCustomer : t.sideSupplier}
                 </button>
               ))}
             </div>
           </fieldset>
-          <label className="field"><span>{t.unit}</span>
-            <select className="input" required value={unitId} onChange={(e) => setUnitId(e.target.value)}>
-              <option value="" disabled>{t.pickUnit}</option>
-              {options.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </label>
+          {role === "customer" ? (
+            <label className="field"><span>{t.unit}</span>
+              <select className="input" required value={unitIds[0] ?? ""} onChange={(e) => setUnitIds([e.target.value])}>
+                <option value="" disabled>{t.pickUnit}</option>
+                {options.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </label>
+          ) : (
+            <fieldset className="field">
+              <legend>{t.supplierUnits}</legend>
+              <p className="muted">{t.supplierUnitsHint}</p>
+              {options.map((u) => (
+                <label key={u.id} className="switch">
+                  <input type="checkbox" checked={unitIds.includes(u.id)} onChange={(e) => toggleUnit(u.id, e.target.checked)} />
+                  {u.name}
+                </label>
+              ))}
+            </fieldset>
+          )}
           <button className="btn btn-primary btn-block" disabled={busy}>
             {profile?.approval === "rejected" ? t.reapply : t.submit}
           </button>

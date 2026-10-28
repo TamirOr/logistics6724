@@ -13,6 +13,7 @@ import type { Profile } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
 import { HealthStrip } from "./HealthStrip";
 import { useUsers } from "./useUsers";
+import { unitNamesOf } from "./users";
 import { t } from "../../strings";
 
 export function AdminHome() {
@@ -25,7 +26,6 @@ export function AdminHome() {
   const [reason, setReason] = useState("");
 
   const pending = (users ?? []).filter((u) => u.approval === "pending");
-  const unitName = (id: string | null) => units.find((u) => u.id === id)?.name ?? "";
 
   const act = (action: () => Promise<void>) => runAction(action, reload);
 
@@ -46,7 +46,7 @@ export function AdminHome() {
             <dt>{t.serviceNumber}</dt><dd><bdi dir="ltr">{u.service_number}</bdi></dd>
             <dt>{t.emailLabel}</dt><dd><bdi dir="ltr">{u.email}</bdi></dd>
             <dt>{t.side}</dt><dd>{t.roleLabels[u.role]}</dd>
-            <dt>{t.unit}</dt><dd>{unitName(u.unit_id)}</dd>
+            <dt>{t.unit}</dt><dd>{unitNamesOf(u, units)}</dd>
           </dl>
           <div className="row">
             <button className="btn btn-success" onClick={() => act(() => approveUser(u.id))}>{t.approve}</button>

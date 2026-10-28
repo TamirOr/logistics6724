@@ -27,6 +27,8 @@ export interface Profile {
   service_number: string;
   role: UserRole;
   unit_id: string | null;
+  /** A supplier's supplier units, unit_id among them. Empty for customers and admins. */
+  supplier_ids: string[];
   approval: ApprovalStatus;
   rejection_reason: string | null;
   active: boolean;

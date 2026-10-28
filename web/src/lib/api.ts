@@ -30,18 +30,25 @@ export const sendCode = (email: string) =>
 export const verifyCode = (email: string, token: string) =>
   supabase.auth.verifyOtp({ email, token, type: "email" });
 
+// A users row with its supplier units embedded, flattened into a Profile.
+const PROFILE_COLUMNS = "*, user_suppliers(supplier_id)";
+type ProfileRow = Omit<Profile, "supplier_ids"> & { user_suppliers: { supplier_id: string }[] };
+const toProfile = ({ user_suppliers, ...row }: ProfileRow): Profile =>
+  ({ ...row, supplier_ids: user_suppliers.map((s) => s.supplier_id) });
+
 /** The signed-in user's profile; null before sign-up. Throws when offline. */
 export async function fetchMyProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase.from("users").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle();
   if (error) throw error;
-  return data as Profile | null;
+  return data && toProfile(data as ProfileRow);
 }
 
+/** unitIds: the customer's company, or the supplier's units, the first as its main unit. */
 export const registerProfile = (p: {
-  firstName: string; lastName: string; serviceNumber: string; role: UserRole; unitId: string;
-}) => rpc<Profile>("register_profile", {
+  firstName: string; lastName: string; serviceNumber: string; role: UserRole; unitIds: string[];
+}) => rpc<void>("register_profile", {
   p_first_name: p.firstName, p_last_name: p.lastName, p_service_number: p.serviceNumber,
-  p_role: p.role, p_unit_id: p.unitId,
+  p_role: p.role, p_unit_id: p.unitIds[0], p_supplier_ids: p.role === "supplier" ? p.unitIds : null,
 });
 
 // Events -----------------------------------------------------------------------
@@ -119,13 +126,17 @@ export async function updateItem(id: string, patch: { name?: string; active?: bo
 
 // Admin --------------------------------------------------------------------------
 
-export const fetchUsers = () =>
-  rows<Profile>(supabase.from("users").select("*").order("created_at", { ascending: false }));
+export const fetchUsers = async () =>
+  (await rows<ProfileRow>(supabase.from("users").select(PROFILE_COLUMNS).order("created_at", { ascending: false })))
+    .map(toProfile);
 
 export const approveUser = (id: string) => rpc<void>("approve_user", { p_user: id });
 export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user", { p_user: id, p_reason: reason });
 export const setUserActive = (id: string, active: boolean) => rpc<void>("set_user_active", { p_user: id, p_active: active });
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
+/** A supplier's supplier units; the main unit stays while it is among them. */
+export const setUserSuppliers = (id: string, supplierIds: string[]) =>
+  rpc<void>("set_user_suppliers", { p_user: id, p_suppliers: supplierIds });
 
 /** Pass or fail per health check, with the metrics behind them. Admins only. */
 export const fetchAdminHealth = () => rpc<HealthReport>("admin_health");
