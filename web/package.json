@@ -12,22 +12,22 @@
   },
   "dependencies": {
     "@sentry/react": "11.9.0",
-    "@supabase/supabase-js": "2.45.4",
+    "@supabase/supabase-js": "2.118.0",
     "exceljs": "4.4.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "react-router-dom": "6.30.6",
-    "workbox-precaching": "7.1.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.4",
+    "workbox-precaching": "7.4.1",
     "workbox-routing": "^7.1.0"
   },
   "devDependencies": {
-    "@types/react": "18.3.11",
-    "@types/react-dom": "18.3.1",
-    "@vitejs/plugin-react": "4.3.2",
-    "jsdom": "^25.0.1",
-    "typescript": "5.6.3",
-    "vite": "5.4.8",
-    "vite-plugin-pwa": "0.20.5",
-    "vitest": "2.1.2"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "^30.1.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.0.5"
   }
 }
