@@ -106,13 +106,13 @@ export const fetchListOverviews = (eventIds: string[]) =>
 // Catalog ------------------------------------------------------------------------
 
 export const searchItems = (supplierId: string, q: string) =>
-  rpc<ItemSearchResult[]>("search_items", { p_supplier: supplierId, p_q: q });
+  rpc<ItemSearchResult[]>("search_catalog", { p_supplier: supplierId, p_q: q });
 
-export interface ItemMatch { id: string; name: string; exact: boolean; default_quantity: number | null }
+export type ItemMatch = Pick<ItemSearchResult, "id" | "name" | "default_quantity" | "measures" | "default_measure"> & { exact: boolean };
 
 /** The exact catalog match for a typed name, or else up to 3 "did you mean" suggestions. */
 export const matchItem = (supplierId: string, name: string) =>
-  rpc<ItemMatch[]>("match_item", { p_supplier: supplierId, p_name: name });
+  rpc<ItemMatch[]>("match_catalog", { p_supplier: supplierId, p_name: name });
 
 export const addItem = (supplierId: string, name: string) =>
   rpc<string>("add_item", { p_supplier: supplierId, p_name: name });

@@ -5,12 +5,27 @@ const enqueue = vi.fn((..._args: unknown[]) => "entry-id");
 const cancel = vi.fn();
 vi.mock("./queue", () => ({ enqueue: (...a: unknown[]) => enqueue(...a), cancel: (id: string) => cancel(id) }));
 
-const { collectSection, deleteRequest, setCustomerNote, setQuantity, setStatus, UNDO_DELAY_MS } = await import("./requests");
+const { addRequest, collectSection, deleteRequest, setCustomerNote, setQuantity, setStatus, UNDO_DELAY_MS } = await import("./requests");
 const lastEffects = () => enqueue.mock.calls.at(-1)![1] as { patch?: Record<string, unknown>; remove?: true }[];
 
 beforeEach(() => {
   enqueue.mockClear();
   cancel.mockClear();
+});
+
+describe("addRequest", () => {
+  const request = { listId: "l", eventId: "e", companyId: "c", supplierId: "s", itemId: "i", quantity: 5 };
+  const sent = () => (enqueue.mock.calls.at(-1)![0] as { row: Record<string, unknown> }).row;
+
+  it("sends the trimmed measure", () => {
+    addRequest({ ...request, measure: "  קרטון " });
+    expect(sent()).toMatchObject({ item_id: "i", quantity: 5, measure: "קרטון" });
+  });
+
+  it("stores a blank measure as none", () => {
+    addRequest({ ...request, measure: "  " });
+    expect(sent().measure).toBeNull();
+  });
 });
 
 describe("setQuantity", () => {

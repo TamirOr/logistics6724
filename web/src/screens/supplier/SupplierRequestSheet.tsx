@@ -1,6 +1,7 @@
 // The row menu: partial (asks how much), missing, back to pending, note.
 import { useState } from "react";
 import { QuantityInput } from "../../components/QuantityInput";
+import { RequestQuantity } from "../../components/RequestQuantity";
 import { Sheet } from "../../components/Sheet";
 import { setStatus, setSupplierNote } from "../../lib/requests";
 import type { Item, Request } from "../../lib/types";
@@ -31,7 +32,7 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
   };
 
   return (
-    <Sheet title={<><span className="req-qty">{r.quantity}</span> <span dir="auto">{item?.name}</span></>} onClose={onClose}>
+    <Sheet title={<><RequestQuantity quantity={r.quantity} measure={r.measure} /> <span dir="auto">{item?.name}</span></>} onClose={onClose}>
       <div className="stack">
         {askPartial ? (
           <>

@@ -10,8 +10,8 @@ const HANDLED: RequestStatus[] = ["ready", "partial", "missing"];
 export const isClosed = (r: Request) => r.status === "collected" || r.status === "cancelled";
 /** Ready or partial: something waits at the pickup point. */
 export const isCollectable = (r: Request) => r.status === "ready" || r.status === "partial";
-/** Blank notes are stored as null, as the request rules do. */
-const cleanNote = (note: string) => note.trim() || null;
+/** Blank text is stored as null, as the server does. */
+const cleanText = (text: string) => text.trim() || null;
 
 function update(r: Request, patch: Partial<Request>) {
   enqueue({ kind: "update", table: "requests", id: r.id, patch }, [{ table: "requests", id: r.id, patch }]);
@@ -20,17 +20,18 @@ function update(r: Request, patch: Partial<Request>) {
 // Customer ------------------------------------------------------------------
 
 export function addRequest(p: {
-  listId: string; eventId: string; companyId: string; supplierId: string; itemId: string; quantity: number;
+  listId: string; eventId: string; companyId: string; supplierId: string; itemId: string; quantity: number; measure: string;
 }) {
   const id = crypto.randomUUID();
+  const measure = cleanText(p.measure);
   const now = new Date().toISOString();
   const row: Request = {
     id, list_id: p.listId, event_id: p.eventId, company_id: p.companyId, supplier_id: p.supplierId,
-    item_id: p.itemId, quantity: p.quantity, urgent: false, status: "pending", previous_status: null,
+    item_id: p.itemId, quantity: p.quantity, measure, urgent: false, status: "pending", previous_status: null,
     supplied_quantity: null, supplier_note: null, customer_note: null, changed_after_handling: false, created_at: now, updated_at: now,
   };
   enqueue(
-    { kind: "insert", table: "requests", row: { id, list_id: p.listId, item_id: p.itemId, quantity: p.quantity } },
+    { kind: "insert", table: "requests", row: { id, list_id: p.listId, item_id: p.itemId, quantity: p.quantity, measure } },
     [{ table: "requests", id, insert: { ...row } }],
   );
 }
@@ -54,7 +55,7 @@ export function setUrgent(r: Request, urgent: boolean) {
 
 /** The company's own note. Leaves the status alone, as the server does. */
 export function setCustomerNote(r: Request, note: string) {
-  const customer_note = cleanNote(note);
+  const customer_note = cleanText(note);
   if (customer_note !== r.customer_note) update(r, { customer_note });
 }
 
@@ -95,7 +96,7 @@ export function setStatus(r: Request, status: RequestStatus, suppliedQuantity: n
 }
 
 export function setSupplierNote(r: Request, note: string) {
-  update(r, { supplier_note: cleanNote(note) });
+  update(r, { supplier_note: cleanText(note) });
 }
 
 /** The supplier took a cancelled request back into stock. */

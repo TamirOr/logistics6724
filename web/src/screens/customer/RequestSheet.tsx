@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Sheet } from "../../components/Sheet";
 import { QuantityInput } from "../../components/QuantityInput";
+import { RequestQuantity } from "../../components/RequestQuantity";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useToast } from "../../components/Toast";
 import { deleteRequest, isClosed, restoreRequest, setCustomerNote, setQuantity, setUrgent } from "../../lib/requests";
@@ -25,7 +26,7 @@ export function RequestSheet({ request: r, item, onClose }: { request: Request; 
   };
 
   return (
-    <Sheet title={<><span className="req-qty">{r.quantity}</span> <span dir="auto">{item?.name}</span></>} onClose={onClose}>
+    <Sheet title={<><RequestQuantity quantity={r.quantity} measure={r.measure} /> <span dir="auto">{item?.name}</span></>} onClose={onClose}>
       <div className="stack">
         <StatusBadge status={r.status} />
         {isClosed(r) ? (

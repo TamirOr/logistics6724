@@ -105,6 +105,9 @@ export const t = {
   // Requests
   quantity: "כמות",
   itemName: "שם פריט",
+  measure: "יחידת מידה",
+  noMeasure: "ללא יחידה",
+  newMeasure: "+ יחידה חדשה",
   add: "הוספה",
   urgent: "דחוף",
   collected: "אספתי",

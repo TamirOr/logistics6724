@@ -23,8 +23,19 @@ describe("aggregateTotals", () => {
     ], (id) => items[id], units);
 
     expect(totals).toEqual([{
-      itemId: "aa", item_name: "סוללה AA", supplier_name: "אפסנאות", quantity: 45,
+      key: "aa:", item_name: "סוללה AA", supplier_name: "אפסנאות", quantity: 45, measure: null,
       byCompany: [{ company: "פלוגה א", quantity: 30 }, { company: "פלוגה ב", quantity: 15 }],
     }]);
+  });
+
+  it("totals each measure of an item on its own row", () => {
+    const totals = aggregateTotals([
+      makeRequest({ item_id: "jerry", company_id: "c1", quantity: 2, measure: "קרטון" }),
+      makeRequest({ item_id: "jerry", company_id: "c2", quantity: 3, measure: "קרטון" }),
+      makeRequest({ item_id: "jerry", company_id: "c1", quantity: 20, measure: "ליטר" }),
+      makeRequest({ item_id: "jerry", company_id: "c2", quantity: 1 }),
+    ], (id) => items[id], units);
+
+    expect(totals.map((x) => [x.measure, x.quantity])).toEqual([[null, 1], ["ליטר", 20], ["קרטון", 5]]);
   });
 });

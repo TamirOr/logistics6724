@@ -86,6 +86,8 @@ export interface Request {
   supplier_id: string;
   item_id: string;
   quantity: number;
+  /** What the quantity counts ("קרטון"), or null. Fixed once the request exists. */
+  measure: string | null;
   urgent: boolean;
   status: RequestStatus;
   previous_status: RequestStatus | null;
@@ -107,6 +109,10 @@ export interface ItemSearchResult {
   /** Plain word similarity, which the "did you mean" threshold uses. */
   similarity: number;
   default_quantity: number | null;
+  /** Measures companies used with this item, oldest first. */
+  measures: string[];
+  /** This company's last measure for the item. */
+  default_measure: string | null;
 }
 
 export interface MergeSuggestion {

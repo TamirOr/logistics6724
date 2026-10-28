@@ -154,6 +154,8 @@ h2 { font-size: 1.15rem; margin: 0; }
   border: 1px solid var(--border); border-inline: 0; background: var(--surface); color: var(--text);
 }
 .req-qty { direction: ltr; unicode-bidi: isolate; font-weight: 800; min-width: 2.5ch; text-align: center; }
+.req-amount { display: inline-flex; align-items: baseline; gap: 4px; flex: none; }
+.req-measure { color: var(--muted); }
 
 /* Cards and tags */
 .card {
@@ -223,7 +225,9 @@ h2 { font-size: 1.15rem; margin: 0; }
 .adder { margin-top: 8px; }
 .adder-row { display: flex; gap: 6px; align-items: stretch; }
 .adder-row .btn { padding-inline: 12px; }
+.adder-row + .adder-row { margin-top: 6px; }
 .combo { position: relative; flex: 1; min-width: 0; }
+.measure-field { flex: 1; min-width: 0; }
 .combo-list {
   position: absolute; inset-inline: 0; top: 100%; z-index: 20; list-style: none; margin: 4px 0 0; padding: 4px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
