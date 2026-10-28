@@ -3,9 +3,13 @@
 // item offers its measures in a dropdown; a new item takes a typed one. The
 // measure is optional either way. An unknown name first offers
 // "התכוונת ל...?", and creates an unverified item only if the user insists.
+// A new item may take a category; a picked item shows its own, which only
+// the supplier changes.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { addItem, matchItem, searchItems } from "../lib/api";
+import { itemCache, useCached } from "../lib/live";
 import type { ItemSearchResult } from "../lib/types";
+import { CategoryInput } from "./CategoryInput";
 import { QuantityInput } from "./QuantityInput";
 import { useAction } from "./Toast";
 import { t } from "../strings";
@@ -34,6 +38,7 @@ const NEW_MEASURE = "\n";
 
 export function ItemAdder({ supplierId, onAdd }: Props) {
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [measure, setMeasure] = useState("");
   const [measureTouched, setMeasureTouched] = useState(false);
   const [typingMeasure, setTypingMeasure] = useState(false);
@@ -46,6 +51,8 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const runAction = useAction();
+  const itemOf = useCached(itemCache, selected ? [selected.id] : []);
+  const selectedCategory = selected && itemOf(selected.id)?.category;
 
   const measureOptions = selected?.measures ?? [];
   const showMeasureDropdown = measureOptions.length > 0 && !typingMeasure
@@ -64,6 +71,7 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
     setSelected(null);
     setSuggestions(null);
     setResults([]);
+    setCategory("");
     setMeasure("");
     setMeasureTouched(false);
     setTypingMeasure(false);
@@ -111,7 +119,7 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
     setBusy(false);
   };
 
-  const create = async () => add(await addItem(supplierId, name));
+  const create = async () => add(await addItem(supplierId, name, category));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -162,6 +170,14 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
           )}
         </div>
       </div>
+
+      {selected ? selectedCategory && (
+        <div className="muted">{t.category}: <span dir="auto" className="user-text">{selectedCategory}</span></div>
+      ) : name.trim() && (
+        <div className="adder-row">
+          <CategoryInput supplierId={supplierId} value={category} onChange={setCategory} />
+        </div>
+      )}
 
       <div className="adder-row">
         {showMeasureDropdown ? (

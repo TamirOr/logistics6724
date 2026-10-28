@@ -12,6 +12,7 @@ export interface ExportRow {
   company_name: string;
   supplier_name: string;
   item_name: string;
+  item_category: string | null;
   quantity: number;
   measure: string | null;
   supplied_quantity: number | null;
@@ -47,6 +48,7 @@ export const REQUEST_COLUMNS = [
   // positions.
   { header: "הערת פלוגה", key: "customer_note", width: 30 },
   { header: "יחידת מידה", key: "measure", width: 14 },
+  { header: "קטגוריה", key: "category", width: 16 },
 ];
 
 export function formatDateTime(iso: string, timeZone = TIMEZONE): string {
@@ -78,6 +80,7 @@ export function addRequestRows(ws: Worksheet, rows: ExportRow[]): void {
       event_id: r.event_id,
       customer_note: r.customer_note ?? "",
       measure: r.measure ?? "",
+      category: r.item_category ?? "",
     });
   }
 }
@@ -106,7 +109,7 @@ export function countEventRows(ws: Worksheet, eventIds: Set<string>): number {
   return eventIdCells(ws).filter((id) => eventIds.has(id)).length;
 }
 
-export interface TotalRow { item_name: string; supplier_name: string; quantity: number; measure: string | null }
+export interface TotalRow { item_name: string; category: string | null; supplier_name: string; quantity: number; measure: string | null }
 
 export function fillTotalsSheet(ws: Worksheet, rows: TotalRow[]): void {
   ws.views = [{ rightToLeft: true, state: "frozen", ySplit: 1 }];
@@ -115,7 +118,10 @@ export function fillTotalsSheet(ws: Worksheet, rows: TotalRow[]): void {
     { header: "גורם אספקה", key: "supplier", width: 16 },
     { header: "כמות כוללת", key: "quantity", width: 12 },
     { header: "יחידת מידה", key: "measure", width: 14 },
+    { header: "קטגוריה", key: "category", width: 16 },
   ];
   ws.getRow(1).font = { bold: true };
-  for (const r of rows) ws.addRow({ item: r.item_name, supplier: r.supplier_name, quantity: r.quantity, measure: r.measure ?? "" });
+  for (const r of rows) {
+    ws.addRow({ item: r.item_name, supplier: r.supplier_name, quantity: r.quantity, measure: r.measure ?? "", category: r.category ?? "" });
+  }
 }

@@ -1,7 +1,8 @@
 // One row per item and measure with the total across companies; tap for
 // the split. "5 קרטון" and "20 ליטר" of one item do not add up, so each
-// measure gets its own row.
+// measure gets its own row. Rows are grouped by the item's category.
 import { useState } from "react";
+import { CategorizedList } from "../../components/CategorizedList";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import type { Item, Request, Unit } from "../../lib/types";
 import { t } from "../../strings";
@@ -9,6 +10,7 @@ import { t } from "../../strings";
 interface ItemTotal {
   key: string;
   item_name: string;
+  category: string | null;
   supplier_name: string;
   quantity: number;
   measure: string | null;
@@ -22,8 +24,9 @@ export function aggregateTotals(requests: Request[], itemOf: (id: string) => Ite
   for (const r of requests) {
     if (r.status === "cancelled") continue;
     const key = `${r.item_id}:${r.measure ?? ""}`;
+    const item = itemOf(r.item_id);
     const total = totals.get(key) ?? {
-      key, item_name: itemOf(r.item_id)?.name ?? "", supplier_name: unitName(r.supplier_id),
+      key, item_name: item?.name ?? "", category: item?.category ?? null, supplier_name: unitName(r.supplier_id),
       quantity: 0, measure: r.measure, byCompany: [],
     };
     total.quantity += r.quantity;
@@ -46,8 +49,8 @@ interface Props {
 export function AggregateView({ requests, itemOf, units }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   return (
-    <ul className="req-list aggregate">
-      {aggregateTotals(requests, itemOf, units).map((total) => (
+    <CategorizedList className="req-list aggregate" rows={aggregateTotals(requests, itemOf, units)}
+      categoryOf={(total) => total.category} renderRow={(total) => (
         <li key={total.key} className="req">
           <button className="req-main" aria-expanded={expanded === total.key}
             onClick={() => setExpanded(expanded === total.key ? null : total.key)}>
@@ -63,7 +66,6 @@ export function AggregateView({ requests, itemOf, units }: Props) {
             </ul>
           )}
         </li>
-      ))}
-    </ul>
+      )} />
   );
 }

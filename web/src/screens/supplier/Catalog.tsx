@@ -1,12 +1,15 @@
-// Cleanup outside live work: rename, hide, verify and merge catalog items.
+// Cleanup outside live work: rename, categorize, hide, verify and merge
+// catalog items. Items show under their categories.
 import { useState } from "react";
+import { CategorizedList } from "../../components/CategorizedList";
+import { CategoryInput } from "../../components/CategoryInput";
 import { Layout } from "../../components/Layout";
 import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { Sheet } from "../../components/Sheet";
 import { useAction, useToast } from "../../components/Toast";
 import { addItem, matchItem, mergeItem, updateItem } from "../../lib/api";
 import { describeError, isItemNameTaken } from "../../lib/errors";
-import { useLiveRows } from "../../lib/live";
+import { itemCache, useLiveRows } from "../../lib/live";
 import { useActiveSupplier } from "../../lib/activeSupplier";
 import type { Item } from "../../lib/types";
 import { t } from "../../strings";
@@ -27,7 +30,8 @@ export function Catalog() {
   // A rename onto a name the catalog already has: offer to merge into it.
   const saveItem = async (item: Item, patch: Partial<Item>) => {
     try {
-      await updateItem(item.id, patch);
+      // Other screens read items from the cache, so they regroup at once.
+      itemCache.put([await updateItem(item.id, patch)]);
       await refetch();
     } catch (error) {
       const existing = isItemNameTaken(error) && patch.name
@@ -56,17 +60,15 @@ export function Catalog() {
           {t.addCatalogItem}
         </button>
       </div>
-      <ul className="req-list">
-        {shown.map((i) => (
-          <li key={i.id} className={`req ${i.active ? "" : "req-cancelled"}`}>
-            <button className="req-main" onClick={() => setEditing(i)}>
-              <span className="req-name user-text" dir="auto">{i.name}</span>
-              {!i.verified && <span className="tag tag-new">{t.newTag}</span>}
-              {!i.active && <span className="tag">{t.hidden}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <CategorizedList rows={shown} categoryOf={(i) => i.category} renderRow={(i) => (
+        <li key={i.id} className={`req ${i.active ? "" : "req-cancelled"}`}>
+          <button className="req-main" onClick={() => setEditing(i)}>
+            <span className="req-name user-text" dir="auto">{i.name}</span>
+            {!i.verified && <span className="tag tag-new">{t.newTag}</span>}
+            {!i.active && <span className="tag">{t.hidden}</span>}
+          </button>
+        </li>
+      )} />
 
       {editing && (
         <ItemSheet item={editing} onClose={() => setEditing(null)}
@@ -86,6 +88,11 @@ function ItemSheet({ item, onClose, onSave, onMerge }: {
   item: Item; onClose: () => void; onSave: (patch: Partial<Item>) => void; onMerge: () => void;
 }) {
   const [name, setName] = useState(item.name);
+  const [category, setCategory] = useState(item.category ?? "");
+  const edits: Partial<Item> = {
+    ...(name.trim() !== item.name && { name: name.trim() }),
+    ...(category.trim() !== (item.category ?? "") && { category: category.trim() || null }),
+  };
   const save = (patch: Partial<Item>) => {
     onSave(patch);
     onClose();
@@ -96,8 +103,11 @@ function ItemSheet({ item, onClose, onSave, onMerge }: {
         <label className="field"><span>{t.rename}</span>
           <input className="input" dir="auto" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        <button className="btn btn-primary btn-block" disabled={!name.trim() || name === item.name}
-          onClick={() => save({ name: name.trim() })}>{t.save}</button>
+        <label className="field"><span>{t.category}</span>
+          <CategoryInput supplierId={item.supplier_id} value={category} onChange={setCategory} />
+        </label>
+        <button className="btn btn-primary btn-block" disabled={!name.trim() || Object.keys(edits).length === 0}
+          onClick={() => save(edits)}>{t.save}</button>
         <div className="button-grid">
           {!item.verified && <button className="btn btn-secondary" onClick={() => save({ verified: true })}>{t.verifyItem}</button>}
           <button className="btn btn-secondary" onClick={() => save({ active: !item.active })}>
