@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeProfile } from "../test/fixtures";
-import { awaitsApprovalFrom, unitNamesOf, unitsOf, workUnitsOf } from "./userUnits";
+import { awaitsApprovalFrom, unitKindOf, unitNamesOf, unitsOf, workUnitsOf } from "./userUnits";
 
 const cook = makeProfile({ role: "supplier", unit_id: "kitchen", supplier_ids: ["kitchen"], pending_supplier_ids: ["closing"] });
 
@@ -13,6 +13,13 @@ describe("unitsOf and workUnitsOf", () => {
   it("is the company of a customer and nothing for an admin", () => {
     expect(unitsOf(makeProfile({ unit_id: "a" }))).toEqual(["a"]);
     expect(unitsOf(makeProfile({ role: "admin", unit_id: null }))).toEqual([]);
+  });
+});
+
+describe("unitKindOf", () => {
+  it("puts customers in companies and suppliers in logistic platoons", () => {
+    expect(unitKindOf("customer")).toBe("company");
+    expect(unitKindOf("supplier")).toBe("supplier");
   });
 });
 

@@ -9,5 +9,5 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   partial: "חלקי",
   missing: "חסר",
   collected: "נאסף",
-  cancelled: "בוטל על ידי הלקוח",
+  cancelled: "בוטל על ידי הפלוגה",
 };

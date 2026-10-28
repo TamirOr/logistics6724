@@ -33,13 +33,13 @@ export const REQUEST_COLUMNS = [
   { header: "אירוע", key: "event", width: 24 },
   { header: "נדרש עד", key: "needed_by", width: 22 },
   { header: "פלוגה", key: "company", width: 16 },
-  { header: "גורם אספקה", key: "supplier", width: 16 },
+  { header: "מחלקה לוגיסטית", key: "supplier", width: 16 },
   { header: "פריט", key: "item", width: 28 },
   { header: "כמות", key: "quantity", width: 8 },
   { header: "כמות שסופקה", key: "supplied", width: 12 },
   { header: "סטטוס", key: "status", width: 16 },
   { header: "דחוף", key: "urgent", width: 8 },
-  { header: "הערת ספק", key: "note", width: 30 },
+  { header: "הערת מחלקה", key: "note", width: 30 },
   { header: "עודכן לאחרונה", key: "updated", width: 18 },
   // Lets the archive job see which events a monthly file already holds.
   { header: "מזהה אירוע", key: "event_id", width: 38, hidden: true },
@@ -115,7 +115,7 @@ export function fillTotalsSheet(ws: Worksheet, rows: TotalRow[]): void {
   ws.views = [{ rightToLeft: true, state: "frozen", ySplit: 1 }];
   ws.columns = [
     { header: "פריט", key: "item", width: 28 },
-    { header: "גורם אספקה", key: "supplier", width: 16 },
+    { header: "מחלקה לוגיסטית", key: "supplier", width: 16 },
     { header: "כמות כוללת", key: "quantity", width: 12 },
     { header: "יחידת מידה", key: "measure", width: 14 },
     { header: "קטגוריה", key: "category", width: 16 },

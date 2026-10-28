@@ -1,11 +1,14 @@
 // The units a user belongs to, wherever a user's units are shown, and which
 // of them still have to approve the user. Each unit approves on its own;
 // the server decides, this only shows it.
-import type { Profile, Unit } from "./types";
+import type { Profile, Unit, UnitKind, UserRole } from "./types";
 import { t } from "../strings";
 
 // A profile cached by an earlier build may lack the supplier lists.
 const pendingOf = (user: Profile): string[] => (user.role === "supplier" ? user.pending_supplier_ids ?? [] : []);
+
+/** The kind of unit a user of this role belongs to. */
+export const unitKindOf = (role: UserRole): UnitKind => (role === "customer" ? "company" : "supplier");
 
 /** The units a user works in: a supplier's approved supplier units, or the one unit of anyone else. */
 export const workUnitsOf = (user: Profile): string[] =>
