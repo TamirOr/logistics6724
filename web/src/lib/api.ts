@@ -4,7 +4,7 @@
 import { supabase } from "./supabase";
 import type {
   AccessReviewRow, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
-  Profile, Unit, UserRole, UserSupport,
+  Profile, Unit, UserRole,
 } from "./types";
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -158,9 +158,6 @@ export const setUserSuppliers = (id: string, supplierIds: string[]) =>
 
 /** Pass or fail per health check, with the metrics behind them. Admins only. */
 export const fetchAdminHealth = () => rpc<HealthReport>("admin_health");
-
-/** One user's devices, notifications and recent changes. Admins only. */
-export const fetchUserSupport = (id: string) => rpc<UserSupport | null>("user_support", { p_user: id });
 
 export const fetchAccessReview = () => rpc<AccessReviewRow[]>("access_review");
 export const fetchJoinCode = () => rpc<string>("join_code");

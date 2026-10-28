@@ -11,7 +11,7 @@ import { AdminEvent } from "./screens/admin/AdminEvent";
 import { AdminHome } from "./screens/admin/AdminHome";
 import { AdminUnits } from "./screens/admin/AdminUnits";
 import { AccessReview } from "./screens/admin/AccessReview";
-import { AdminUserSupport } from "./screens/admin/AdminUserSupport";
+import { AdminUser } from "./screens/admin/AdminUser";
 import { AdminUsers } from "./screens/admin/AdminUsers";
 import { CustomerEvent } from "./screens/customer/CustomerEvent";
 import { CustomerHome } from "./screens/customer/CustomerHome";
@@ -52,7 +52,7 @@ const ROUTES: Record<UserRole, { path: string; element: JSX.Element }[]> = {
   admin: [
     { path: "/", element: <AdminHome /> },
     { path: "/users", element: <AdminUsers /> },
-    { path: "/users/:id", element: <AdminUserSupport /> },
+    { path: "/users/:id", element: <AdminUser /> },
     { path: "/access", element: <AccessReview /> },
     { path: "/units", element: <AdminUnits /> },
     { path: "/events/new", element: <NewEvent /> },

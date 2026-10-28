@@ -133,7 +133,15 @@ Open the Supabase dashboard. A paused project shows "Restore project". Restoring
 ### "I didn't get the notification"
 
 1. Ask for the diagnostics text (account bar → אבחון → העתקה). Check `push:` (must be `granted`, `subscribed: yes`) and `mode:` (on iPhone it must say `home screen`).
-2. Admin → משתמשים → the user's name opens their support view: their devices with the last successful delivery, and the notifications that should have reached them, with status and error.
+2. Their devices, with the last successful delivery, and the notifications that should have reached them, with status and error:
+
+```sql
+select id, user_agent, created_at, last_success_at from push_subscriptions where user_id = '<user id>';
+select id, kind, created_at, sent_at, attempts, last_error from notification_outbox
+where target_user = '<user id>' order by created_at desc limit 20;
+-- a customer also gets their company's and everyone's notifications: add
+-- or target_company = '<their unit id>' or target_all_customers
+```
 3. A notification with "לא נשלחה": see the push backlog check above.
 4. Sent, but the phone shows nothing: ask them to tap "שליחת התראת בדיקה" on the diagnostics screen. If that does not arrive either, the phone is blocking it (Focus mode, notification settings, battery saver).
 
@@ -144,7 +152,7 @@ Push works on iPhone only from the app on the home screen (iOS 16.4 or later), a
 ### "My change disappeared"
 
 1. Diagnostics: `queue` greater than 0 means changes are still on the phone waiting for a connection. They are sent when it reconnects. `rejected:` lines are changes the server refused, with the code (see Sentry, above).
-2. Was it received? Admin → the user's support view → שינויים אחרונים, or:
+2. Was it received?
 
 ```sql
 select at, table_name, op, changed from audit_log
