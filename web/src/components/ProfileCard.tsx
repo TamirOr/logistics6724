@@ -7,7 +7,7 @@ import { t } from "../strings";
 interface Props {
   profile: Profile;
   units: Unit[];
-  /** The unit the screen shows, for a supplier in several. */
+  /** The unit the screen shows: a customer's company, or the supplier unit a supplier in several works in now. */
   activeUnitId: string;
 }
 
