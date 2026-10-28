@@ -13,6 +13,7 @@ export interface ExportRow {
   supplier_name: string;
   item_name: string;
   quantity: number;
+  measure: string | null;
   supplied_quantity: number | null;
   status: RequestStatus;
   urgent: boolean;
@@ -41,9 +42,11 @@ export const REQUEST_COLUMNS = [
   { header: "עודכן לאחרונה", key: "updated", width: 18 },
   // Lets the archive job see which events a monthly file already holds.
   { header: "מזהה אירוע", key: "event_id", width: 38, hidden: true },
-  // Added later, so it goes last: the archive reopens monthly files written
-  // with the columns above, and they must keep their positions.
+  // Added later, so they go last, newest at the end: the archive reopens
+  // monthly files written with the columns above, and they must keep their
+  // positions.
   { header: "הערת פלוגה", key: "customer_note", width: 30 },
+  { header: "יחידת מידה", key: "measure", width: 14 },
 ];
 
 export function formatDateTime(iso: string, timeZone = TIMEZONE): string {
@@ -74,6 +77,7 @@ export function addRequestRows(ws: Worksheet, rows: ExportRow[]): void {
       updated: formatDateTime(r.updated_at),
       event_id: r.event_id,
       customer_note: r.customer_note ?? "",
+      measure: r.measure ?? "",
     });
   }
 }
@@ -102,7 +106,7 @@ export function countEventRows(ws: Worksheet, eventIds: Set<string>): number {
   return eventIdCells(ws).filter((id) => eventIds.has(id)).length;
 }
 
-export interface TotalRow { item_name: string; supplier_name: string; quantity: number }
+export interface TotalRow { item_name: string; supplier_name: string; quantity: number; measure: string | null }
 
 export function fillTotalsSheet(ws: Worksheet, rows: TotalRow[]): void {
   ws.views = [{ rightToLeft: true, state: "frozen", ySplit: 1 }];
@@ -110,7 +114,8 @@ export function fillTotalsSheet(ws: Worksheet, rows: TotalRow[]): void {
     { header: "פריט", key: "item", width: 28 },
     { header: "גורם אספקה", key: "supplier", width: 16 },
     { header: "כמות כוללת", key: "quantity", width: 12 },
+    { header: "יחידת מידה", key: "measure", width: 14 },
   ];
   ws.getRow(1).font = { bold: true };
-  for (const r of rows) ws.addRow({ item: r.item_name, supplier: r.supplier_name, quantity: r.quantity });
+  for (const r of rows) ws.addRow({ item: r.item_name, supplier: r.supplier_name, quantity: r.quantity, measure: r.measure ?? "" });
 }
