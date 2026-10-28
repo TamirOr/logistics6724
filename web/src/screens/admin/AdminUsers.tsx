@@ -3,7 +3,7 @@
 // Each user can be deactivated or moved to another unit, company or
 // supplier (the server changes the role to match), and a supplier's
 // supplier units can be edited. A name opens the
-// user's support view.
+// user's page: profile and support.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";

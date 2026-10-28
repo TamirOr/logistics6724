@@ -257,9 +257,6 @@ h2 { font-size: 1.15rem; margin: 0; }
 .step-icon { font-size: 1.4rem; }
 
 .signup-name { font-weight: 700; font-size: 1.1rem; }
-.signup-fields { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 12px; }
-.signup-fields dt { color: var(--muted); }
-.signup-fields dd { margin: 0; }
 
 /* Bottom sheet */
 .sheet-backdrop { position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.5); display: flex; align-items: flex-end; }

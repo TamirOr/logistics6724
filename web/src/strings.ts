@@ -254,6 +254,7 @@ export const t = {
   } as Record<string, string>,
   pushP95: (seconds: number) => `95% מההתראות נשלחו תוך ${seconds} שניות`,
   support: "תמיכה",
+  profile: "פרטים אישיים",
   devices: "מכשירים",
   noDevices: "אין מכשירים רשומים להתראות",
   registered: "נרשם",
