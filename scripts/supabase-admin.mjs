@@ -181,7 +181,8 @@ async function makeAdmin(env) {
   const email = env.ADMIN_EMAIL?.trim();
   if (!email) throw new Error("ADMIN_EMAIL is required");
   await sql(`select promote_admin(${sqlLiteral(email)})`);
-  console.log(`${email} is now an admin`);
+  // Not the address: the run page is public.
+  console.log("admin promoted");
 }
 
 // What the status report checks. The repository is public and so are its

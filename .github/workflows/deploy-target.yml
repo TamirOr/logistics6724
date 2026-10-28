@@ -29,9 +29,9 @@ on:
 permissions:
   contents: read
 
-env:
-  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
+# The account token reaches every project in the organization. It is set
+# only on the jobs that call the Management API, never on a job that
+# installs npm packages.
 jobs:
   target:
     runs-on: ubuntu-latest
@@ -86,7 +86,10 @@ jobs:
     concurrency:
       group: backend-${{ inputs.target }}
       cancel-in-progress: false
+    outputs:
+      anon_key: ${{ steps.anon.outputs.key }}
     env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       DEPLOY_TARGET: ${{ inputs.target }}
       SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}
       SUPABASE_DB_PASSWORD: ${{ secrets[format('{0}SUPABASE_DB_PASSWORD', needs.target.outputs.prefix)] }}
@@ -95,7 +98,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
-          version: latest
+          # An exact release: "latest" would run whatever was published last
+          # with the account token. Also pinned in ci.yml.
+          version: 2.120.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -124,6 +129,11 @@ jobs:
           SMTP_SENDER: ${{ secrets[format('{0}SMTP_SENDER', needs.target.outputs.prefix)] }}
         run: node scripts/supabase-admin.mjs configure
 
+      - name: Read the anon key
+        # Public anyway (it ships in the bundle); passed on so the web build needs no token.
+        id: anon
+        run: echo "key=$(node scripts/supabase-admin.mjs anon-key)" >> "$GITHUB_OUTPUT"
+
       - name: Rotate the cron secret
         if: inputs.rotate_cron_secret
         run: node scripts/supabase-admin.mjs rotate-cron-secret
@@ -142,26 +152,24 @@ jobs:
         if: inputs.admin_email != ''
         env:
           ADMIN_EMAIL: ${{ inputs.admin_email }}
-        run: node scripts/supabase-admin.mjs make-admin
+        run: |
+          # The run page is public: keep the address out of the log.
+          echo "::add-mask::$ADMIN_EMAIL"
+          node scripts/supabase-admin.mjs make-admin
 
   web:
+    # Installs and runs npm packages, so it holds no Supabase token and
+    # cannot write to the repository; install scripts never run.
     needs: [target, backend]
     if: always() && needs.backend.result == 'success'
     runs-on: ubuntu-latest
-    # Production and staging share the site branch; one publish at a time.
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    permissions:
-      contents: write
     env:
       DEPLOY_TARGET: ${{ inputs.target }}
       SUPABASE_PROJECT_REF: ${{ secrets[format('{0}SUPABASE_PROJECT_REF', needs.target.outputs.prefix)] }}
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -172,12 +180,12 @@ jobs:
         working-directory: web
         env:
           BASE_PATH: ${{ needs.target.outputs.base_path }}
+          VITE_SUPABASE_ANON_KEY: ${{ needs.backend.outputs.anon_key }}
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: ${{ inputs.target }}
         run: |
-          npm ci
+          npm ci --ignore-scripts
           export VITE_SUPABASE_URL="https://$SUPABASE_PROJECT_REF.supabase.co"
-          export VITE_SUPABASE_ANON_KEY="$(node ../scripts/supabase-admin.mjs anon-key)"
           export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
           export VITE_APP_BUILT_AT="$(git log -1 --format=%ct)"
           npm run build
@@ -185,20 +193,58 @@ jobs:
           echo "::notice title=Build::version $VITE_APP_VERSION built_at $VITE_APP_BUILT_AT"
 
       - name: Upload source maps to Sentry
-        if: env.SENTRY_AUTH_TOKEN != ''
-        working-directory: web
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        # Run from outside web/ so npx cannot pick up a binary from the
+        # build's node_modules.
+        working-directory: ${{ runner.temp }}
         run: |
-          npx --yes @sentry/cli@3.8.2 sourcemaps inject dist
+          [ -n "$SENTRY_AUTH_TOKEN" ] || { echo "no Sentry token; skipped"; exit 0; }
+          dist="$GITHUB_WORKSPACE/web/dist"
+          npx --yes @sentry/cli@3.8.2 sourcemaps inject "$dist"
           npx --yes @sentry/cli@3.8.2 sourcemaps upload --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
-            --release "$(git rev-parse --short HEAD)" dist
+            --release "$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)" "$dist"
 
-      - name: Publish to the site branch
-        # GitHub Pages serves the site branch: production at the root,
-        # staging under staging/. Source maps never go there.
+      - name: Drop source maps
+        # They never reach the site branch or the public artifact.
         run: |
           find web/dist -name '*.map' -delete
           # Pages has no rewrites: unknown paths load the app via 404.html.
           cp web/dist/index.html web/dist/404.html
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: site-${{ inputs.target }}
+          path: web/dist
+          retention-days: 1
+
+  publish:
+    # The only job that can push, and it runs no npm code: it copies the
+    # built files onto the site branch.
+    needs: web
+    if: always() && needs.web.result == 'success'
+    runs-on: ubuntu-latest
+    # Production and staging share the site branch; one publish at a time.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      DEPLOY_TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: site-${{ inputs.target }}
+          path: dist
+
+      - name: Publish to the site branch
+        # GitHub Pages serves the site branch: production at the root,
+        # staging under staging/.
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           if git ls-remote --exit-code --heads origin site >/dev/null; then
@@ -208,9 +254,9 @@ jobs:
             git worktree add --orphan -b site site
           fi
           if [ "$DEPLOY_TARGET" = production ]; then
-            rsync -a --delete --exclude staging/ --exclude .git --exclude .nojekyll web/dist/ site/
+            rsync -a --delete --exclude staging/ --exclude .git --exclude .nojekyll dist/ site/
           else
-            mkdir -p site/staging && rsync -a --delete web/dist/ site/staging/
+            mkdir -p site/staging && rsync -a --delete dist/ site/staging/
           fi
           touch site/.nojekyll
           cd site
@@ -221,10 +267,11 @@ jobs:
 
   verify:
     # Production must still be healthy once the new build has run for a while.
-    needs: web
-    if: always() && needs.web.result == 'success' && inputs.target == 'production'
+    needs: publish
+    if: always() && needs.publish.result == 'success' && inputs.target == 'production'
     runs-on: ubuntu-latest
     env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       HEALTH_TARGET: production
     steps:

@@ -40,7 +40,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
+      # Install scripts never run in CI; nothing in the app needs one.
+      - run: npm ci --ignore-scripts
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
@@ -83,7 +84,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
-          version: latest
+          version: 2.120.0 # same as deploy-target.yml
       - name: supabase db push --dry-run (staging)
         run: |
           if [ -z "$SUPABASE_PROJECT_REF" ]; then echo "::notice::Staging is not configured; skipping the dry run."; exit 0; fi
