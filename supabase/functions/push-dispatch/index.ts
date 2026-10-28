@@ -1,5 +1,6 @@
-// Sends pending Web Push notifications. Runs every minute from pg_cron,
-// and right away when a notification is queued (see wake_dispatcher).
+// Sends pending Web Push notifications. Runs right away when a
+// notification is queued (see wake_dispatcher), from pg_cron in any minute
+// with a retry or grouped notification due (dispatch_due), and hourly.
 import webpush from "npm:web-push@3.6.7";
 import { serveJob } from "../_shared/job.ts";
 import { APP_NAME } from "../_shared/labels.ts";

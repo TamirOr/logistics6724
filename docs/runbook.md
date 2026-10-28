@@ -43,7 +43,7 @@ select job, ok, finished_at, summary, error from job_runs where job = 'push-disp
 
 ### `dispatch_last_ok_minutes`: push-dispatch is not running
 
-No successful run in 10 minutes. Either pg_cron stopped calling it, or every run fails.
+No successful run in 70 minutes. pg_cron calls it when a notification is waiting and at least once an hour, so either pg_cron stopped calling it, or every run fails.
 
 ```sql
 select jobname, schedule, active from cron.job order by jobname;
