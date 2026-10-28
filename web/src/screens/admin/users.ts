@@ -6,6 +6,8 @@ import { unitsOf } from "../../lib/userUnits";
 export type ActiveFilter = "all" | "active" | "inactive";
 export interface UserFilter { unitIds: string[]; active: ActiveFilter }
 export const NO_FILTER: UserFilter = { unitIds: [], active: "all" };
+// Tables open on active users: inactive ones are kept only for history.
+export const DEFAULT_FILTER: UserFilter = { ...NO_FILTER, active: "active" };
 
 /** No unit picked means every unit. */
 export function filterUsers(users: Profile[], filter: UserFilter): Profile[] {

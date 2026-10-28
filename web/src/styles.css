@@ -207,10 +207,15 @@ h2 { font-size: 1.15rem; margin: 0; }
 .req-partial { background: linear-gradient(to left, var(--partial-bg), transparent 60%); }
 .req-missing { background: linear-gradient(to left, var(--missing-bg), transparent 60%); }
 .req-collected .req-name, .req-cancelled .req-name { color: var(--muted); text-decoration: line-through; }
-.req-urgent { border-inline-start: 4px solid var(--danger); }
-.urgent-toggle { font-weight: 900; color: var(--muted); }
+.req-urgent { border-inline-start: 6px solid var(--danger); padding-inline-start: 4px; }
+.urgent-tag { font-weight: 800; flex: none; }
+/* Labeled, not a bare "!", so customers see they can flag a request. */
+.urgent-toggle {
+  min-height: var(--tap); padding: 0 12px; border-radius: 999px; flex: none;
+  border: 2px solid var(--danger); background: transparent; color: var(--danger);
+  font: inherit; font-weight: 800; cursor: pointer;
+}
 .urgent-toggle.on { color: #fff; background: var(--danger); }
-.urgent-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); flex: none; }
 .split { list-style: none; padding: 0 16px 8px; margin: 0; flex-basis: 100%; }
 .split li { padding: 4px 0; display: flex; gap: 10px; }
 
