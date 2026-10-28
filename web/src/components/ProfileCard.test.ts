@@ -28,4 +28,13 @@ describe("ProfileCard", () => {
     expect(html).toContain("דנה כהן");
     expect(html).not.toContain(" · ");
   });
+
+  it("shows a customer's company", () => {
+    const soldier = makeProfile({ first_name: "יוסי", last_name: "לוי", role: "customer", unit_id: "b" });
+    const companies = [{ id: "b", name: "פלוגה ב", kind: "company" as const, headcount: 80, active: true }];
+    const html = renderToStaticMarkup(createElement(ProfileCard, { profile: soldier, units: companies, activeUnitId: "b" }));
+    const summary = html.slice(html.indexOf("<summary>"), html.indexOf("</summary>"));
+    expect(summary).toContain("יוסי לוי");
+    expect(summary).toContain("פלוגה ב");
+  });
 });

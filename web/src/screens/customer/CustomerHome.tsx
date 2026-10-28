@@ -1,15 +1,19 @@
-// "What is the state of my requests": open events, newest first, each with
-// its list status and counts. Battalion events not filled yet go on top.
+// "What is the state of my requests": who is signed in and for which
+// company, then open events, newest first, each with its list status and
+// counts. Battalion events not filled yet go on top.
 import { useNavigate } from "react-router-dom";
 import { EventCard } from "../../components/EventCard";
 import { Layout } from "../../components/Layout";
+import { ProfileCard } from "../../components/ProfileCard";
 import { useOpenEvents } from "../../hooks/useOpenEvents";
+import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import { PushPrompt } from "../shared/PushPrompt";
 import { t } from "../../strings";
 
 export function CustomerHome() {
   const profile = useProfile();
+  const units = useUnits();
   const navigate = useNavigate();
   const { events, lists } = useOpenEvents(`company_id=eq.${profile.unit_id}`);
 
@@ -34,6 +38,7 @@ export function CustomerHome() {
       }
     >
       <PushPrompt />
+      <ProfileCard profile={profile} units={units} activeUnitId={profile.unit_id!} />
       {events === null && <p className="muted">{t.loading}</p>}
       {events?.length === 0 && <p className="muted empty">{t.noOpenEvents}</p>}
       {sorted.map((e) => (
