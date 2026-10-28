@@ -1,7 +1,9 @@
 // The company's list in one event: a section per supplier, in alphabetical
-// order, each a live checklist ending with an add row and "אספתי".
+// order, each a live checklist grouped by item category, ending with an add
+// row and "אספתי".
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { CategorizedList } from "../../components/CategorizedList";
 import { ItemAdder } from "../../components/ItemAdder";
 import { EventEndButtons } from "../../components/EventEndButtons";
 import { Layout } from "../../components/Layout";
@@ -80,12 +82,10 @@ export function CustomerEvent() {
         return (
           <section key={s.id} className="section">
             <h2 className="section-title">{s.name}</h2>
-            <ul className="req-list">
-              {sectionRows.map((r) => (
-                <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={editable}
-                  onOpen={() => setEditing(r)} />
-              ))}
-            </ul>
+            <CategorizedList rows={sectionRows} categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
+              <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={editable}
+                onOpen={() => setEditing(r)} />
+            )} />
             {editable && (
               <ItemAdder supplierId={s.id} onAdd={(itemId, quantity, measure) => addRequest({
                 listId: list.id, eventId: event.id, companyId: list.company_id, supplierId: s.id, itemId, quantity, measure,

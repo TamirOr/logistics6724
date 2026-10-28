@@ -1,8 +1,9 @@
 // An event as a supplier opens it. An open event is worked on from the
 // supplier home screen, filtered to it. A closed or cancelled event shows
-// read-only: this supplier's requests in it, by company, with their final
-// status.
+// read-only: this supplier's requests in it, by company and item category,
+// with their final status.
 import { useParams } from "react-router-dom";
+import { CategorizedList } from "../../components/CategorizedList";
 import { Layout } from "../../components/Layout";
 import { RequestRow } from "../../components/RequestRow";
 import { useEvent } from "../../hooks/useEvent";
@@ -45,11 +46,10 @@ function PastEvent({ event }: { event: LogisticsEvent }) {
       {companies.map((c) => (
         <section key={c} className="section">
           <h2 className="section-title">{companyName(c)}</h2>
-          <ul className="req-list">
-            {rows.filter((r) => r.company_id === c).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((r) => (
-              <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={false} />
-            ))}
-          </ul>
+          <CategorizedList
+            rows={rows.filter((r) => r.company_id === c).sort((a, b) => a.created_at.localeCompare(b.created_at))}
+            categoryOf={(r) => itemOf(r.item_id)?.category}
+            renderRow={(r) => <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={false} />} />
         </section>
       ))}
     </Layout>

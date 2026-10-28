@@ -78,6 +78,8 @@ export interface Item {
   id: string;
   supplier_id: string;
   name: string;
+  /** Its group in the catalog ("מוצרי חלב"), or null for the general group. Set by the supplier. */
+  category: string | null;
   verified: boolean;
   active: boolean;
 }

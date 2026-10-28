@@ -1,9 +1,10 @@
 // "What do I still need to prepare": who is signed in and for which unit,
-// then every open request for this supplier, by event and company, urgent
-// first. The aggregate view sums each item across companies for pulling
+// then every open request for this supplier, by event, company and item
+// category, urgent first. The aggregate view sums each item across companies for pulling
 // stock in one pass.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { CategorizedList } from "../../components/CategorizedList";
 import { Layout } from "../../components/Layout";
 import { ProfileCard } from "../../components/ProfileCard";
 import { SupplierSwitcher } from "../../components/SupplierSwitcher";
@@ -140,14 +141,13 @@ export function SupplierHome() {
             {companies.map((c) => (
               <div key={c} className="company-group">
                 <h3 className="company-title">{companyName(c)}</h3>
-                <ul className="req-list">
-                  {eventRows.filter((r) => r.company_id === c).sort(byUrgencyThenAge).map((r) => (
+                <CategorizedList rows={eventRows.filter((r) => r.company_id === c).sort(byUrgencyThenAge)}
+                  categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
                     <SupplierRow key={r.id} request={r} item={itemOf(r.item_id)}
                       suggestion={suggestions.find((s) => s.item_id === r.item_id)}
                       onTap={() => markReady(r)} onMenu={() => setMenuFor(r)}
                       onAcknowledge={() => acknowledgeCancel(r)} onMerge={merge} onVerify={() => verify(r.item_id)} />
-                  ))}
-                </ul>
+                  )} />
               </div>
             ))}
           </section>
