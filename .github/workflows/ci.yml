@@ -1,5 +1,5 @@
 # Every test suite. Runs on pull requests, and from the Deploy workflow
-# before anything deploys (pushes to main and v* tags), so a red suite
+# before anything deploys (every push to main), so a red suite
 # never reaches staging or production.
 name: CI
 

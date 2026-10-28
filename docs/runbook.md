@@ -194,7 +194,7 @@ When a change cannot be made compatible:
 
 1. Label the PR `db-breaking` (CI requires it for drops, renames, type changes and truncates).
 2. Deploy to staging and rehearse with an old build open on a phone.
-3. After the production deploy, set the minimum build to the new release's commit time. The production Deploy run shows it in its **Build** notice as `built_at` (Unix seconds):
+3. After the production deploy, set the minimum build to the new build's commit time. The production Deploy run shows it in its **Build** notice as `built_at` (Unix seconds):
 
 ```sql
 update app_config set value = '<commit time>' where key = 'min_client_version';
@@ -204,7 +204,7 @@ Older builds then stop sending writes (they stay on the phone) and show "נדר�
 
 ### Rolling back
 
-- **Web**: Actions → Deploy → Run workflow → target production, from the previous tag (choose the tag in "Use workflow from"). The test suites run first, as on every deploy.
+- **Web or functions**: revert the PR on GitHub (the PR page has a **Revert** button), merge the revert, check staging and approve production. Re-running an older Deploy run does not work once newer migrations are applied: its checkout lacks them, and `db push` refuses.
 - **Database**: never edit or revert an applied migration. Write a forward fix migration. Restore from a backup only after data loss.
 
 ### Deleting a user on request
@@ -239,7 +239,7 @@ Nightly at 01:37 UTC and before every production deploy, the **Backup** workflow
 Target: back within 2 hours, losing at most a day.
 
 1. Create a new Supabase project. Put its ref and database password in `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD`.
-2. Actions → Deploy → Run workflow → production, from the tag whose migrations match the backup's `manifest.json` (or newer). This creates the schema, functions and settings.
+2. Actions → Deploy → Run workflow → production (from `main`, whose migrations include the backup's `manifest.json` version), and approve it. This creates the schema, functions and settings.
 3. Restore the data with the same SQL the drill uses, from a computer with `psql` and `age` (connection string: Supabase → Connect → Session pooler):
 
 ```bash

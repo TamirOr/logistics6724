@@ -38,12 +38,25 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check the recipients file
+      - name: Is backup set up?
+        # Until it is (an age key and the Google secrets), skip with a notice
+        # instead of failing every night and every production deploy.
+        id: setup
         run: |
-          grep -q '^age1' ops/backup-recipients.txt || {
-            echo "::error::ops/backup-recipients.txt has no age public key yet (see docs/runbook.md, Backups)"; exit 1; }
+          missing=""
+          grep -q '^age1' ops/backup-recipients.txt || missing="an age public key in ops/backup-recipients.txt"
+          for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN DRIVE_FOLDER_ID; do
+            [ -n "${!name}" ] || missing="${missing:+$missing, }the $name secret"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning title=No backup taken::Backups are not set up: missing $missing (docs/runbook.md, Backups)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install pg_dump 17 and age
+        if: steps.setup.outputs.ready == 'true'
         # pg_dump must be at least the server's major version; 17 dumps 15 and 17.
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -55,6 +68,7 @@ jobs:
           echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
 
       - name: Dump, encrypt, upload
+        if: steps.setup.outputs.ready == 'true'
         run: |
           umask 077
           started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)

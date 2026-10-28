@@ -26,7 +26,7 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
 - `supabase/restore/`, `supabase/seed/`: restore-drill SQL and the staging seed.
 - `web/`: Vite + React + TypeScript PWA.
 - `scripts/`: Node tools the workflows run (`supabase-admin.mjs`, `drive.mjs`, ...), tested with `node --test scripts/*.test.mjs`.
-- `.github/workflows/`: CI, deploy (main → staging, tag `v*` → production), health, backup, restore drill.
+- `.github/workflows/`: CI, deploy (main → staging → your approval → production), health, backup, restore drill.
 - `docs/runbook.md`: one entry per alert and support complaint. Add one with every new health check or alert.
 
 ## Commands
