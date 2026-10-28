@@ -32,6 +32,12 @@ test("auth settings always limit code requests and checks per IP", () => {
   assert.equal(base.rate_limit_verify, 30);
 });
 
+test("auth settings allow TOTP, which admin rights require", () => {
+  const base = authSettings({ siteUrl: "https://x.github.io/app/", otpTemplate: "", smtp: null });
+  assert.equal(base.mfa_totp_enroll_enabled, true);
+  assert.equal(base.mfa_totp_verify_enabled, true);
+});
+
 test("with SMTP, auth settings install the code template and the sender", () => {
   const withSmtp = authSettings({
     siteUrl: "https://x.github.io/app/", otpTemplate: "{{ .Token }}",

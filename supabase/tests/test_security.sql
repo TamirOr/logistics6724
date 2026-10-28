@@ -78,3 +78,13 @@ reset role;
 set role service_role;
 select tst.ok((select count(*) from server_configs(array['cron_secret', 'functions_url'])) = 2, 'service role reads several configs');
 reset role;
+
+-- F2: admin rights need a second factor (aal2) -------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000001', 'aal1');
+select tst.ok(not is_admin(), 'an admin with only the email code is not an admin');
+select tst.fails($$select approve_user('10000000-0000-0000-0000-000000000006')$$, 'aal1 admin approves a user');
+select tst.ok((select count(*) from users) = 1, 'aal1 admin reads only their own profile');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select tst.ok(is_admin(), 'an admin with aal2 is an admin');
+select tst.ok((select count(*) from users) > 1, 'aal2 admin reads all profiles');

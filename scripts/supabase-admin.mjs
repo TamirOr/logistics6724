@@ -85,6 +85,10 @@ export function authSettings({ siteUrl, otpTemplate, smtp = null }) {
     // of them behind one carrier address; low enough to stop guessing.
     rate_limit_otp: 30,
     rate_limit_verify: 30,
+    // Admin rights need a TOTP second factor (is_admin() checks aal2).
+    // Included on the free plan.
+    mfa_totp_enroll_enabled: true,
+    mfa_totp_verify_enabled: true,
   };
   if (smtp) {
     Object.assign(settings, {
