@@ -175,7 +175,6 @@ export function ItemAdder({ supplierId, onAdd }: Props) {
           <input
             className="input measure-field"
             dir="auto"
-            placeholder={t.measurePlaceholder}
             aria-label={t.measure}
             value={measure}
             maxLength={MEASURE_MAX_LENGTH}

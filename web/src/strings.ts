@@ -106,7 +106,6 @@ export const t = {
   quantity: "כמות",
   itemName: "שם פריט",
   measure: "יחידת מידה",
-  measurePlaceholder: "יחידה",
   noMeasure: "ללא יחידה",
   newMeasure: "+ יחידה חדשה",
   add: "הוספה",
