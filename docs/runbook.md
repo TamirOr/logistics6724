@@ -174,6 +174,26 @@ select s.supplier_id, u.name from user_suppliers s join units u on u.id = s.supp
 
 Fix: admin → משתמשים → יחידות אספקה on their row, tick the unit, save. Moving a user (העברה ליחידה) leaves them in only the new unit.
 
+### An admin lost their authenticator app
+
+Admin rights need the app's code on every sign-in, so a lost phone locks the admin out of admin screens (nothing else changes). In the Supabase dashboard → Authentication → Users, open the admin, and under MFA factors delete the TOTP factor. On the next sign-in the app shows a new QR code. Check first that the request really comes from that admin, by phone or in person: this is the one step that bypasses the second factor.
+
+### "The sign-up form shows no units" / "wrong join code"
+
+New users need the battalion's join code (10 digits) before the form lists units. An admin finds it under מנהלים וספקים. If it was replaced, users who already signed up are not affected; only new sign-ups need the new code.
+
+### Health run fails with `privilege drift`
+
+The health workflow runs `privilege_drift()` against each project. It lists every function anon or authenticated can run beyond the allowlist, every table without row-level security, any anon grant on a table or view, and any view that runs as its owner. In the CI tests the list is empty, so a line here means the live project changed outside the migrations (a dashboard edit, a function created in the SQL editor, a platform default).
+
+```sql
+select * from privilege_drift();
+```
+
+- `authenticated can execute <fn>` for a function the app does not call: `revoke execute on function <fn> from authenticated, anon, public;`.
+- A function the app does need: it was added without a migration. Write the migration, with its grant, and add it to the allowlist in `privilege_drift()` (a new migration that replaces the function).
+- `no row-level security on <table>`: `alter table <table> enable row level security;`, then add its policies in a migration.
+
 ## Procedures
 
 ### VAPID mismatch after a key change
