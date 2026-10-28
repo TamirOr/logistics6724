@@ -88,3 +88,33 @@ select tst.ok((select count(*) from users) = 1, 'aal1 admin reads only their own
 select tst.act('10000000-0000-0000-0000-000000000001');
 select tst.ok(is_admin(), 'an admin with aal2 is an admin');
 select tst.ok((select count(*) from users) > 1, 'aal2 admin reads all profiles');
+
+-- F4: the unit roster needs approval or the join code --------------------------
+reset role;
+insert into auth.users (id, email) values ('10000000-0000-0000-0000-0000000000f1', 'stranger@x.il');
+update app_config set value = '1234567890' where key = 'join_code';
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-0000000000f1');
+select tst.ok((select count(*) from units) = 0, 'a stranger sees no units');
+select tst.fails($$select * from signup_units('0000000000')$$, 'a wrong join code lists units');
+select tst.fails($$select * from signup_units(null)$$, 'no join code lists units');
+-- Spaces around a pasted code do not matter.
+create temp table tst_signup as select * from signup_units(' 1234567890 ');
+reset role;
+select tst.ok((select count(*) from tst_signup) = (select count(*) from units where active)
+  and (select count(*) from tst_signup) > 0, 'the right join code lists every active unit');
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok((select count(*) from units) > 0, 'an approved user sees units');
+select tst.fails($$select join_code()$$, 'a customer reads the join code');
+select tst.fails($$select rotate_join_code()$$, 'a customer rotates the join code');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select tst.act('10000000-0000-0000-0000-000000000001', 'aal1');
+select tst.fails($$select join_code()$$, 'an admin without the second factor reads the join code');
+select tst.act('10000000-0000-0000-0000-000000000001');
+select tst.ok(join_code() = '1234567890', 'an admin reads the join code');
+select tst.ok(rotate_join_code() ~ '^[0-9]{10}$', 'rotation returns a new ten-digit code');
+select tst.ok(join_code() <> '1234567890', 'rotation replaces the code');
+select tst.act('10000000-0000-0000-0000-0000000000f1');
+select tst.fails($$select * from signup_units('1234567890')$$, 'the old join code stops working');
+reset role;
