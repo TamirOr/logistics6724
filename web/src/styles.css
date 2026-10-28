@@ -198,6 +198,8 @@ h2 { font-size: 1.15rem; margin: 0; }
 .req-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .req-sub { flex-basis: 100%; padding-inline-start: 4px; font-size: 0.9rem; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .req-note { flex-basis: 100%; padding-inline-start: 4px; color: var(--note); font-size: 0.95rem; }
+.req-note-customer { color: inherit; }
+.req-note-label { font-weight: 600; }
 .req-ready { background: linear-gradient(to left, var(--ready-bg), transparent 60%); }
 .req-partial { background: linear-gradient(to left, var(--partial-bg), transparent 60%); }
 .req-missing { background: linear-gradient(to left, var(--missing-bg), transparent 60%); }

@@ -17,6 +17,7 @@ export interface ExportRow {
   status: RequestStatus;
   urgent: boolean;
   supplier_note: string | null;
+  customer_note: string | null;
   updated_at: string;
 }
 
@@ -40,6 +41,9 @@ export const REQUEST_COLUMNS = [
   { header: "עודכן לאחרונה", key: "updated", width: 18 },
   // Lets the archive job see which events a monthly file already holds.
   { header: "מזהה אירוע", key: "event_id", width: 38, hidden: true },
+  // Added later, so it goes last: the archive reopens monthly files written
+  // with the columns above, and they must keep their positions.
+  { header: "הערת פלוגה", key: "customer_note", width: 30 },
 ];
 
 export function formatDateTime(iso: string, timeZone = TIMEZONE): string {
@@ -69,6 +73,7 @@ export function addRequestRows(ws: Worksheet, rows: ExportRow[]): void {
       note: r.supplier_note ?? "",
       updated: formatDateTime(r.updated_at),
       event_id: r.event_id,
+      customer_note: r.customer_note ?? "",
     });
   }
 }

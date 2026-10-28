@@ -1,8 +1,9 @@
-// One request as the company sees it: quantity, item, status, supplier note.
+// One request as the company sees it: quantity, item, status, notes.
 // Editable on the customer event screen (tap to edit, urgent toggle);
 // read-only in past events.
 import type { Item, Request } from "../lib/types";
 import { isClosed, setUrgent } from "../lib/requests";
+import { RequestNotes } from "./RequestNotes";
 import { StatusBadge } from "./StatusBadge";
 import { t } from "../strings";
 
@@ -29,7 +30,7 @@ export function RequestRow({ request: r, item, editable, onOpen }: Props) {
       {r.status === "partial" && r.supplied_quantity != null && (
         <div className="req-sub">{t.suppliedOf(r.supplied_quantity, r.quantity)}</div>
       )}
-      {r.supplier_note && <div className="req-note user-text" dir="auto">{r.supplier_note}</div>}
+      <RequestNotes request={r} />
     </li>
   );
 }

@@ -149,6 +149,22 @@ update requests set status = 'ready' where id = '20000000-0000-0000-0000-0000000
 select tst.ok(not changed_after_handling, 'supplier status change clears flag')
 from requests where id = '20000000-0000-0000-0000-000000000001';
 
+-- Customer note: the company writes it, the supplier only reads it.
+select tst.act('10000000-0000-0000-0000-000000000002');
+update requests set customer_note = '  מידה L  ' where id = '20000000-0000-0000-0000-000000000001';
+select tst.ok(customer_note = 'מידה L' and status = 'ready' and not changed_after_handling,
+  'customer note is trimmed and leaves a handled request as it was')
+from requests where id = '20000000-0000-0000-0000-000000000001';
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.ok((select customer_note from requests where id = '20000000-0000-0000-0000-000000000001') = 'מידה L',
+  'supplier reads the customer note');
+select tst.fails($$update requests set customer_note = 'x' where id = '20000000-0000-0000-0000-000000000001'$$,
+  'supplier cannot write customer note');
+select tst.act('10000000-0000-0000-0000-000000000002');
+update requests set customer_note = ' ' where id = '20000000-0000-0000-0000-000000000001';
+select tst.ok(customer_note is null, 'a blank customer note clears it')
+from requests where id = '20000000-0000-0000-0000-000000000001';
+
 -- Kitchen marks its request ready.
 select tst.act('10000000-0000-0000-0000-000000000005');
 update requests set status = 'ready' where id = '20000000-0000-0000-0000-000000000003';
@@ -158,6 +174,8 @@ select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok(mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a1') = 2, 'pickup two');
 select restore_request('20000000-0000-0000-0000-000000000002');
 select tst.ok(status = 'partial', 'unmark returns to partial') from requests where id = '20000000-0000-0000-0000-000000000002';
+select tst.fails($$update requests set customer_note = 'x' where id = '20000000-0000-0000-0000-000000000001'$$,
+  'customer cannot note a collected request');
 select mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a1');
 select tst.ok((select status from events where id = (select v from tst.t where k = 'ev1')) = 'open', 'still open with kitchen ready');
 select mark_collected((select v from tst.t where k = 'list1'), '00000000-0000-0000-0000-0000000000a2');
