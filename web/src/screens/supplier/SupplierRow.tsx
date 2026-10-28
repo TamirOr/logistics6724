@@ -1,4 +1,5 @@
 // One request in the supplier's by-company view. One tap marks it ready.
+import { RequestNotes } from "../../components/RequestNotes";
 import { StatusBadge } from "../../components/StatusBadge";
 import type { Item, MergeSuggestion, Request } from "../../lib/types";
 import { t } from "../../strings";
@@ -33,7 +34,7 @@ export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAck
       {r.status === "partial" && r.supplied_quantity != null && (
         <div className="req-sub">{t.suppliedOf(r.supplied_quantity, r.quantity)}</div>
       )}
-      {r.supplier_note && <div className="req-note user-text" dir="auto">{r.supplier_note}</div>}
+      <RequestNotes request={r} />
       {item && !item.verified && (
         <div className="req-sub merge-hint">
           <span className="tag tag-new">{t.newTag}</span>

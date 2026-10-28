@@ -91,6 +91,7 @@ export interface Request {
   previous_status: RequestStatus | null;
   supplied_quantity: number | null;
   supplier_note: string | null;
+  customer_note: string | null;
   changed_after_handling: boolean;
   created_at: string;
   updated_at: string;

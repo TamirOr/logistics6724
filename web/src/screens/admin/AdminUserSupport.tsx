@@ -1,11 +1,15 @@
-// One user, for support calls: their devices, the notifications that should
-// have reached them, and the changes they made.
+// One user's page: their profile, then for support calls their devices, the
+// notifications that should have reached them, and the changes they made.
+// The profile comes from the users list, so it shows even if the support
+// call fails.
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { formatDateTime } from "../../../../supabase/functions/_shared/excel.ts";
 import { Layout } from "../../components/Layout";
 import { fetchUserSupport } from "../../lib/api";
+import { useUnits } from "../../lib/live";
 import type { UserSupport } from "../../lib/types";
+import { UserFields } from "./UserFields";
 import { useUsers } from "./useUsers";
 import { t } from "../../strings";
 
@@ -14,16 +18,24 @@ const when = (iso: string | null) => (iso ? formatDateTime(iso) : t.never);
 export function AdminUserSupport() {
   const { id = "" } = useParams();
   const { users } = useUsers();
+  const units = useUnits();
   const [support, setSupport] = useState<UserSupport | null>(null);
   useEffect(() => {
     fetchUserSupport(id).then(setSupport).catch(() => setSupport(null));
   }, [id]);
 
   const user = users?.find((u) => u.id === id);
-  const title = user ? `${t.support}: ${user.first_name} ${user.last_name}` : t.support;
+  const title = user ? `${user.first_name} ${user.last_name}` : t.support;
 
   return (
     <Layout title={title} back>
+      {user && (
+        <>
+          <h2 className="section-title">{t.profile}</h2>
+          <UserFields user={user} units={units} />
+          {!user.active && <p><span className="tag">{t.inactive}</span></p>}
+        </>
+      )}
       {!support && <p className="muted">{t.loading}</p>}
       {support && (
         <>

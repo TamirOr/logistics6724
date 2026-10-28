@@ -5,7 +5,7 @@ const enqueue = vi.fn((..._args: unknown[]) => "entry-id");
 const cancel = vi.fn();
 vi.mock("./queue", () => ({ enqueue: (...a: unknown[]) => enqueue(...a), cancel: (id: string) => cancel(id) }));
 
-const { collectSection, deleteRequest, setQuantity, setStatus, UNDO_DELAY_MS } = await import("./requests");
+const { collectSection, deleteRequest, setCustomerNote, setQuantity, setStatus, UNDO_DELAY_MS } = await import("./requests");
 const lastEffects = () => enqueue.mock.calls.at(-1)![1] as { patch?: Record<string, unknown>; remove?: true }[];
 
 beforeEach(() => {
@@ -29,6 +29,24 @@ describe("setQuantity", () => {
   it("ignores no-op and invalid quantities", () => {
     setQuantity(makeRequest({ quantity: 5 }), 5);
     setQuantity(makeRequest(), 0);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe("setCustomerNote", () => {
+  it("trims the note and leaves the status alone, as the server does", () => {
+    setCustomerNote(makeRequest({ status: "ready" }), "  מידה L ");
+    expect(lastEffects()[0].patch).toEqual({ customer_note: "מידה L" });
+  });
+
+  it("stores a blank note as null", () => {
+    setCustomerNote(makeRequest({ customer_note: "מידה L" }), "   ");
+    expect(lastEffects()[0].patch).toEqual({ customer_note: null });
+  });
+
+  it("skips an unchanged note", () => {
+    setCustomerNote(makeRequest({ customer_note: "מידה L" }), "מידה L ");
+    setCustomerNote(makeRequest(), "");
     expect(enqueue).not.toHaveBeenCalled();
   });
 });
