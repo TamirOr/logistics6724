@@ -6,6 +6,9 @@ import { t } from "../strings";
 const KNOWN_REASONS: [RegExp, string][] = [
   [/items_active_name_unique/, t.errItemNameTaken],
   [/item is hidden by the supplier/, t.errItemHidden],
+  [/wrong join code/, t.errWrongJoinCode],
+  [/daily limit of new items reached/, t.errDailyItemLimit],
+  [/violates check constraint "\w+_length"/, t.errTooLong],
 ];
 
 const reasonOf = (error: unknown): string =>

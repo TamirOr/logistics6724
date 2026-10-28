@@ -41,6 +41,9 @@ export const t = {
   supplierUnitsHint: "אפשר לבחור יותר מאחת, למשל מטבח וגם סגירות.",
   pickAtLeastOneUnit: "בחרו לפחות יחידה אחת",
   supplierUnit: "יחידת אספקה",
+  joinCode: "קוד הצטרפות לגדוד",
+  joinCodeHint: "10 ספרות. מקבלים אותו ממנהל המערכת.",
+  joinCodeContinue: "המשך",
   submit: "שליחה",
   waitingTitle: "ממתין לאישור",
   waitingBody: "מנהל המערכת יאשר את החשבון בקרוב. תקבלו התראה כשהחשבון יאושר.",
@@ -199,6 +202,9 @@ export const t = {
   genericError: "משהו השתבש. נסו שוב.",
   errItemNameTaken: "כבר יש בקטלוג פריט בשם הזה.",
   errItemHidden: "הפריט הוסתר על ידי גורם האספקה. בחרו פריט אחר או פנו אליו.",
+  errWrongJoinCode: "קוד ההצטרפות שגוי. בדקו אותו מול מנהל המערכת.",
+  errDailyItemLimit: "הפלוגה הוסיפה היום את מספר הפריטים החדשים המרבי. בחרו פריט קיים או נסו מחר.",
+  errTooLong: "הטקסט ארוך מדי. קצרו אותו ונסו שוב.",
   nameTakenMerge: (name: string) => `כבר יש פריט בשם "${name}". למזג אליו?`,
   loading: "טוען…",
 
@@ -276,4 +282,8 @@ export const t = {
   accessReview: "מנהלים וספקים",
   accessReviewHint: "בדקו מדי פעם שלכל מי שברשימה עדיין צריכה להיות גישה.",
   lastChange: "שינוי אחרון",
+  joinCodeTitle: "קוד הצטרפות",
+  joinCodeAdminHint: "משתמשים חדשים צריכים את הקוד כדי לבחור יחידה בהרשמה. החליפו אותו אם דלף, וגם פעם בחודש.",
+  rotateJoinCode: "החלפת הקוד",
+  rotateJoinCodeConfirm: "להחליף את קוד ההצטרפות? הקוד הישן יפסיק לעבוד.",
 };
