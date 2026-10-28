@@ -27,6 +27,8 @@ export type Effect =
 
 export interface QueueEntry {
   id: string;
+  /** When the user made the change. Missing on entries saved by older builds. */
+  createdAt?: number;
   mutation: Mutation;
   effects: Effect[];
   notBefore: number;
@@ -34,7 +36,8 @@ export interface QueueEntry {
 }
 
 type CommitListener = (entry: QueueEntry, data: unknown) => void;
-type RejectListener = (entry: QueueEntry, message: string) => void;
+/** code is the Postgres error code, when the server sent one. */
+type RejectListener = (entry: QueueEntry, message: string, code: string | undefined) => void;
 
 const STORAGE_PREFIX = "write-queue-v1:";
 const MAX_BACKOFF_MS = 30_000;
@@ -42,6 +45,7 @@ const MAX_BACKOFF_MS = 30_000;
 let userId: string | null = null;
 let entries: QueueEntry[] = [];
 let flushing = false;
+let paused = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const changeListeners = new Set<() => void>();
 const commitListeners = new Set<CommitListener>();
@@ -75,6 +79,15 @@ export function setQueueUser(next: string | null) {
   scheduleFlush();
 }
 
+/**
+ * Holds every write on the phone while this build is older than the
+ * server's min_client_version; the reloaded build sends them.
+ */
+export function setQueuePaused(next: boolean) {
+  paused = next;
+  if (!paused) scheduleFlush();
+}
+
 /** Drops the signed-in user's unsent writes. Used on an explicit sign-out. */
 export function clearQueue() {
   setEntries([]);
@@ -83,7 +96,8 @@ export function clearQueue() {
 /** Queues a write. With delayMs it waits that long, so cancel() can undo it. */
 export function enqueue(mutation: Mutation, effects: Effect[] = [], delayMs = 0): string {
   const id = crypto.randomUUID();
-  setEntries([...entries, { id, mutation, effects, notBefore: Date.now() + delayMs, tries: 0 }]);
+  const now = Date.now();
+  setEntries([...entries, { id, createdAt: now, mutation, effects, notBefore: now + delayMs, tries: 0 }]);
   scheduleFlush(delayMs);
   return id;
 }
@@ -189,7 +203,7 @@ function retryLater(entry: QueueEntry) {
 }
 
 async function flush() {
-  if (flushing || !userId) return;
+  if (flushing || paused || !userId) return;
   flushing = true;
   const owner = userId;
   try {
@@ -218,7 +232,7 @@ async function flush() {
         break;
       } else {
         setEntries(without(entry));
-        rejectListeners.forEach((l) => l(entry, error.message));
+        rejectListeners.forEach((l) => l(entry, error.message ?? "", error.code));
       }
     }
   } finally {

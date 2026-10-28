@@ -1,0 +1,31 @@
+# A pull request that adds a destructive migration (drop, rename, column
+# type change, truncate) needs the db-breaking label (see docs/runbook.md).
+# Its own workflow so adding or removing the label runs it again: a re-run
+# of an earlier run would still see the labels that run started with.
+name: Migration guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check new migrations
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          files=$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- 'supabase/migrations/*.sql')
+          [ -z "$files" ] && { echo "no new migrations"; exit 0; }
+          node scripts/migration-check.mjs "$LABELS" $files

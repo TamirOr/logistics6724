@@ -1,0 +1,40 @@
+# Every 30 minutes: is each project up and healthy? Fails the run when a
+# threshold in health_report() is crossed, and GitHub emails the failure to
+# whoever last changed this schedule (the repository owner). Calling the
+# database this often also keeps a free project from pausing; this replaces
+# the old keepalive workflow.
+#
+# The repository is public, so the log shows check names and numbers only.
+# What each failing check means and how to fix it: docs/runbook.md.
+name: Health
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [production, staging]
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      STAGING_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+      HEALTH_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Health report
+        run: |
+          if [ "$HEALTH_TARGET" = production ]; then ref="$PRODUCTION_REF"; else ref="$STAGING_REF"; fi
+          if [ -z "$ref" ]; then echo "::notice::$HEALTH_TARGET is not configured"; exit 0; fi
+          SUPABASE_PROJECT_REF="$ref" node scripts/supabase-admin.mjs health

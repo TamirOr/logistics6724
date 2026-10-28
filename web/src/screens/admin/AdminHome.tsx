@@ -1,4 +1,5 @@
-// Pending sign-ups on top, then open events and the battalion event button.
+// System health and pending sign-ups on top, then open events and the
+// battalion event button.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { EventCard } from "../../components/EventCard";
@@ -10,6 +11,7 @@ import { approveUser, rejectUser } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import type { Profile } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
+import { HealthStrip } from "./HealthStrip";
 import { useUsers } from "./useUsers";
 import { t } from "../../strings";
 
@@ -33,6 +35,7 @@ export function AdminHome() {
       nav={[{ to: "/users", label: t.users }, { to: "/units", label: t.units }, { to: "/history", label: t.history }]}
       bottom={<button className="btn btn-primary btn-big" onClick={() => navigate("/events/new")}>{t.scopeBattalion}</button>}
     >
+      <HealthStrip />
       <PushPrompt />
       <h2 className="section-title">{t.pendingSignups}</h2>
       {pending.length === 0 && <p className="muted">{t.noPendingSignups}</p>}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  annotation, authSettings, formatStatus, generateVapidKeys, smtpFromEnv, sqlLiteral, STATUS_CHECKS,
+  annotation, authSettings, copyRowCounts, formatHealth, formatStatus, generateVapidKeys, smtpFromEnv, sqlLiteral, STATUS_CHECKS,
 } from "./supabase-admin.mjs";
 
 // web-push rejects keys that are not exactly these sizes.
@@ -23,6 +23,13 @@ test("without SMTP, auth settings leave the email template alone", () => {
   assert.equal(base.mailer_otp_length, 6);
   assert.equal(base.mailer_templates_magic_link_content, undefined);
   assert.equal(base.smtp_host, undefined);
+  assert.equal(base.rate_limit_email_sent, undefined);
+});
+
+test("auth settings always limit code requests and checks per IP", () => {
+  const base = authSettings({ siteUrl: "https://x.github.io/app/", otpTemplate: "", smtp: null });
+  assert.equal(base.rate_limit_otp, 30);
+  assert.equal(base.rate_limit_verify, 30);
 });
 
 test("with SMTP, auth settings install the code template and the sender", () => {
@@ -34,6 +41,7 @@ test("with SMTP, auth settings install the code template and the sender", () => 
   assert.equal(withSmtp.mailer_templates_confirmation_content, "{{ .Token }}");
   assert.equal(withSmtp.smtp_host, "smtp.gmail.com");
   assert.equal(withSmtp.smtp_port, "587");
+  assert.equal(withSmtp.rate_limit_email_sent, 60);
 });
 
 test("annotation keeps a multi-line error on one workflow command line", () => {
@@ -77,4 +85,37 @@ test("status checks never select personal or secret columns", () => {
   for (const [, query] of STATUS_CHECKS) {
     assert.doesNotMatch(query, /\b(email|first_name|last_name|service_number|endpoint|p256dh|auth|value|command)\b/i);
   }
+});
+
+test("formatHealth prints pass or fail, value and limit per check", () => {
+  const lines = formatHealth({
+    ok: false,
+    checks: [
+      { name: "db_size_mb", value: 12.5, max: 400, ok: true },
+      { name: "backup_last_ok_hours", value: null, max: 26, ok: true },
+      { name: "outbox_oldest_unsent_minutes", value: 31, max: 10, ok: false },
+    ],
+  });
+  assert.equal(lines, [
+    "PASS db_size_mb = 12.5 (max 400)",
+    "PASS backup_last_ok_hours = - (max 26)",
+    "FAIL outbox_oldest_unsent_minutes = 31 (max 10)",
+  ].join("\n"));
+});
+
+test("copyRowCounts counts the rows of each COPY block", () => {
+  const dump = [
+    "SET statement_timeout = 0;",
+    'COPY auth.users (id, email) FROM stdin;',
+    "1\ta@x.il",
+    "2\tb@x.il",
+    "\\.",
+    "",
+    'COPY public.units (id, name) FROM stdin;',
+    "\\.",
+    'COPY public."audit_log" (id) FROM stdin;',
+    "7",
+    "\\.",
+  ].join("\n");
+  assert.deepEqual([...copyRowCounts(dump)], [["auth.users", 2], ["public.units", 0], ['public."audit_log"', 1]]);
 });

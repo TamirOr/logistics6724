@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 // Service worker: caches the app shell so it opens with no signal, shows
-// push notifications, and opens the right screen when one is tapped.
+// push notifications, and opens the right screen when one is tapped. A new
+// version waits until the app asks it to take over (see lib/appUpdate.ts).
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
 import { NavigationRoute, registerRoute } from "workbox-routing";
 
@@ -8,10 +9,19 @@ declare const self: ServiceWorkerGlobalScope;
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`)));
+// Staging lives under the production app's path (/<repo>/staging/) with its
+// own worker; the production worker must not answer for it.
+registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`), {
+  denylist: [new RegExp(`^${import.meta.env.BASE_URL}staging/`)],
+}));
 
-self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+  // The diagnostics screen shows which build the worker serves.
+  if (event.data?.type === "GET_VERSION") event.ports[0]?.postMessage(import.meta.env.VITE_APP_VERSION || "dev");
+});
 
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};

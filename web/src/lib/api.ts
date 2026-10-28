@@ -3,7 +3,8 @@
 // edits go through lib/requests.ts instead, so they work offline.
 import { supabase } from "./supabase";
 import type {
-  EventScope, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion, Profile, Unit, UserRole,
+  AccessReviewRow, EventScope, HealthReport, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
+  Profile, Unit, UserRole, UserSupport,
 } from "./types";
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -126,6 +127,14 @@ export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user
 export const setUserActive = (id: string, active: boolean) => rpc<void>("set_user_active", { p_user: id, p_active: active });
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
 
+/** Pass or fail per health check, with the metrics behind them. Admins only. */
+export const fetchAdminHealth = () => rpc<HealthReport>("admin_health");
+
+/** One user's devices, notifications and recent changes. Admins only. */
+export const fetchUserSupport = (id: string) => rpc<UserSupport | null>("user_support", { p_user: id });
+
+export const fetchAccessReview = () => rpc<AccessReviewRow[]>("access_review");
+
 export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
   const { error } = unit.id
     ? await supabase.from("units").update(unit).eq("id", unit.id)
@@ -146,6 +155,16 @@ export const savePushSubscription = (sub: PushSubscriptionJSON) =>
   rpc<void>("register_push_subscription", {
     p_endpoint: sub.endpoint, p_p256dh: sub.keys?.p256dh, p_auth: sub.keys?.auth, p_user_agent: navigator.userAgent,
   });
+
+/** The id of this device's subscription row, if the signed-in user has one. */
+export async function fetchPushSubscriptionId(endpoint: string): Promise<string | null> {
+  const { data, error } = await supabase.from("push_subscriptions").select("id").eq("endpoint", endpoint).maybeSingle();
+  if (error) throw error;
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+/** Queues a push to the caller only, at most once a minute. */
+export const sendTestNotification = () => rpc<void>("send_test_notification");
 
 export async function deletePushSubscription(endpoint: string) {
   const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);

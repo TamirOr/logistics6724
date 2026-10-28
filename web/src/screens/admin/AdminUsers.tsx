@@ -1,6 +1,8 @@
 // Every user, with deactivate and move to another unit, company or
-// supplier (the server changes the role to match).
+// supplier (the server changes the role to match). A name opens the
+// user's support view.
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
@@ -22,12 +24,12 @@ export function AdminUsers() {
   const unitName = (id: string | null) => units.find((u) => u.id === id)?.name ?? "";
 
   return (
-    <Layout title={t.users} back>
+    <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
       <ul className="req-list">
         {users?.filter((u) => u.approval === "approved").map((u) => (
           <li key={u.id} className={`req ${u.active ? "" : "req-cancelled"}`}>
             <div className="req-main">
-              <span className="req-name" dir="auto">{u.first_name} {u.last_name}</span>
+              <Link className="req-name" dir="auto" to={`/users/${u.id}`}>{u.first_name} {u.last_name}</Link>
               <span className="muted">{t.roleLabels[u.role]} {unitName(u.unit_id)}</span>
               {u.id === me.id && <span className="tag">{t.me}</span>}
               {!u.active && <span className="tag">{t.inactive}</span>}

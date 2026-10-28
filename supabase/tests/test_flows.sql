@@ -261,9 +261,9 @@ select tst.act('10000000-0000-0000-0000-000000000003');
 select tst.ok((select count(*) from events) = 0, 'deactivated user sees nothing');
 reset role;
 
--- Keepalive works for anon, which can read no table ----------------------------
+-- The health probe works for anon, which can read no table ------------------------
 set role anon;
-select tst.ok(keepalive() is not null, 'anon keepalive');
+select tst.ok(health() = '{"ok": true}', 'anon health probe');
 select tst.fails($$select * from units$$, 'anon cannot read units');
 reset role;
 

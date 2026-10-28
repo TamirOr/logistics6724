@@ -1,7 +1,7 @@
 // Sends pending Web Push notifications. Runs every minute from pg_cron,
 // and right away when a notification is queued (see wake_dispatcher).
 import webpush from "npm:web-push@3.6.7";
-import { authorized, json, serverConfigs, serviceClient } from "../_shared/env.ts";
+import { serveJob } from "../_shared/job.ts";
 import { APP_NAME } from "../_shared/labels.ts";
 
 interface Subscription { subscription_id: string; endpoint: string; p256dh: string; auth: string }
@@ -21,22 +21,18 @@ async function sendTo(s: Subscription, payload: string): Promise<"delivered" | "
   }
 }
 
-Deno.serve(async (req) => {
-  const db = serviceClient();
-  const config = await serverConfigs(db, ["cron_secret", "site_url", "vapid_public_key", "vapid_private_key"]);
-  if (!authorized(req, config.cron_secret)) return json({ error: "unauthorized" }, 401);
-
+serveJob("push-dispatch", ["site_url", "vapid_public_key", "vapid_private_key"], async (db, config) => {
   // The deploy workflow generates the keys and stores them in app_config.
   // The subject identifies the sender to push services; the site URL does.
   webpush.setVapidDetails(config.site_url ?? "mailto:admin@example.invalid", config.vapid_public_key!, config.vapid_private_key!);
 
+  // A failed flush delays grouped "missing" notifications; the rest still go out.
   const { error: flushError } = await db.rpc("flush_missing_queue");
-  if (flushError) console.error("flush_missing_queue", flushError);
 
   const { data: rows, error } = await db.rpc("claim_outbox", { p_limit: 100 });
-  if (error) return json({ error: error.message }, 500);
+  if (error) throw error;
 
-  let sent = 0;
+  const summary = { claimed: rows?.length ?? 0, sent: 0, failed: 0, removed: 0 };
   for (const row of rows ?? []) {
     const { data: subs, error: subsError } = await db.rpc("outbox_subscriptions", { p_outbox: row.id });
     if (subsError) {
@@ -45,21 +41,29 @@ Deno.serve(async (req) => {
     }
     const payload = JSON.stringify({ title: APP_NAME, body: row.body, url: row.url ?? "/", tag: row.kind });
     // All of a notification's devices at once; a battalion event reaches every customer.
-    const results = await Promise.all((subs as Subscription[] ?? []).map((s) => sendTo(s, payload)));
+    const targets = (subs ?? []) as Subscription[];
+    const results = await Promise.all(targets.map((s) => sendTo(s, payload)));
+    const idsWhere = (outcome: (r: string) => boolean) =>
+      targets.filter((_, i) => outcome(results[i])).map((s) => s.subscription_id);
 
-    const gone = (subs as Subscription[]).filter((_, i) => results[i] === "gone").map((s) => s.subscription_id);
+    const gone = idsWhere((r) => r === "gone");
     if (gone.length) await db.from("push_subscriptions").delete().in("id", gone);
+    const delivered = idsWhere((r) => r === "delivered");
+    if (delivered.length) {
+      await db.from("push_subscriptions").update({ last_success_at: new Date().toISOString() }).in("id", delivered);
+    }
 
-    const delivered = results.filter((r) => r === "delivered").length;
     const transientError = results.find((r) => r !== "delivered" && r !== "gone");
-    sent += delivered;
+    summary.sent += delivered.length;
+    summary.removed += gone.length;
+    summary.failed += results.length - delivered.length - gone.length;
     // Retry only if no device got it, so nobody sees it twice. A row with no
     // subscriptions to reach counts as done.
-    if (transientError && delivered === 0) {
+    if (transientError && delivered.length === 0) {
       await db.rpc("release_outbox", { p_id: row.id, p_error: transientError });
     } else {
       await db.rpc("mark_outbox_sent", { p_id: row.id });
     }
   }
-  return json({ claimed: rows?.length ?? 0, sent });
+  return { summary, error: flushError ? `flush_missing_queue: ${flushError.message}` : undefined };
 });

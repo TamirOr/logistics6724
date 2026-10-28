@@ -1,0 +1,71 @@
+# Nightly encrypted backup of production: the data of the public and auth
+# schemas (the schema itself is the migrations in git), encrypted with age
+# to the public keys in ops/backup-recipients.txt and uploaded to the Google
+# Drive folder the archive uses. Keeps 14 daily and 8 weekly copies.
+#
+# Never a workflow artifact: the repository and its artifacts are public.
+# Also runs before every production deploy (deploy.yml).
+#
+# Secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD,
+# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, DRIVE_FOLDER_ID.
+name: Backup
+
+on:
+  schedule:
+    - cron: "37 1 * * *"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+      BACKUP_TARGET: production
+      DEPLOY_TARGET: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check the recipients file
+        run: |
+          grep -q '^age1' ops/backup-recipients.txt || {
+            echo "::error::ops/backup-recipients.txt has no age public key yet (see docs/runbook.md, Backups)"; exit 1; }
+
+      - name: Install pg_dump 17 and age
+        # pg_dump must be at least the server's major version; 17 dumps 15 and 17.
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 age
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
+      - name: Dump, encrypt, upload
+        run: |
+          umask 077
+          started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          mkdir backup
+          node scripts/supabase-admin.mjs pg -- pg_dump --data-only --schema=public --schema=auth \
+            --exclude-table-data=auth.schema_migrations --no-owner --no-privileges --file=backup/data.sql
+          node scripts/supabase-admin.mjs backup-manifest > backup/manifest.json
+          tar -czf backup.tar.gz -C backup .
+          age --encrypt --recipients-file ops/backup-recipients.txt --output backup.tar.gz.age backup.tar.gz
+          rm -rf backup backup.tar.gz
+          node scripts/drive.mjs upload backup.tar.gz.age
+          node scripts/drive.mjs prune
+          BACKUP_STARTED_AT="$started_at" BACKUP_BYTES="$(stat -c %s backup.tar.gz.age)" \
+            node scripts/supabase-admin.mjs record-backup

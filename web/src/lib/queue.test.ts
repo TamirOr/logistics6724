@@ -88,7 +88,21 @@ describe("queue", () => {
     q.onRejected(rejected);
     q.enqueue({ kind: "update", table: "requests", id: "r1", patch: { quantity: 2 } });
     await flushTimers();
-    expect(rejected).toHaveBeenCalledWith(expect.anything(), "request is closed");
+    expect(rejected).toHaveBeenCalledWith(expect.anything(), "request is closed", "P0001");
+    expect(stored()).toHaveLength(0);
+  });
+
+  it("holds writes while paused and sends them when resumed", async () => {
+    const q = await freshQueue();
+    send.mockResolvedValue({ data: null, error: null });
+    q.setQueuePaused(true);
+    q.enqueue({ kind: "rpc", fn: "mark_collected", args: {} });
+    await flushTimers();
+    expect(send).not.toHaveBeenCalled();
+    expect(stored()).toHaveLength(1);
+    q.setQueuePaused(false);
+    await flushTimers();
+    expect(send).toHaveBeenCalledTimes(1);
     expect(stored()).toHaveLength(0);
   });
 
@@ -195,6 +209,6 @@ describe("queue", () => {
     q.onRejected(rejected);
     q.enqueue({ kind: "update", table: "requests", id: "gone", patch: { urgent: true } });
     await flushTimers();
-    expect(rejected).toHaveBeenCalledWith(expect.anything(), q.UPDATE_MISSED);
+    expect(rejected).toHaveBeenCalledWith(expect.anything(), q.UPDATE_MISSED, "0ROWS");
   });
 });

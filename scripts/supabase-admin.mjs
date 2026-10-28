@@ -6,10 +6,18 @@
 //   node scripts/supabase-admin.mjs anon-key       prints the public anon key
 //   node scripts/supabase-admin.mjs make-admin     promotes ADMIN_EMAIL (signed in once already)
 //   node scripts/supabase-admin.mjs status         reports scheduled jobs, push devices and send errors
+//   node scripts/supabase-admin.mjs health         fails when health_report() is red (counts only, logs are public)
+//   node scripts/supabase-admin.mjs record-backup  records a successful backup in job_runs
+//   node scripts/supabase-admin.mjs rotate-cron-secret   replaces the secret pg_cron and the functions share
+//   node scripts/supabase-admin.mjs seed-staging   loads fake units and catalog (staging only)
+//   node scripts/supabase-admin.mjs pg -- <tool> <args>  runs pg_dump or psql against the project
+//   node scripts/supabase-admin.mjs backup-manifest       prints what a backup holds (no data)
+//   node scripts/supabase-admin.mjs verify-restore <dump> compares row counts with a data dump
 //
 // Environment: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, and for
 // configure SITE_URL plus the optional SMTP_HOST, SMTP_PORT, SMTP_USER,
 // SMTP_PASS, SMTP_SENDER.
+import { spawnSync } from "node:child_process";
 import { createECDH } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -72,9 +80,15 @@ export function authSettings({ siteUrl, otpTemplate, smtp = null }) {
     mailer_autoconfirm: true,
     mailer_otp_length: 6,
     mailer_otp_exp: 600,
+    // Sign-in abuse: per IP, per 5 minutes. Generous for 100 users, some
+    // of them behind one carrier address; low enough to stop guessing.
+    rate_limit_otp: 30,
+    rate_limit_verify: 30,
   };
   if (smtp) {
     Object.assign(settings, {
+      // Emails per hour for the whole project. Settable only with a custom sender.
+      rate_limit_email_sent: 60,
       mailer_subjects_magic_link: "קוד הכניסה שלך",
       mailer_templates_magic_link_content: otpTemplate,
       mailer_subjects_confirmation: "קוד הכניסה שלך",
@@ -151,12 +165,15 @@ async function configure(env) {
   if (failures.length) throw new Error(failures.join("\n"));
 }
 
-async function anonKey(env) {
-  const { api } = client(env);
+async function fetchAnonKey({ api }) {
   const keys = await api("GET", "/api-keys");
   const anon = keys.find((k) => k.name === "anon");
   if (!anon) throw new Error("no anon key found");
-  process.stdout.write(anon.api_key);
+  return anon.api_key;
+}
+
+async function anonKey(env) {
+  process.stdout.write(await fetchAnonKey(client(env)));
 }
 
 async function makeAdmin(env) {
@@ -179,6 +196,7 @@ export const STATUS_CHECKS = [
     from cron.job_run_details d join cron.job j using (jobid) order by d.start_time desc limit 5`],
   ["Recent function calls", `select status_code, left(coalesce(error_msg, content::text), 160) as detail, created
     from net._http_response order by created desc limit 5`],
+  ["Recent runs", "select job, ok, finished_at from job_runs order by finished_at desc limit 5"],
   ["Push devices", "select count(*) as devices, count(distinct user_id) as users from push_subscriptions"],
   ["Notifications", `select kind, count(*) filter (where sent_at is not null) as sent,
     count(*) filter (where sent_at is null) as unsent, max(attempts) as max_attempts
@@ -214,7 +232,135 @@ async function status(env) {
   if (env.GITHUB_ACTIONS) console.log(`::notice title=Project status::${annotation(report)}`);
 }
 
-const commands = { configure, "anon-key": anonKey, "make-admin": makeAdmin, status };
+/** One line per check: PASS or FAIL, its value and its limit. Numbers only. */
+export function formatHealth(report) {
+  const number = (v) => (v === null || v === undefined ? "-" : String(v));
+  return report.checks
+    .map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name} = ${number(c.value)} (max ${number(c.max)})`)
+    .join("\n");
+}
+
+/**
+ * The scheduled health check. Calls the anonymous health RPC the way the
+ * uptime monitor does (which also keeps a free project from pausing), then
+ * health_report() through the Management API. Fails the run when red, and
+ * GitHub emails the failure.
+ */
+async function health(env) {
+  const project = client(env);
+  const anon = await fetchAnonKey(project);
+  const res = await fetch(`https://${project.ref}.supabase.co/rest/v1/rpc/health`, {
+    method: "POST",
+    headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (!res.ok) throw new Error(`rpc/health answered ${res.status}: the API is down or the project is paused`);
+
+  const [{ health_report: report }] = await project.sql("select health_report()");
+  const lines = formatHealth(report);
+  console.log(lines);
+  if (env.GITHUB_ACTIONS) console.log(`::notice title=Health (${env.HEALTH_TARGET ?? "project"})::${annotation(lines)}`);
+  if (!report.ok) {
+    const failing = report.checks.filter((c) => !c.ok).map((c) => c.name).join(", ");
+    throw new Error(`unhealthy: ${failing}. See docs/runbook.md`);
+  }
+}
+
+async function recordBackup(env) {
+  const startedAt = new Date(env.BACKUP_STARTED_AT);
+  const bytes = Number(env.BACKUP_BYTES);
+  if (Number.isNaN(startedAt.getTime()) || !Number.isInteger(bytes)) throw new Error("BACKUP_STARTED_AT and BACKUP_BYTES are required");
+  await client(env).sql(`insert into job_runs (job, started_at, ok, summary)
+    values ('backup', ${sqlLiteral(startedAt.toISOString())}, true, jsonb_build_object('bytes', ${bytes}))`);
+}
+
+// pg_cron, wake_dispatcher and the functions all read the secret from
+// app_config when they run, so replacing it there is the whole rotation.
+async function rotateCronSecret(env) {
+  await client(env).sql(`update app_config
+    set value = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') where key = 'cron_secret'`);
+  console.log("cron secret rotated");
+}
+
+async function seedStaging(env) {
+  if (env.DEPLOY_TARGET !== "staging") throw new Error("seed-staging runs only with DEPLOY_TARGET=staging");
+  const seed = await readFile(new URL("../supabase/seed/staging.sql", import.meta.url), "utf8");
+  await client(env).sql(seed);
+  console.log("staging seeded");
+}
+
+/**
+ * libpq settings for the project's session pooler. GitHub runners have no
+ * IPv6, and the direct database host is IPv6-only on the free plan.
+ */
+async function connectionEnv({ api }, env) {
+  if (!env.SUPABASE_DB_PASSWORD) throw new Error("SUPABASE_DB_PASSWORD is required");
+  const poolers = await api("GET", "/config/database/pooler");
+  const pooler = poolers.find((p) => p.database_type === "PRIMARY") ?? poolers[0];
+  if (!pooler) throw new Error("no connection pooler found for the project");
+  return { PGHOST: pooler.db_host, PGPORT: "5432", PGUSER: pooler.db_user, PGDATABASE: pooler.db_name,
+    PGPASSWORD: env.SUPABASE_DB_PASSWORD, PGSSLMODE: "require" };
+}
+
+/** Runs pg_dump or psql with the connection in its environment, so the password never reaches a command line or log. */
+async function pg(env) {
+  const [tool, ...args] = process.argv.slice(process.argv.indexOf("--") + 1);
+  if (!["pg_dump", "psql"].includes(tool)) throw new Error("usage: pg -- pg_dump|psql <args>");
+  const result = spawnSync(tool, args, { stdio: "inherit", env: { ...process.env, ...(await connectionEnv(client(env), env)) } });
+  if (result.status !== 0) throw new Error(`${tool} exited with ${result.status ?? result.signal}`);
+}
+
+/** Which schema version a backup belongs to: restore it onto migrations up to this one. */
+async function backupManifest(env) {
+  const [{ version }] = await client(env).sql("select max(version) as version from supabase_migrations.schema_migrations");
+  process.stdout.write(JSON.stringify({ created_at: new Date().toISOString(), migration: version, target: env.DEPLOY_TARGET }));
+}
+
+/** Rows per table in a pg_dump data file (COPY format). */
+export function copyRowCounts(dump) {
+  const counts = new Map();
+  let table = null;
+  for (const line of dump.split("\n")) {
+    if (table === null) {
+      const copy = /^COPY ([\w."]+) /.exec(line);
+      if (copy) {
+        table = copy[1];
+        counts.set(table, 0);
+      }
+    } else if (line === "\\.") {
+      table = null;
+    } else {
+      counts.set(table, counts.get(table) + 1);
+    }
+  }
+  return counts;
+}
+
+// The restore drill replaces these with the staging project's own (see
+// supabase/restore/finish.sql), so they never match the dump.
+export const NOT_RESTORED = ["public.app_config", "public.push_subscriptions", "public.notification_outbox"];
+
+/** After a restore drill: every table holds as many rows as the dump. Prints counts only. */
+async function verifyRestore(env) {
+  const file = process.argv[3];
+  if (!file) throw new Error("usage: verify-restore <data.sql>");
+  const expected = copyRowCounts(await readFile(file, "utf8"));
+  const { sql } = client(env);
+  const mismatches = [];
+  for (const [table, rows] of expected) {
+    if (NOT_RESTORED.includes(table.replaceAll('"', ""))) continue;
+    const [{ count }] = await sql(`select count(*)::int as count from ${table}`);
+    console.log(`${count === rows ? "ok  " : "DIFF"} ${table}: ${count} of ${rows}`);
+    if (count !== rows) mismatches.push(table);
+  }
+  if (mismatches.length) throw new Error(`row counts differ: ${mismatches.join(", ")}`);
+}
+
+const commands = {
+  configure, "anon-key": anonKey, "make-admin": makeAdmin, status, health,
+  "record-backup": recordBackup, "rotate-cron-secret": rotateCronSecret, "seed-staging": seedStaging,
+  pg, "backup-manifest": backupManifest, "verify-restore": verifyRestore,
+};
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const command = commands[process.argv[2]];

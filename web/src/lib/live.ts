@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isFresh, readCache, writeCache } from "./cache";
+import { noteSynced } from "./diagnostics";
 import { applyEffects, onCommitted, useQueue } from "./queue";
 import type { Item, LogisticsEvent, Unit } from "./types";
 
@@ -68,7 +69,10 @@ export function useLiveRows<T extends { id: string }>(table: string, opts: LiveO
     let q = supabase.from(optsRef.current.source ?? table).select("*").eq(column, value);
     if (optsRef.current.narrow) q = optsRef.current.narrow(q);
     const { data, error } = await q;
-    if (!error) setRows(new Map((data as T[]).map((r) => [r.id, r])));
+    if (!error) {
+      setRows(new Map((data as T[]).map((r) => [r.id, r])));
+      noteSynced();
+    }
     setLoading(false);
   }, [table, column, value]);
 

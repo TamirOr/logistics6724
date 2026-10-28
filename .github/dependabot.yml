@@ -1,0 +1,20 @@
+# Weekly, grouped updates for the web app and the workflow actions. Actions
+# are pinned to commit SHAs; Dependabot moves the pin and the version comment.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      web:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -1,9 +1,14 @@
+# Every test suite. Runs on pull requests, and from the Deploy workflow
+# before anything deploys (pushes to main and v* tags), so a red suite
+# never reaches staging or production.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   database:
@@ -20,7 +25,7 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: supabase/tests/run.sh
 
   web:
@@ -29,22 +34,29 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - name: Build
+        # The build refuses to run without project settings; these are placeholders.
+        env:
+          VITE_SUPABASE_URL: https://ci.supabase.invalid
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+        run: npm run build
 
   scripts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - run: node --test scripts/*.test.mjs
@@ -52,8 +64,28 @@ jobs:
   functions:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: v2.x
       - run: deno check supabase/functions/push-dispatch/index.ts supabase/functions/archive/index.ts
+
+  migrations-dry-run:
+    # Shows which migrations the staging deploy will apply. Skipped until
+    # staging is set up, and for pull requests from forks (no secrets).
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: latest
+      - name: supabase db push --dry-run (staging)
+        run: |
+          if [ -z "$SUPABASE_PROJECT_REF" ]; then echo "::notice::Staging is not configured; skipping the dry run."; exit 0; fi
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push --dry-run
