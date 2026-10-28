@@ -192,3 +192,21 @@ select cancel_event((select v from tst.t where k = 'leaver_event'));
 reset role;
 select tst.ok((select status from events where id = (select v from tst.t where k = 'leaver_event')) = 'cancelled',
   'a creator still in the unit cancels');
+
+-- F9: push endpoints must be a browser push service ------------------------------
+set role authenticated;
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.fails($$select register_push_subscription('http://evil.example/x', 'k', 'a')$$, 'an arbitrary endpoint');
+select tst.fails($$select register_push_subscription('http://fcm.googleapis.com/fcm/send/x', 'k', 'a')$$, 'plain http');
+select tst.fails($$select register_push_subscription('https://fcm.googleapis.com.evil.example/x', 'k', 'a')$$,
+  'a look-alike host');
+select tst.fails($$insert into push_subscriptions (user_id, endpoint, p256dh, auth)
+  values ('10000000-0000-0000-0000-000000000002', 'https://169.254.169.254/latest', 'k', 'a')$$,
+  'a direct insert of an arbitrary endpoint');
+select register_push_subscription('https://fcm.googleapis.com/fcm/send/ok', 'k', 'a');
+select register_push_subscription('https://updates.push.services.mozilla.com/wpush/v2/ok', 'k', 'a');
+select register_push_subscription('https://web.push.apple.com/ok', 'k', 'a');
+select register_push_subscription('https://wns2-par02p.notify.windows.com/w/?token=ok', 'k', 'a');
+select tst.ok((select count(*) from push_subscriptions) = 4, 'the four browser push services are accepted');
+reset role;
+delete from push_subscriptions;

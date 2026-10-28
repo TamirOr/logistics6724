@@ -516,13 +516,13 @@ reset role;
 -- A shared phone's push subscription follows the signed-in user -------------------
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-000000000002');
-select register_push_subscription('https://push.example/abc', 'k', 'a');
+select register_push_subscription('https://fcm.googleapis.com/fcm/send/abc', 'k', 'a');
 select tst.act('10000000-0000-0000-0000-000000000004');
-select register_push_subscription('https://push.example/abc', 'k2', 'a2');
+select register_push_subscription('https://fcm.googleapis.com/fcm/send/abc', 'k2', 'a2');
 select tst.ok((select count(*) from push_subscriptions) = 1, 'the new user owns the phone''s subscription');
 select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok((select count(*) from push_subscriptions) = 0, 'the previous user no longer has it');
 reset role;
-select tst.ok((select user_id from push_subscriptions where endpoint = 'https://push.example/abc')
+select tst.ok((select user_id from push_subscriptions where endpoint = 'https://fcm.googleapis.com/fcm/send/abc')
   = '10000000-0000-0000-0000-000000000004', 'subscription moved');
 delete from push_subscriptions;
