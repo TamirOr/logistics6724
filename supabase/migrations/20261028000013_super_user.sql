@@ -256,7 +256,7 @@ begin
     order by u.role, u.unit_id;
 end $$;
 
--- 20261028000011's list of functions the app may call, plus the four above.
+-- 20261028000012's list of functions the app may call, plus the four above.
 create or replace function privilege_drift() returns setof text
 language sql stable security definer set search_path = public as $$
   with fns as (
@@ -268,7 +268,7 @@ language sql stable security definer set search_path = public as $$
   union all
   select 'authenticated can execute ' || signature from fns
   where has_function_privilege('authenticated', oid, 'execute') and proname not in (
-    'access_review', 'add_item', 'admin_health', 'approve_user', 'cancel_event', 'close_event', 'config',
+    'access_review', 'add_catalog_item', 'add_item', 'admin_health', 'approve_user', 'cancel_event', 'close_event', 'config',
     'create_event', 'customer_request_rules', 'delete_request', 'derive_list_status', 'duplicate_event',
     'escape_like_pattern', 'exact_item', 'find_exact_item', 'health', 'is_admin', 'is_approved', 'is_client',
     'is_super_user', 'item_measure_names', 'join_code',
@@ -276,7 +276,7 @@ language sql stable security definer set search_path = public as $$
     'normalize_he', 'register_profile', 'register_push_subscription', 'reject_user', 'remove_from_unit', 'restore_request',
     'rotate_join_code', 'search_catalog', 'search_items', 'send_test_notification', 'set_super_user', 'set_user_active',
     'set_user_suppliers', 'shares_managed_unit', 'signup_units', 'suggest_items',
-    'supplier_request_rules', 'user_support')
+    'supplier_categories', 'supplier_request_rules', 'user_support')
   union all
   select 'no row-level security on ' || relname from pg_class
   where relnamespace = 'public'::regnamespace and relkind in ('r', 'p') and not relrowsecurity
