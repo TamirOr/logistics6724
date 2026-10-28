@@ -46,12 +46,25 @@ set role service_role;
 select tst.ok((select value from server_configs(array['cron_secret'])) = 's3cr3t', 'service role reads server config');
 reset role;
 
--- Every function anon or authenticated can run is on purpose.
-select tst.ok(not exists (
-  select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')
-    and p.proname not in ('health')
-), 'anon can execute only health');
+-- Every function anon or authenticated can run is on purpose, every table
+-- has RLS, anon holds no grants, every view is security_invoker. The same
+-- check runs against the live projects from the health workflow.
+select tst.ok(not exists (select 1 from privilege_drift()),
+  'privilege drift: ' || coalesce((select string_agg(d, '; ') from privilege_drift() d), ''));
+-- The check itself catches what it should.
+create function public.drift_probe() returns void language sql as 'select';
+grant execute on function public.drift_probe to authenticated;
+create table public.drift_table (id int);
+grant select on public.drift_table to anon;
+select tst.ok((select count(*) from privilege_drift() d
+  where d in ('authenticated can execute drift_probe()', 'no row-level security on drift_table',
+              'anon has a grant on drift_table')) = 3,
+  'privilege_drift reports a stray grant, a table without RLS and an anon grant');
+drop function public.drift_probe();
+drop table public.drift_table;
+set role authenticated;
+select tst.denied($$select * from privilege_drift()$$, 'authenticated runs privilege_drift()');
+reset role;
 
 -- Outbox lifecycle ---------------------------------------------------------------
 truncate notification_outbox;

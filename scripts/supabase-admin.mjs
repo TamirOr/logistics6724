@@ -281,6 +281,19 @@ async function health(env) {
     const failing = report.checks.filter((c) => !c.ok).map((c) => c.name).join(", ");
     throw new Error(`unhealthy: ${failing}. See docs/runbook.md`);
   }
+  await checkPrivileges(project);
+}
+
+/**
+ * The live privilege check: the same privilege_drift() the SQL tests
+ * assert, run on the hosted project, where a dashboard edit or a platform
+ * default could grant what the migrations never did. Function and table
+ * names only.
+ */
+async function checkPrivileges({ sql }) {
+  const drift = (await sql("select privilege_drift() as problem")).map((r) => r.problem);
+  if (drift.length) throw new Error(`privilege drift (docs/runbook.md):\n${drift.join("\n")}`);
+  console.log("PASS privilege_drift = 0");
 }
 
 async function recordBackup(env) {
