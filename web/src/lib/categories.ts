@@ -21,3 +21,12 @@ export function groupByCategory<T>(rows: T[], categoryOf: (row: T) => string | n
 
 /** A list with no categories at all reads as one plain list, with no group titles. */
 export const hasCategories = (groups: CategoryGroup<unknown>[]) => groups.some((g) => g.category !== null);
+
+/**
+ * What a customer's edit adds as the item's category: the typed text, only
+ * while the item has none. The supplier owns a category once it is set.
+ */
+export function categoryToAdd(current: string | null | undefined, typed: string): string | null {
+  if (current) return null;
+  return typed.trim() || null;
+}
