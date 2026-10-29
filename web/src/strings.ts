@@ -143,6 +143,16 @@ export const t = {
   allCategories: "כל הקטגוריות",
   allStatuses: "כל הסטטוסים",
   noRequestsMatch: "אין דרישות שמתאימות לסינון",
+
+  // Comments on a list
+  generalComments: "הערות לכל המחלקות",
+  addComment: "הערה",
+  commentTo: (supplier: string) => `הערה ל${supplier}`,
+  commentToAll: "הערה לכל המחלקות",
+  commentToCompany: (company: string) => `הערה ל${company}`,
+  toAllSuppliers: "לכל המחלקות",
+  deleteComment: "מחיקת הערה",
+  commentDeleted: "ההערה נמחקה",
   // Buttons that set a request's status, on both sides' request sheets.
   markStatus: {
     ready: "מוכן לאיסוף",

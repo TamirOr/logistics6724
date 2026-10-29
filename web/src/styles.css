@@ -224,6 +224,14 @@ h2 { font-size: 1.15rem; margin: 0; }
   border: 1px solid var(--border); color: var(--muted);
 }
 .urgent-toggle.on > span { border-color: var(--danger); background: var(--danger); color: #fff; font-weight: 800; }
+/* List comments. The supplier's in the note color, as with request notes. */
+.comments { margin: 6px 0; }
+.comment-list { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.comment { padding: 6px 10px; border-radius: var(--radius); background: var(--surface-2); }
+.comment-supplier { color: var(--note); }
+.comment-meta { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.comment-writer { font-weight: 700; }
+.comment-delete { min-width: 36px; min-height: 36px; margin-inline-start: auto; font-size: 1.1rem; color: var(--muted); }
 .split { list-style: none; padding: 0 16px 8px; margin: 0; flex-basis: 100%; }
 .split li { padding: 4px 0; display: flex; gap: 10px; }
 

@@ -15,4 +15,13 @@ export function formatDate(iso: string): string {
     .format(new Date(iso));
 }
 
+/** When something was written: "14:05" today, "3.11 14:05" on another day. */
+export function formatWrittenAt(iso: string, now = new Date()): string {
+  const at = new Date(iso);
+  const time = new Intl.DateTimeFormat("he-IL", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+  if (dayKey(at) === dayKey(now)) return time;
+  const day = new Intl.DateTimeFormat("he-IL", { timeZone: TIMEZONE, day: "numeric", month: "numeric" }).format(at);
+  return `${day} ${time}`;
+}
+
 export const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
