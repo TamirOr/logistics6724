@@ -138,6 +138,11 @@ export const t = {
   customerNotePlaceholder: "לדוגמה: מידה L, אפשר גם תחליף",
   supplierNote: "הערת מחלקה",
   changeStatus: "שינוי סטטוס",
+  filterByCategory: "סינון לפי קטגוריה",
+  filterByStatus: "סינון לפי סטטוס",
+  allCategories: "כל הקטגוריות",
+  allStatuses: "כל הסטטוסים",
+  noRequestsMatch: "אין דרישות שמתאימות לסינון",
   // Buttons that set a request's status, on both sides' request sheets.
   markStatus: {
     ready: "מוכן לאיסוף",
