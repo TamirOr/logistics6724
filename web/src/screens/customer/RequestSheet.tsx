@@ -1,18 +1,23 @@
-// Edit, note, delete or unmark one request, and give its item a category
-// if it has none.
+// Edit, note, mark, delete or unmark one request, and give its item a
+// category if it has none.
 import { useState } from "react";
 import { CategoryInput } from "../../components/CategoryInput";
 import { Sheet } from "../../components/Sheet";
 import { QuantityInput } from "../../components/QuantityInput";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { StatusBadge } from "../../components/StatusBadge";
+import { StatusPicker } from "../../components/StatusPicker";
 import { useAction, useToast } from "../../components/Toast";
 import { addItemCategory } from "../../lib/api";
 import { categoryToAdd } from "../../lib/categories";
 import { itemCache } from "../../lib/live";
-import { deleteRequest, isClosed, restoreRequest, setCustomerNote, setQuantity, setUrgent } from "../../lib/requests";
-import type { Item, Request } from "../../lib/types";
+import {
+  deleteRequest, isClosed, markStatus, restoreRequest, setCustomerNote, setQuantity, setUrgent,
+} from "../../lib/requests";
+import type { Item, Request, RequestStatus } from "../../lib/types";
 import { t } from "../../strings";
+
+const CUSTOMER_STATUSES: RequestStatus[] = ["ready", "partial", "missing", "pending", "collected"];
 
 export function RequestSheet({ request: r, item, onClose }: { request: Request; item?: Item; onClose: () => void }) {
   const [quantity, setLocalQuantity] = useState(r.quantity);
@@ -33,6 +38,20 @@ export function RequestSheet({ request: r, item, onClose }: { request: Request; 
     saveCategory();
     onClose();
   };
+  // A status saves the note and category with it, not a changed quantity:
+  // that would send the request back to pending.
+  const mark = (status: RequestStatus, suppliedQuantity: number | null) => {
+    setCustomerNote(r, note);
+    saveCategory();
+    markStatus(r, status, suppliedQuantity);
+    showToast({
+      message: t.statusChanged,
+      onAction: () => (status === "collected"
+        ? restoreRequest({ ...r, status, previous_status: r.status })
+        : markStatus(r, r.status, r.supplied_quantity)),
+    });
+    onClose();
+  };
   const remove = () => {
     const undo = deleteRequest(r);
     showToast({ message: t.deleted, onAction: undo });
@@ -49,6 +68,9 @@ export function RequestSheet({ request: r, item, onClose }: { request: Request; 
           </button>
         ) : (
           <>
+            <div className="field"><span>{t.changeStatus}</span>
+              <StatusPicker request={r} statuses={CUSTOMER_STATUSES} onPick={mark} />
+            </div>
             <QuantityInput value={quantity} onChange={setLocalQuantity} />
             <label className="switch">
               <input type="checkbox" checked={r.urgent} onChange={(e) => setUrgent(r, e.target.checked)} />

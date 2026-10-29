@@ -2,14 +2,14 @@
 // and the item's category, so a new item can be sorted while working.
 import { useState } from "react";
 import { CategoryInput } from "../../components/CategoryInput";
-import { QuantityInput } from "../../components/QuantityInput";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { Sheet } from "../../components/Sheet";
+import { StatusPicker } from "../../components/StatusPicker";
 import { useAction } from "../../components/Toast";
 import { updateItem } from "../../lib/api";
 import { itemCache } from "../../lib/live";
 import { setStatus, setSupplierNote } from "../../lib/requests";
-import type { Item, Request } from "../../lib/types";
+import type { Item, Request, RequestStatus } from "../../lib/types";
 import { t } from "../../strings";
 
 interface Props {
@@ -20,9 +20,9 @@ interface Props {
   onStatusChanged: (before: Request) => void;
 }
 
+const SUPPLIER_STATUSES: RequestStatus[] = ["partial", "missing", "pending"];
+
 export function SupplierRequestSheet({ request: r, item, onClose, onStatusChanged }: Props) {
-  const [askPartial, setAskPartial] = useState(false);
-  const [supplied, setSupplied] = useState(r.supplied_quantity ?? Math.max(1, Math.floor(r.quantity / 2)));
   const [note, setLocalNote] = useState(r.supplier_note ?? "");
   const [category, setCategory] = useState(item?.category ?? "");
   const runAction = useAction();
@@ -32,7 +32,7 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
     if (!item || category.trim() === (item.category ?? "")) return;
     runAction(async () => itemCache.put([await updateItem(item.id, { category: category.trim() || null })]));
   };
-  const change = (status: Request["status"], suppliedQuantity: number | null = null) => {
+  const change = (status: RequestStatus, suppliedQuantity: number | null) => {
     setStatus(r, status, suppliedQuantity);
     if (note !== (r.supplier_note ?? "")) setSupplierNote(r, note);
     saveCategory();
@@ -48,25 +48,8 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
   return (
     <Sheet title={<><RequestQuantity quantity={r.quantity} measure={r.measure} /> <span dir="auto">{item?.name}</span></>} onClose={onClose}>
       <div className="stack">
-        {askPartial ? (
-          <>
-            <label className="field"><span>{t.suppliedQuantity}</span>
-              <QuantityInput value={supplied} onChange={(v) => setSupplied(Math.min(v, r.quantity - 1))} />
-            </label>
-            <button className="btn btn-primary btn-block" disabled={supplied < 1 || supplied >= r.quantity}
-              onClick={() => change("partial", supplied)}>{t.save}</button>
-          </>
-        ) : (
-          <div className="button-grid">
-            {r.quantity > 1 && (
-              <button className="btn btn-warning" onClick={() => setAskPartial(true)}>{t.markPartial}</button>
-            )}
-            <button className="btn btn-danger" onClick={() => change("missing")}>{t.markMissing}</button>
-            {r.status !== "pending" && (
-              <button className="btn btn-secondary" onClick={() => change("pending")}>{t.markPending}</button>
-            )}
-          </div>
-        )}
+        {/* Ready is the row's one tap. */}
+        <StatusPicker request={r} statuses={SUPPLIER_STATUSES} onPick={change} />
         <label className="field"><span>{t.note}</span>
           <textarea className="input" dir="auto" rows={2} placeholder={t.notePlaceholder} value={note}
             onChange={(e) => setLocalNote(e.target.value)} />
