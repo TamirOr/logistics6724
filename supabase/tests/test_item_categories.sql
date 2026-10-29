@@ -60,6 +60,24 @@ insert into tst.t select 'c_milk2', add_catalog_item('00000000-0000-0000-0000-00
 select merge_item((select v from tst.t where k = 'c_milk2'), (select v from tst.t where k = 'c_milk'));
 select tst.ok(category = 'מוצרי חלב', 'merge keeps the target''s category') from items where id = (select v from tst.t where k = 'c_milk');
 
+-- A customer fills in a missing category, spelled like the supplier's.
+insert into tst.t select 'c_flour', add_catalog_item('00000000-0000-0000-0000-0000000000a2', 'קמח');
+select tst.act('10000000-0000-0000-0000-000000000002');
+select tst.ok(add_item_category(v, 'ירק ופירות') = 'ירקות ופירות', 'add_item_category returns the stored spelling')
+from tst.t where k = 'c_flour';
+select tst.ok(category = 'ירקות ופירות', 'customer adds a category to an item that has none')
+from items where id = (select v from tst.t where k = 'c_flour');
+
+-- Should fail: a customer replaces a category, a blank one, a supplier calls it.
+select tst.fails($$select add_item_category((select v from tst.t where k = 'c_flour'), 'תבלינים')$$,
+  'customer replaces an existing category');
+select tst.fails($$select add_item_category((select v from tst.t where k = 'c_flour'), '  ')$$,
+  'customer adds a blank category');
+select tst.act('10000000-0000-0000-0000-000000000005');
+update items set category = null where id = (select v from tst.t where k = 'c_flour');
+select tst.fails($$select add_item_category((select v from tst.t where k = 'c_flour'), 'תבלינים')$$,
+  'add_item_category is for customers');
+
 -- Leave the shared fixtures as the later test files expect them.
 select tst.act('10000000-0000-0000-0000-000000000002');
 select cancel_event(v) from tst.t where k = 'c_ev';
