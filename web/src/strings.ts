@@ -137,6 +137,15 @@ export const t = {
   customerNote: "הערת פלוגה",
   customerNotePlaceholder: "לדוגמה: מידה L, אפשר גם תחליף",
   supplierNote: "הערת מחלקה",
+  changeStatus: "שינוי סטטוס",
+  // Buttons that set a request's status, on both sides' request sheets.
+  markStatus: {
+    ready: "מוכן לאיסוף",
+    partial: "חלקי",
+    missing: "חסר",
+    pending: "החזרה לממתין",
+    collected: "אספתי",
+  } as Record<string, string>,
 
   // Supplier
   byCompany: "לפי פלוגה",
@@ -144,9 +153,6 @@ export const t = {
   companiesCount: (n: number) => (n === 1 ? "פלוגה אחת" : `${n} פלוגות`),
   allEvents: "כל האירועים",
   nothingToPrepare: "אין דרישות פתוחות",
-  markPartial: "חלקי",
-  markMissing: "חסר",
-  markPending: "החזרה לממתין",
   note: "הערה",
   notePlaceholder: "לדוגמה: אין X, אפשר לספק Y",
   suppliedQuantity: "כמה מוכן?",

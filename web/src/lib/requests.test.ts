@@ -5,7 +5,9 @@ const enqueue = vi.fn((..._args: unknown[]) => "entry-id");
 const cancel = vi.fn();
 vi.mock("./queue", () => ({ enqueue: (...a: unknown[]) => enqueue(...a), cancel: (id: string) => cancel(id) }));
 
-const { addRequest, collectSection, deleteRequest, setCustomerNote, setQuantity, setStatus, UNDO_DELAY_MS } = await import("./requests");
+const {
+  addRequest, collectSection, deleteRequest, markStatus, setCustomerNote, setQuantity, setStatus, UNDO_DELAY_MS,
+} = await import("./requests");
 const lastEffects = () => enqueue.mock.calls.at(-1)![1] as { patch?: Record<string, unknown>; remove?: true }[];
 
 beforeEach(() => {
@@ -92,6 +94,23 @@ describe("collectSection", () => {
       { status: "collected", previous_status: "ready" },
       { status: "collected", previous_status: "partial" },
     ]);
+  });
+});
+
+describe("markStatus", () => {
+  const sent = () => (enqueue.mock.calls.at(-1)![0] as { patch: Record<string, unknown> }).patch;
+
+  it("sets an open status like the supplier, keeping the changed flag", () => {
+    markStatus(makeRequest({ changed_after_handling: true }), "missing", 3);
+    expect(lastEffects()[0].patch).toEqual({ status: "missing", supplied_quantity: null });
+    markStatus(makeRequest(), "partial", 3);
+    expect(lastEffects()[0].patch).toEqual({ status: "partial", supplied_quantity: 3 });
+  });
+
+  it("collects one request from any open status, remembering it for unmarking", () => {
+    markStatus(makeRequest({ status: "pending" }), "collected");
+    expect(sent()).toEqual({ status: "collected" });
+    expect(lastEffects()[0].patch).toEqual({ status: "collected", previous_status: "pending" });
   });
 });
 
