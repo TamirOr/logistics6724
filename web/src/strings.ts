@@ -138,6 +138,16 @@ export const t = {
   customerNotePlaceholder: "לדוגמה: מידה L, אפשר גם תחליף",
   supplierNote: "הערת מחלקה",
 
+  // Comments on a list
+  generalComments: "הערות לכל המחלקות",
+  addComment: "הערה",
+  commentTo: (supplier: string) => `הערה ל${supplier}`,
+  commentToAll: "הערה לכל המחלקות",
+  commentToCompany: (company: string) => `הערה ל${company}`,
+  toAllSuppliers: "לכל המחלקות",
+  deleteComment: "מחיקת הערה",
+  commentDeleted: "ההערה נמחקה",
+
   // Supplier
   byCompany: "לפי פלוגה",
   aggregate: "סיכום פריטים",

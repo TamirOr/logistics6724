@@ -1,7 +1,7 @@
 // "What do I still need to prepare": who is signed in and for which unit,
 // then every open request for this supplier, by event, company and item
 // category, urgent first. The aggregate view sums each item across companies for pulling
-// stock in one pass.
+// stock in one pass. Under each company, its list's comments to this supplier.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CategorizedList } from "../../components/CategorizedList";
@@ -20,6 +20,7 @@ import type { LogisticsEvent, MergeSuggestion, Request } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
 import { unitUsersNav } from "../shared/unitUsers";
 import { AggregateView, aggregateTotals } from "./AggregateView";
+import { CompanyComments } from "./CompanyComments";
 import { SupplierRequestSheet } from "./SupplierRequestSheet";
 import { SupplierRow } from "./SupplierRow";
 import { t } from "../../strings";
@@ -138,18 +139,23 @@ export function SupplierHome() {
               <span dir="auto">{e.name}</span>
               {formatNeededBy(e) && <span className="muted"> · {t.neededBy} {formatNeededBy(e)}</span>}
             </h2>
-            {companies.map((c) => (
-              <div key={c} className="company-group">
-                <h3 className="company-title">{companyName(c)}</h3>
-                <CategorizedList rows={eventRows.filter((r) => r.company_id === c).sort(byUrgencyThenAge)}
-                  categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
-                    <SupplierRow key={r.id} request={r} item={itemOf(r.item_id)}
-                      suggestion={suggestions.find((s) => s.item_id === r.item_id)}
-                      onTap={() => markReady(r)} onMenu={() => setMenuFor(r)}
-                      onAcknowledge={() => acknowledgeCancel(r)} onMerge={merge} onVerify={() => verify(r.item_id)} />
-                  )} />
-              </div>
-            ))}
+            {companies.map((c) => {
+              const companyRows = eventRows.filter((r) => r.company_id === c);
+              return (
+                <div key={c} className="company-group">
+                  <h3 className="company-title">{companyName(c)}</h3>
+                  <CompanyComments listId={companyRows[0].list_id} eventId={e.id} companyId={c} supplierId={supplierId}
+                    units={units} editable />
+                  <CategorizedList rows={companyRows.sort(byUrgencyThenAge)}
+                    categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
+                      <SupplierRow key={r.id} request={r} item={itemOf(r.item_id)}
+                        suggestion={suggestions.find((s) => s.item_id === r.item_id)}
+                        onTap={() => markReady(r)} onMenu={() => setMenuFor(r)}
+                        onAcknowledge={() => acknowledgeCancel(r)} onMerge={merge} onVerify={() => verify(r.item_id)} />
+                    )} />
+                </div>
+              );
+            })}
           </section>
         );
       })}
