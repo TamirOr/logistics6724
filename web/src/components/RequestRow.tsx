@@ -16,17 +16,19 @@ interface Props {
 }
 
 export function RequestRow({ request: r, item, editable, onOpen }: Props) {
+  const canFlag = editable && !isClosed(r);
   return (
     <li className={`req req-${r.status} ${r.urgent ? "req-urgent" : ""}`}>
       <button className="req-main" onClick={onOpen} disabled={!editable}>
         <RequestQuantity quantity={r.quantity} measure={r.measure} />
         <span className="req-name user-text" dir="auto">{item?.name ?? "…"}</span>
-        {r.urgent && <span className="tag tag-danger urgent-tag">{t.urgent}</span>}
+        {r.urgent && !canFlag && <span className="tag tag-danger urgent-tag">{t.urgent}</span>}
         <StatusBadge status={r.status} />
       </button>
-      {editable && !isClosed(r) && (
+      {/* Where it shows, the toggle is the urgent mark, so the row has one, not two. */}
+      {canFlag && (
         <button className={`urgent-toggle ${r.urgent ? "on" : ""}`} aria-pressed={r.urgent}
-          onClick={() => setUrgent(r, !r.urgent)}>! {t.urgent}</button>
+          onClick={() => setUrgent(r, !r.urgent)}><span>! {t.urgent}</span></button>
       )}
       {r.status === "partial" && r.supplied_quantity != null && (
         <div className="req-sub">{t.suppliedOf(r.supplied_quantity, r.quantity)}</div>
