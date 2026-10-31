@@ -1,11 +1,16 @@
-// Edit, note, mark, delete or unmark one request.
+// Edit, note, mark, delete or unmark one request, and give its item a
+// category if it has none.
 import { useState } from "react";
+import { CategoryInput } from "../../components/CategoryInput";
 import { Sheet } from "../../components/Sheet";
 import { QuantityInput } from "../../components/QuantityInput";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { StatusBadge } from "../../components/StatusBadge";
 import { StatusPicker } from "../../components/StatusPicker";
-import { useToast } from "../../components/Toast";
+import { useAction, useToast } from "../../components/Toast";
+import { addItemCategory } from "../../lib/api";
+import { categoryToAdd } from "../../lib/categories";
+import { itemCache } from "../../lib/live";
 import {
   deleteRequest, isClosed, markStatus, restoreRequest, setCustomerNote, setQuantity, setUrgent,
 } from "../../lib/requests";
@@ -17,17 +22,27 @@ const CUSTOMER_STATUSES: RequestStatus[] = ["ready", "partial", "missing", "pend
 export function RequestSheet({ request: r, item, onClose }: { request: Request; item?: Item; onClose: () => void }) {
   const [quantity, setLocalQuantity] = useState(r.quantity);
   const [note, setLocalNote] = useState(r.customer_note ?? "");
+  const [category, setCategory] = useState("");
   const showToast = useToast();
+  const runAction = useAction();
 
+  // The category belongs to the item, so it sorts every request of it.
+  const saveCategory = () => {
+    const added = item && categoryToAdd(item.category, category);
+    if (!item || !added) return;
+    runAction(async () => itemCache.put([{ ...item, category: await addItemCategory(item.id, added) }]));
+  };
   const save = () => {
     setQuantity(r, quantity);
     setCustomerNote(r, note);
+    saveCategory();
     onClose();
   };
-  // A status saves the note with it, not a changed quantity: that would
-  // send the request back to pending.
+  // A status saves the note and category with it, not a changed quantity:
+  // that would send the request back to pending.
   const mark = (status: RequestStatus, suppliedQuantity: number | null) => {
     setCustomerNote(r, note);
+    saveCategory();
     markStatus(r, status, suppliedQuantity);
     showToast({
       message: t.statusChanged,
@@ -65,6 +80,13 @@ export function RequestSheet({ request: r, item, onClose }: { request: Request; 
               <textarea className="input" dir="auto" rows={2} placeholder={t.customerNotePlaceholder} value={note}
                 onChange={(e) => setLocalNote(e.target.value)} />
             </label>
+            {item && (item.category ? (
+              <div className="muted">{t.category}: <span dir="auto" className="user-text">{item.category}</span></div>
+            ) : (
+              <label className="field"><span>{t.category}</span>
+                <CategoryInput supplierId={r.supplier_id} value={category} onChange={setCategory} />
+              </label>
+            ))}
             <button className="btn btn-primary btn-block" onClick={save}>{t.save}</button>
             <button className="btn btn-danger btn-block" onClick={remove}>{t.delete}</button>
           </>

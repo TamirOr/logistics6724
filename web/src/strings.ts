@@ -146,6 +146,11 @@ export const t = {
     pending: "החזרה לממתין",
     collected: "אספתי",
   } as Record<string, string>,
+  filterByCategory: "סינון לפי קטגוריה",
+  filterByStatus: "סינון לפי סטטוס",
+  allCategories: "כל הקטגוריות",
+  allStatuses: "כל הסטטוסים",
+  noRequestsMatch: "אין דרישות שמתאימות לסינון",
 
   // Supplier
   byCompany: "לפי פלוגה",

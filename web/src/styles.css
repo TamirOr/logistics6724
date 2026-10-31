@@ -210,15 +210,20 @@ h2 { font-size: 1.15rem; margin: 0; }
 .req-partial { background: linear-gradient(to left, var(--partial-bg), transparent 60%); }
 .req-missing { background: linear-gradient(to left, var(--missing-bg), transparent 60%); }
 .req-collected .req-name, .req-cancelled .req-name { color: var(--muted); text-decoration: line-through; }
-.req-urgent { border-inline-start: 6px solid var(--danger); padding-inline-start: 4px; }
-.urgent-tag { font-weight: 800; flex: none; }
-/* Labeled, not a bare "!", so customers see they can flag a request. */
+.req-urgent { border-inline-start: 4px solid var(--danger); padding-inline-start: 4px; }
+.urgent-tag { flex: none; padding: 1px 6px; font-size: 0.75rem; }
+/* Off, a quiet gray chip, so rows that are not urgent do not look urgent;
+   on, solid red. Labeled, not a bare "!", so customers see they can flag a
+   request. The button keeps the full tap height around the small chip. */
 .urgent-toggle {
-  min-height: var(--tap); padding: 0 12px; border-radius: 999px; flex: none;
-  border: 2px solid var(--danger); background: transparent; color: var(--danger);
-  font: inherit; font-weight: 800; cursor: pointer;
+  min-height: var(--tap); padding: 0 2px; flex: none; border: 0; background: transparent;
+  font: inherit; cursor: pointer;
 }
-.urgent-toggle.on { color: #fff; background: var(--danger); }
+.urgent-toggle > span {
+  display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.urgent-toggle.on > span { border-color: var(--danger); background: var(--danger); color: #fff; font-weight: 800; }
 .split { list-style: none; padding: 0 16px 8px; margin: 0; flex-basis: 100%; }
 .split li { padding: 4px 0; display: flex; gap: 10px; }
 
