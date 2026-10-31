@@ -100,31 +100,27 @@ select tst.ok((select count(*) from users) > 1, 'an admin reads all profiles');
 select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok(not is_admin(), 'a customer is not an admin');
 
--- F4: the unit roster needs approval or the join code --------------------------
+-- F4: the units table needs approval; the sign-up form lists units to anyone signed in
 reset role;
 insert into auth.users (id, email) values ('10000000-0000-0000-0000-0000000000f1', 'stranger@x.il');
-update app_config set value = '1234567890' where key = 'join_code';
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-0000000000f1');
-select tst.ok((select count(*) from units) = 0, 'a stranger sees no units');
-select tst.fails($$select * from signup_units('0000000000')$$, 'a wrong join code lists units');
-select tst.fails($$select * from signup_units(null)$$, 'no join code lists units');
--- Spaces around a pasted code do not matter.
-create temp table tst_signup as select * from signup_units(' 1234567890 ');
+select tst.ok((select count(*) from units) = 0, 'a stranger reads no units from the table');
+create temp table tst_signup as select * from signup_units();
+-- The previous web build still sends a code; any value is accepted.
+create temp table tst_signup_old_build as select * from signup_units('0000000000');
 reset role;
 select tst.ok((select count(*) from tst_signup) = (select count(*) from units where active)
-  and (select count(*) from tst_signup) > 0, 'the right join code lists every active unit');
+  and (select count(*) from tst_signup) > 0, 'sign-up lists every active unit without a join code');
+select tst.ok((select count(*) from tst_signup_old_build) = (select count(*) from tst_signup),
+  'the previous build''s call with a code still lists the units');
+select tst.ok(not exists (select 1 from tst_signup s join units u on u.id = s.id where not u.active),
+  'sign-up does not list inactive units');
+set role anon;
+select tst.fails($$select * from signup_units()$$, 'a signed-out visitor lists units');
 set role authenticated;
 select tst.act('10000000-0000-0000-0000-000000000002');
 select tst.ok((select count(*) from units) > 0, 'an approved user sees units');
-select tst.fails($$select join_code()$$, 'a customer reads the join code');
-select tst.fails($$select rotate_join_code()$$, 'a customer rotates the join code');
-select tst.act('10000000-0000-0000-0000-000000000001');
-select tst.ok(join_code() = '1234567890', 'an admin reads the join code');
-select tst.ok(rotate_join_code() ~ '^[0-9]{10}$', 'rotation returns a new ten-digit code');
-select tst.ok(join_code() <> '1234567890', 'rotation replaces the code');
-select tst.act('10000000-0000-0000-0000-0000000000f1');
-select tst.fails($$select * from signup_units('1234567890')$$, 'the old join code stops working');
 reset role;
 
 -- F7: size limits ---------------------------------------------------------------

@@ -182,9 +182,9 @@ select s.supplier_id, u.name from user_suppliers s join units u on u.id = s.supp
 
 Fix: admin → משתמשים → יחידות אספקה on their row, tick the unit, save. Moving a user (העברה ליחידה) leaves them in only the new unit.
 
-### "The sign-up form shows no units" / "wrong join code"
+### "The sign-up form shows no units"
 
-New users need the battalion's join code (10 digits) before the form lists units. An admin finds it under מנהלים וספקים. If it was replaced, users who already signed up are not affected; only new sign-ups need the new code.
+The form lists every active unit of the chosen side (פלוגה or מחלקה לוגיסטית). If the list is empty, check under פלוגות ומחלקות that a unit of that kind exists and is active. If the form shows an error instead, the user is probably offline or their sign-in expired: sign out and in again.
 
 ### Health run fails with `privilege drift`
 

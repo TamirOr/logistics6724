@@ -130,7 +130,6 @@ h2 { font-size: 1.15rem; margin: 0; }
   border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface); color: var(--text);
 }
-.secret { word-break: break-all; user-select: all; }
 .code-input { font-size: 1.6rem; letter-spacing: 0.4em; text-align: center; }
 .segmented { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .segmented button {

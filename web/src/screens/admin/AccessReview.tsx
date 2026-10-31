@@ -1,11 +1,9 @@
 // Everyone with more than a company's access, so stale admin and supplier
-// accounts get noticed and deactivated. Also the
-// join code new users sign up with, rotated on the same monthly review.
+// accounts get noticed and deactivated.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
-import { fetchAccessReview, fetchJoinCode, rotateJoinCode } from "../../lib/api";
-import { describeError } from "../../lib/errors";
+import { fetchAccessReview } from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import type { AccessReviewRow } from "../../lib/types";
 import { useUsers } from "../../hooks/useUsers";
@@ -15,22 +13,9 @@ export function AccessReview() {
   const units = useUnits();
   const { users } = useUsers();
   const [rows, setRows] = useState<AccessReviewRow[] | null>(null);
-  const [joinCode, setJoinCode] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     fetchAccessReview().then(setRows).catch(() => setRows([]));
-    fetchJoinCode().then(setJoinCode).catch((e) => setError(describeError(e)));
   }, []);
-
-  const rotate = async () => {
-    if (!window.confirm(t.rotateJoinCodeConfirm)) return;
-    setError(null);
-    try {
-      setJoinCode(await rotateJoinCode());
-    } catch (e) {
-      setError(describeError(e));
-    }
-  };
 
   const nameOf = (id: string) => {
     const u = users?.find((x) => x.id === id);
@@ -39,13 +24,6 @@ export function AccessReview() {
 
   return (
     <Layout title={t.accessReview} back>
-      <section className="stack">
-        <h2>{t.joinCodeTitle}</h2>
-        <p className="muted">{t.joinCodeAdminHint}</p>
-        {joinCode && <code dir="ltr" className="secret">{joinCode}</code>}
-        <button className="btn" onClick={rotate}>{t.rotateJoinCode}</button>
-        {error && <p className="error" role="alert">{error}</p>}
-      </section>
       <p className="muted">{t.accessReviewHint}</p>
       <ul className="req-list">
         {rows?.map((r) => (
