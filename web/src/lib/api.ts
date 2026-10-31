@@ -129,6 +129,10 @@ export const matchItem = (supplierId: string, name: string) =>
 export const addItem = (supplierId: string, name: string, category = "") =>
   rpc<string>("add_catalog_item", { p_supplier: supplierId, p_name: name, p_category: category.trim() || null });
 
+/** Customers: fills in the category of an item that has none. Returns it as stored. */
+export const addItemCategory = (itemId: string, category: string) =>
+  rpc<string>("add_item_category", { p_item: itemId, p_category: category });
+
 export const supplierCategories = (supplierId: string) =>
   rpc<string[]>("supplier_categories", { p_supplier: supplierId });
 
