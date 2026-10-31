@@ -3,18 +3,22 @@
 // Each user can be deactivated, deleted or moved to another unit, company or
 // supplier (the server changes the role to match), and a supplier's
 // supplier units can be edited. Customers and suppliers can be made super
-// users. A name opens the user's page: profile and support.
-import { useState } from "react";
+// users. A name opens the user's page: profile and support. Admins also
+// create users; those who have not signed in yet are listed on top.
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
-import { useAction } from "../../components/Toast";
-import { deleteUser, moveUser, setSuperUser, setUserActive, setUserSuppliers } from "../../lib/api";
+import { useAction, useToast } from "../../components/Toast";
+import {
+  cancelUserInvite, deleteUser, fetchUserInvites, moveUser, setSuperUser, setUserActive, setUserSuppliers,
+} from "../../lib/api";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
-import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
-import { unitNamesOf, unitsOf } from "../../lib/userUnits";
+import type { Profile, Unit, UnitKind, UserInvite, UserRole } from "../../lib/types";
+import { inviteUnitNamesOf, unitNamesOf, unitsOf } from "../../lib/userUnits";
 import { useUsers } from "../../hooks/useUsers";
+import { NewUserSheet } from "./NewUserSheet";
 import { DEFAULT_FILTER, filterUsers, NO_FILTER, toggleUnit, type ActiveFilter, type UserFilter } from "./users";
 import { t } from "../../strings";
 
@@ -22,12 +26,28 @@ const ACTIVE_FILTERS: ActiveFilter[] = ["all", "active", "inactive"];
 
 export function AdminUsers() {
   const runAction = useAction();
+  const showToast = useToast();
   const units = useUnits();
-  const { users, reload } = useUsers();
+  const { users, reload: reloadUsers } = useUsers();
+  const [invites, setInvites] = useState<UserInvite[]>([]);
+  const [creating, setCreating] = useState(false);
   const [moving, setMoving] = useState<Profile | null>(null);
   const [editingUnits, setEditingUnits] = useState<Profile | null>(null);
 
+  const reloadInvites = useCallback(() => fetchUserInvites().then(setInvites), []);
+  useEffect(() => {
+    reloadInvites();
+  }, [reloadInvites]);
+  const reload = () => Promise.all([reloadUsers(), reloadInvites()]);
+
   const act = (action: () => Promise<void>) => runAction(action, reload);
+  const created = (message: string) => {
+    setCreating(false);
+    showToast({ message });
+    reload();
+  };
+  // Creating the user again undoes it, so unlike deleting it does not ask.
+  const cancelInvite = (invite: UserInvite) => act(() => cancelUserInvite(invite.email));
   // Deleting cannot be undone, so unlike deactivating it asks first.
   const remove = (u: Profile) => {
     if (window.confirm(t.confirmDeleteUser(`${u.first_name} ${u.last_name}`))) act(() => deleteUser(u.id));
@@ -37,7 +57,11 @@ export function AdminUsers() {
     onSetSuperUser: (u: Profile) => act(() => setSuperUser(u.id, !u.super_user)), onDelete: remove };
 
   return (
-    <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
+    <Layout title={t.users} back actions={<>
+      <button className="btn btn-ghost btn-small" onClick={() => setCreating(true)}>{t.newUser}</button>
+      <Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>
+    </>}>
+      {invites.length > 0 && <InviteTable invites={invites} units={units} onCancel={cancelInvite} />}
       <UserTable title={t.suppliersTable} users={approved("supplier")} filterKind="supplier" {...table} />
       <UserTable title={t.customersTable} users={approved("customer")} filterKind="company" {...table} />
       <UserTable title={t.adminsTable} users={approved("admin")} {...table} />
@@ -57,11 +81,45 @@ export function AdminUsers() {
           </div>
         </Sheet>
       )}
+      {creating && <NewUserSheet units={units} onClose={() => setCreating(false)} onCreated={created} />}
       {editingUnits && (
         <SupplierUnitsSheet user={editingUnits} units={units} onClose={() => setEditingUnits(null)}
           onSave={(ids) => { act(() => setUserSuppliers(editingUnits.id, ids)); setEditingUnits(null); }} />
       )}
     </Layout>
+  );
+}
+
+interface InviteTableProps {
+  invites: UserInvite[];
+  units: Unit[];
+  onCancel: (invite: UserInvite) => void;
+}
+
+function InviteTable({ invites, units, onCancel }: InviteTableProps) {
+  return (
+    <section className="section">
+      <h2 className="section-title">{t.userInvites} <span className="muted count">({invites.length})</span></h2>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr><th>{t.name}</th><th>{t.emailLabel}</th><th>{t.unit}</th><th aria-label={t.actions} /></tr>
+          </thead>
+          <tbody>
+            {invites.map((invite) => (
+              <tr key={invite.email}>
+                <td dir="auto">{invite.first_name} {invite.last_name}</td>
+                <td><bdi dir="ltr">{invite.email}</bdi></td>
+                <td>{inviteUnitNamesOf(invite, units)}</td>
+                <td className="table-actions">
+                  <button className="btn btn-ghost btn-small" onClick={() => onCancel(invite)}>{t.cancelInvite}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

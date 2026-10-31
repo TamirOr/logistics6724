@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeProfile } from "../test/fixtures";
-import { awaitsApprovalFrom, unitKindOf, unitNamesOf, unitsOf, workUnitsOf } from "./userUnits";
+import type { Unit, UserInvite } from "./types";
+import { awaitsApprovalFrom, inviteUnitNamesOf, unitKindOf, unitNamesOf, unitsOf, workUnitsOf } from "./userUnits";
 
 const cook = makeProfile({ role: "supplier", unit_id: "kitchen", supplier_ids: ["kitchen"], pending_supplier_ids: ["closing"] });
 
@@ -48,5 +49,26 @@ describe("awaitsApprovalFrom", () => {
 
   it("never shows a rejected user", () => {
     expect(awaitsApprovalFrom({ ...recruit, approval: "rejected" }, null)).toBe(false);
+  });
+});
+
+describe("inviteUnitNamesOf", () => {
+  const units: Unit[] = [
+    { id: "kitchen", name: "מטבח", kind: "supplier", headcount: null, active: true },
+    { id: "closing", name: "סגירה", kind: "supplier", headcount: null, active: true },
+    { id: "a", name: "פלוגה א׳", kind: "company", headcount: 120, active: true },
+  ];
+  const invite = (overrides: Partial<UserInvite>): UserInvite => ({
+    email: "new@example.com", first_name: "נועה", last_name: "בר", service_number: "1234567",
+    role: "customer", unit_id: "a", supplier_ids: [], created_at: "2026-10-31T08:00:00Z", ...overrides,
+  });
+
+  it("names every supplier unit of an invited supplier", () => {
+    expect(inviteUnitNamesOf(invite({ role: "supplier", unit_id: "kitchen", supplier_ids: ["kitchen", "closing"] }), units))
+      .toBe("מטבח, סגירה");
+  });
+
+  it("names the company of an invited customer", () => {
+    expect(inviteUnitNamesOf(invite({}), units)).toBe("פלוגה א׳");
   });
 });

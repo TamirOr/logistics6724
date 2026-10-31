@@ -4,7 +4,7 @@
 import { supabase } from "./supabase";
 import type {
   AccessReviewRow, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
-  Profile, Unit, UnitKind, UserRole,
+  Profile, ProfileDraft, Unit, UnitKind, UserInvite,
 } from "./types";
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -58,13 +58,13 @@ export async function fetchMyProfile(userId: string): Promise<Profile | null> {
 export const fetchSignupUnits = (joinCode: string) =>
   rpc<Pick<Unit, "id" | "name" | "kind">[]>("signup_units", { p_join_code: joinCode });
 
-/** unitIds: the customer's company, or the supplier's units, the first as its main unit. */
-export const registerProfile = (p: {
-  firstName: string; lastName: string; serviceNumber: string; role: UserRole; unitIds: string[];
-}) => rpc<void>("register_profile", {
+// A draft as register_profile and create_user take it.
+const profileArgs = (p: ProfileDraft) => ({
   p_first_name: p.firstName, p_last_name: p.lastName, p_service_number: p.serviceNumber,
   p_role: p.role, p_unit_id: p.unitIds[0], p_supplier_ids: p.role === "supplier" ? p.unitIds : null,
 });
+
+export const registerProfile = (p: ProfileDraft) => rpc<void>("register_profile", profileArgs(p));
 
 // Events -----------------------------------------------------------------------
 
@@ -163,6 +163,15 @@ export const setSuperUser = (id: string, superUser: boolean) =>
 export const removeFromUnit = (id: string) => rpc<void>("remove_from_unit", { p_user: id });
 /** Removes the profile for good. Their sign-in stays: signing in again starts a new sign-up. */
 export const deleteUser = (id: string) => rpc<void>("delete_user", { p_user: id });
+/** Admins: "created" when the email signed in before, "invited" when the profile waits for its first sign-in. */
+export const createUser = (email: string, p: ProfileDraft) =>
+  rpc<"created" | "invited">("create_user", { p_email: email, ...profileArgs(p) });
+export const fetchUserInvites = () =>
+  rows<UserInvite>(supabase.from("user_invites").select("*").order("created_at", { ascending: false }));
+export async function cancelUserInvite(email: string) {
+  const { error } = await supabase.from("user_invites").delete().eq("email", email);
+  if (error) throw error;
+}
 export const moveUser = (id: string, unitId: string) => rpc<void>("move_user", { p_user: id, p_unit: unitId });
 /** A supplier's supplier units; the main unit stays while it is among them. */
 export const setUserSuppliers = (id: string, supplierIds: string[]) =>
