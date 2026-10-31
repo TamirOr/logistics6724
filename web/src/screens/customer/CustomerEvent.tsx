@@ -1,10 +1,13 @@
 // The company's list in one event: a section per supplier, in alphabetical
 // order, each a live checklist grouped by item category, ending with an add
-// row and "אספתי". Filters by category and status narrow every section; a
-// section with nothing left to show hides while they are on.
+// row and "אספתי". Comments to every supplier sit on top, and each section
+// holds the comments between the company and that supplier. Filters by
+// category and status narrow every section; a section with nothing left to
+// show hides while they are on.
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CategorizedList } from "../../components/CategorizedList";
+import { CommentThread } from "../../components/CommentThread";
 import { ItemAdder } from "../../components/ItemAdder";
 import { RequestFilters } from "../../components/RequestFilters";
 import { EventEndButtons } from "../../components/EventEndButtons";
@@ -13,13 +16,14 @@ import { useToast } from "../../components/Toast";
 import { useEvent } from "../../hooks/useEvent";
 import { fetchCompanyList } from "../../lib/api";
 import { readCache, writeCache } from "../../lib/cache";
+import { addComment, commentsWith } from "../../lib/comments";
 import { exportEvent } from "../../lib/exportExcel";
 import { itemCache, useCached, useLiveRows, useUnits } from "../../lib/live";
 import { categoryOptions, filterRequests, isFiltering, NO_FILTER } from "../../lib/requestFilter";
 import { addRequest, collectSection, isCollectable, restoreRequest } from "../../lib/requests";
 import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
-import type { List, Request, RequestStatus } from "../../lib/types";
+import type { List, ListComment, Request, RequestStatus } from "../../lib/types";
 import { RequestRow } from "../../components/RequestRow";
 import { RequestSheet } from "./RequestSheet";
 import { t } from "../../strings";
@@ -35,7 +39,8 @@ export function CustomerEvent() {
   const [list, setList] = useState<List | null | undefined>(undefined);
   const [editing, setEditing] = useState<Request | null>(null);
   const [filter, setFilter] = useState(NO_FILTER);
-  const suppliers = useUnits().filter((u) => u.kind === "supplier" && u.active);
+  const units = useUnits();
+  const suppliers = units.filter((u) => u.kind === "supplier" && u.active);
 
   // The saved list opens the screen with no signal; the server's replaces it.
   useEffect(() => {
@@ -54,6 +59,9 @@ export function CustomerEvent() {
     column: "list_id", value: list?.id, cacheKey: list ? `requests:list:${list.id}` : undefined,
   });
   const itemOf = useCached(itemCache, rows.map((r) => r.item_id));
+  const { rows: comments } = useLiveRows<ListComment>("list_comments", {
+    column: "list_id", value: list?.id, cacheKey: list ? `comments:list:${list.id}` : undefined,
+  });
 
   if (event === undefined || list === undefined) return <Layout title={t.loading} back>{null}</Layout>;
   if (!event || !list) return <Layout title={t.genericError} back>{null}</Layout>;
@@ -62,6 +70,12 @@ export function CustomerEvent() {
   const categoryOf = (r: Request) => itemOf(r.item_id)?.category;
   const filtering = isFiltering(filter);
   const shown = filterRequests(rows, filter, categoryOf);
+  const side = editable ? "customer" as const : null;
+  const writerName = (c: ListComment) => units.find((u) => u.id === (c.side === "customer" ? c.company_id : c.supplier_id))?.name ?? "";
+  const comment = (supplierId: string | null) => (body: string) => addComment({
+    listId: list.id, eventId: event.id, companyId: list.company_id, supplierId, side: "customer", body,
+  });
+  const generalComments = commentsWith(comments, null);
   const neededBy = formatNeededBy(event);
 
   const collect = (supplierId: string, sectionRows: Request[]) => {
@@ -83,6 +97,14 @@ export function CustomerEvent() {
     >
       {neededBy && <p className="muted">{t.neededBy} {neededBy}</p>}
       {!editable && <p className="notice">{event.status === "cancelled" ? t.eventCancelled : t.readOnly}</p>}
+
+      {(editable || generalComments.length > 0) && (
+        <section className="section">
+          <h2 className="section-title">{t.generalComments}</h2>
+          <CommentThread comments={generalComments} writerName={writerName} side={side} onAdd={comment(null)}
+            placeholder={t.commentToAll} />
+        </section>
+      )}
 
       {rows.length > 0 && (
         <div className="toolbar">
@@ -106,6 +128,8 @@ export function CustomerEvent() {
               <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={editable}
                 onOpen={() => setEditing(r)} />
             )} />
+            <CommentThread comments={commentsWith(comments, s.id)} writerName={writerName} side={side}
+              onAdd={comment(s.id)} placeholder={t.commentTo(s.name)} />
             {editable && (
               <ItemAdder supplierId={s.id} onAdd={(itemId, quantity, measure) => addRequest({
                 listId: list.id, eventId: event.id, companyId: list.company_id, supplierId: s.id, itemId, quantity, measure,

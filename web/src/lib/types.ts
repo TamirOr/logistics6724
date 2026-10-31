@@ -109,6 +109,23 @@ export interface Request {
   updated_at: string;
 }
 
+/** The side a comment was written from. */
+export type CommentSide = Extract<UserRole, "customer" | "supplier">;
+
+/** A general remark on a company's list, from the company or from one supplier. */
+export interface ListComment {
+  id: string;
+  list_id: string;
+  event_id: string;
+  company_id: string;
+  /** The supplier it is between the company and; null for a company comment to every supplier. */
+  supplier_id: string | null;
+  side: CommentSide;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface ItemSearchResult {
   id: string;
   name: string;
