@@ -1,22 +1,25 @@
 // "What do I still need to prepare": who is signed in and for which unit,
 // then every open request for this supplier, by event, company and item
 // category, urgent first. The aggregate view sums each item across companies for pulling
-// stock in one pass. Under each company, its list's comments to this supplier.
+// stock in one pass. Both views filter by event, item category and status.
+// Under each company, its list's comments to this supplier.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CategorizedList } from "../../components/CategorizedList";
 import { Layout } from "../../components/Layout";
 import { ProfileCard } from "../../components/ProfileCard";
+import { RequestFilters } from "../../components/RequestFilters";
 import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { useAction, useToast } from "../../components/Toast";
 import { mergeItem, mergeSuggestions, updateItem } from "../../lib/api";
 import { exportOpenRequests, exportTotals } from "../../lib/exportExcel";
 import { eventCache, itemCache, useCached, useLiveRows, useRealtime, useUnits } from "../../lib/live";
+import { categoryOptions, filterRequests, NO_FILTER } from "../../lib/requestFilter";
 import { acknowledgeCancel, setStatus } from "../../lib/requests";
 import { useActiveSupplier } from "../../lib/activeSupplier";
 import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
-import type { LogisticsEvent, MergeSuggestion, Request } from "../../lib/types";
+import type { LogisticsEvent, MergeSuggestion, Request, RequestStatus } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
 import { unitUsersNav } from "../shared/unitUsers";
 import { AggregateView, aggregateTotals } from "./AggregateView";
@@ -26,6 +29,9 @@ import { SupplierRow } from "./SupplierRow";
 import { t } from "../../strings";
 
 type View = "byCompany" | "aggregate";
+
+// Collected requests leave this screen, so they are not a filter.
+const FILTER_STATUSES: RequestStatus[] = ["pending", "ready", "partial", "missing", "cancelled"];
 
 const byUrgencyThenAge = (a: Request, b: Request) =>
   Number(b.urgent) - Number(a.urgent) || a.created_at.localeCompare(b.created_at);
@@ -42,6 +48,7 @@ export function SupplierHome() {
   const units = useUnits();
   const [view, setView] = useState<View>("byCompany");
   const [eventFilter, setEventFilter] = useState(routeEventId ?? "");
+  const [filter, setFilter] = useState(NO_FILTER);
   const [menuFor, setMenuFor] = useState<Request | null>(null);
   const [suggestions, setSuggestions] = useState<MergeSuggestion[]>([]);
 
@@ -77,7 +84,9 @@ export function SupplierHome() {
       .filter((e): e is LogisticsEvent => !!e).sort(byNeededAt),
     [open, eventOf],
   );
-  const shown = eventFilter ? open.filter((r) => r.event_id === eventFilter) : open;
+  const categoryOf = (r: Request) => itemOf(r.item_id)?.category;
+  const inEvent = eventFilter ? open.filter((r) => r.event_id === eventFilter) : open;
+  const shown = filterRequests(inEvent, filter, categoryOf);
   const companyName = (id: string) => units.find((u) => u.id === id)?.name ?? "";
 
   const markReady = (r: Request) => {
@@ -93,9 +102,9 @@ export function SupplierHome() {
   const verify = (itemId: string) =>
     runAction(() => updateItem(itemId, { verified: true }), () => itemCache.put([{ ...itemOf(itemId)!, verified: true }]));
 
-  // Events ordered by when they are needed; urgent events first.
+  // Events with requests to show, ordered by when they are needed; urgent events first.
   const eventsShown = openEvents
-    .filter((e) => !eventFilter || e.id === eventFilter)
+    .filter((e) => shown.some((r) => r.event_id === e.id))
     .sort((a, b) => Number(shown.some((r) => r.event_id === b.id && r.urgent)) - Number(shown.some((r) => r.event_id === a.id && r.urgent)));
 
   return (
@@ -123,9 +132,13 @@ export function SupplierHome() {
           <option value="">{t.allEvents}</option>
           {openEvents.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
         </select>
+        <RequestFilters filter={filter} onChange={setFilter} categories={categoryOptions(inEvent, categoryOf)}
+          statuses={FILTER_STATUSES} />
       </div>
 
-      {shown.length === 0 && <p className="muted empty">{t.nothingToPrepare}</p>}
+      {shown.length === 0 && (
+        <p className="muted empty">{inEvent.length > 0 ? t.noRequestsMatch : t.nothingToPrepare}</p>
+      )}
 
       {view === "aggregate" ? (
         <AggregateView requests={shown} itemOf={itemOf} units={units} />
@@ -147,7 +160,7 @@ export function SupplierHome() {
                   <CompanyComments listId={companyRows[0].list_id} eventId={e.id} companyId={c} supplierId={supplierId}
                     units={units} editable />
                   <CategorizedList rows={companyRows.sort(byUrgencyThenAge)}
-                    categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
+                    categoryOf={categoryOf} renderRow={(r) => (
                       <SupplierRow key={r.id} request={r} item={itemOf(r.item_id)}
                         suggestion={suggestions.find((s) => s.item_id === r.item_id)}
                         onTap={() => markReady(r)} onMenu={() => setMenuFor(r)}

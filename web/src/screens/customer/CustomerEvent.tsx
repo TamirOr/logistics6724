@@ -1,12 +1,15 @@
 // The company's list in one event: a section per supplier, in alphabetical
 // order, each a live checklist grouped by item category, ending with an add
 // row and "אספתי". Comments to every supplier sit on top, and each section
-// holds the comments between the company and that supplier.
+// holds the comments between the company and that supplier. Filters by
+// category and status narrow every section; a section with nothing left to
+// show hides while they are on.
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CategorizedList } from "../../components/CategorizedList";
 import { CommentThread } from "../../components/CommentThread";
 import { ItemAdder } from "../../components/ItemAdder";
+import { RequestFilters } from "../../components/RequestFilters";
 import { EventEndButtons } from "../../components/EventEndButtons";
 import { Layout } from "../../components/Layout";
 import { useToast } from "../../components/Toast";
@@ -16,13 +19,16 @@ import { readCache, writeCache } from "../../lib/cache";
 import { addComment, commentsWith } from "../../lib/comments";
 import { exportEvent } from "../../lib/exportExcel";
 import { itemCache, useCached, useLiveRows, useUnits } from "../../lib/live";
+import { categoryOptions, filterRequests, isFiltering, NO_FILTER } from "../../lib/requestFilter";
 import { addRequest, collectSection, isCollectable, restoreRequest } from "../../lib/requests";
 import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
-import type { List, ListComment, Request } from "../../lib/types";
+import type { List, ListComment, Request, RequestStatus } from "../../lib/types";
 import { RequestRow } from "../../components/RequestRow";
 import { RequestSheet } from "./RequestSheet";
 import { t } from "../../strings";
+
+const FILTER_STATUSES: RequestStatus[] = ["pending", "ready", "partial", "missing", "collected", "cancelled"];
 
 export function CustomerEvent() {
   const { id } = useParams();
@@ -32,6 +38,7 @@ export function CustomerEvent() {
   // undefined while loading; null when the company has no list here.
   const [list, setList] = useState<List | null | undefined>(undefined);
   const [editing, setEditing] = useState<Request | null>(null);
+  const [filter, setFilter] = useState(NO_FILTER);
   const units = useUnits();
   const suppliers = units.filter((u) => u.kind === "supplier" && u.active);
 
@@ -60,6 +67,9 @@ export function CustomerEvent() {
   if (!event || !list) return <Layout title={t.genericError} back>{null}</Layout>;
 
   const editable = event.status === "open";
+  const categoryOf = (r: Request) => itemOf(r.item_id)?.category;
+  const filtering = isFiltering(filter);
+  const shown = filterRequests(rows, filter, categoryOf);
   const side = editable ? "customer" as const : null;
   const writerName = (c: ListComment) => units.find((u) => u.id === (c.side === "customer" ? c.company_id : c.supplier_id))?.name ?? "";
   const comment = (supplierId: string | null) => (body: string) => addComment({
@@ -96,14 +106,25 @@ export function CustomerEvent() {
         </section>
       )}
 
+      {rows.length > 0 && (
+        <div className="toolbar">
+          <RequestFilters filter={filter} onChange={setFilter} categories={categoryOptions(rows, categoryOf)}
+            statuses={FILTER_STATUSES} />
+        </div>
+      )}
+      {filtering && shown.length === 0 && <p className="muted empty">{t.noRequestsMatch}</p>}
+
       {suppliers.map((s) => {
-        const sectionRows = rows.filter((r) => r.supplier_id === s.id)
+        // "אספתי" collects the whole section, not only the rows a filter shows.
+        const sectionRows = rows.filter((r) => r.supplier_id === s.id);
+        const shownRows = shown.filter((r) => r.supplier_id === s.id)
           .sort((a, b) => a.created_at.localeCompare(b.created_at));
         const canCollect = sectionRows.some(isCollectable);
+        if (filtering && shownRows.length === 0) return null;
         return (
           <section key={s.id} className="section">
             <h2 className="section-title">{s.name}</h2>
-            <CategorizedList rows={sectionRows} categoryOf={(r) => itemOf(r.item_id)?.category} renderRow={(r) => (
+            <CategorizedList rows={shownRows} categoryOf={categoryOf} renderRow={(r) => (
               <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={editable}
                 onOpen={() => setEditing(r)} />
             )} />
