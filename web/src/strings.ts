@@ -137,6 +137,11 @@ export const t = {
   customerNote: "הערת פלוגה",
   customerNotePlaceholder: "לדוגמה: מידה L, אפשר גם תחליף",
   supplierNote: "הערת מחלקה",
+  filterByCategory: "סינון לפי קטגוריה",
+  filterByStatus: "סינון לפי סטטוס",
+  allCategories: "כל הקטגוריות",
+  allStatuses: "כל הסטטוסים",
+  noRequestsMatch: "אין דרישות שמתאימות לסינון",
 
   // Supplier
   byCompany: "לפי פלוגה",
