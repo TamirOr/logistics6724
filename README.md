@@ -85,7 +85,7 @@ Migrations must keep working with the previous web build for one release (expand
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
 2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
 3. Reload the app. The battalion's companies and logistic platoons come from the seed migration; as admin, check them under "פלוגות ומחלקות" and set each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
-4. Open מנהלים ומחלקות לוגיסטיות (access review) and give the **join code** to the people who should sign up. Without it the sign-up form shows no units. Replace it there if it leaks, and once a month.
+4. Send the app's address to the people who should sign up. Anyone who signs in can fill in the sign-up form; nobody gets in until an admin approves them.
 5. The initial catalog comes from the same seed migration (`20261028000016_battalion_units_and_catalog.sql`, with food and kitchen supplies moved to מטבח in `20261028000019_kitchen_catalog.sql`). Suppliers edit it in the app.
 
 ### Sign-in emails (needed for 6-digit codes)
@@ -146,7 +146,6 @@ Every setting, where it lives, and its value per environment ("secret" means: ne
 | `VITE_APP_VERSION`, `VITE_APP_BUILT_AT`, `VITE_SENTRY_ENVIRONMENT` | build, set by Deploy | git SHA, commit time, `staging` | same, `production` |
 | `functions_url`, `site_url` | `app_config`, set by Deploy | staging URLs | production URLs |
 | `cron_secret`, `vapid_private_key` | `app_config`, server-only, generated | secret | secret |
-| `join_code` | `app_config`, server-only, generated; admins read and replace it in the app | own code | own code |
 | `vapid_public_key` | `app_config`, readable by the app | generated | generated |
 | `ops/backup-recipients.txt` | repository | — | age public keys |
 | Tuning values and health thresholds | `app_config` (below) | defaults | defaults |

@@ -54,9 +54,8 @@ export async function fetchMyProfile(userId: string): Promise<Profile | null> {
   return data && toProfile(data as ProfileRow);
 }
 
-/** The units a new user may pick. The server refuses a wrong join code. */
-export const fetchSignupUnits = (joinCode: string) =>
-  rpc<Pick<Unit, "id" | "name" | "kind">[]>("signup_units", { p_join_code: joinCode });
+/** The active units a new user may pick. */
+export const fetchSignupUnits = () => rpc<Pick<Unit, "id" | "name" | "kind">[]>("signup_units");
 
 /** unitIds: the customer's company, or the supplier's units, the first as its main unit. */
 export const registerProfile = (p: {
@@ -176,8 +175,6 @@ export const setUserSuppliers = (id: string, supplierIds: string[]) =>
 export const fetchAdminHealth = () => rpc<HealthReport>("admin_health");
 
 export const fetchAccessReview = () => rpc<AccessReviewRow[]>("access_review");
-export const fetchJoinCode = () => rpc<string>("join_code");
-export const rotateJoinCode = () => rpc<string>("rotate_join_code");
 
 export async function saveUnit(unit: Omit<Unit, "id"> & { id?: string }) {
   const { error } = unit.id
