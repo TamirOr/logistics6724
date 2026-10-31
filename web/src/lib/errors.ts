@@ -10,6 +10,7 @@ const KNOWN_REASONS: [RegExp, string][] = [
   [/unit has users/, t.errUnitHasUsers],
   [/unit is used by events/, t.errUnitInUse],
   [/wrong join code/, t.errWrongJoinCode],
+  [/email already has a user/, t.errEmailHasUser],
   [/daily limit of new items reached/, t.errDailyItemLimit],
   [/violates check constraint "\w+_length"/, t.errTooLong],
 ];

@@ -43,6 +43,29 @@ export interface Profile {
   created_at: string;
 }
 
+/** The details a customer or supplier gives at sign-up, or an admin gives for them. */
+export interface ProfileDraft {
+  firstName: string;
+  lastName: string;
+  serviceNumber: string;
+  role: Exclude<UserRole, "admin">;
+  /** The customer's company, or the supplier's units, the first as its main unit. */
+  unitIds: string[];
+}
+
+/** A user an admin created who has not signed in yet. */
+export interface UserInvite {
+  email: string;
+  first_name: string;
+  last_name: string;
+  service_number: string;
+  role: Exclude<UserRole, "admin">;
+  unit_id: string;
+  /** Every supplier unit of a supplier, unit_id among them. Empty for a customer. */
+  supplier_ids: string[];
+  created_at: string;
+}
+
 export interface LogisticsEvent {
   id: string;
   name: string;

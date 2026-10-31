@@ -1,7 +1,7 @@
 // The units a user belongs to, wherever a user's units are shown, and which
 // of them still have to approve the user. Each unit approves on its own;
 // the server decides, this only shows it.
-import type { Profile, Unit, UnitKind, UserRole } from "./types";
+import type { Profile, Unit, UnitKind, UserInvite, UserRole } from "./types";
 import { t } from "../strings";
 
 // A profile cached by an earlier build may lack the supplier lists.
@@ -22,6 +22,11 @@ export const unitNamesOf = (user: Profile, units: Unit[]): string =>
     const name = units.find((u) => u.id === id)?.name ?? "";
     return pendingOf(user).includes(id) ? t.pendingUnit(name) : name;
   }).join(", ");
+
+/** The units an invited user will work in, by name: a supplier's supplier units, or the company. */
+export const inviteUnitNamesOf = (invite: UserInvite, units: Unit[]): string =>
+  (invite.role === "supplier" ? invite.supplier_ids : [invite.unit_id])
+    .map((id) => units.find((u) => u.id === id)?.name ?? "").join(", ");
 
 /**
  * The user waits for an approval the viewer can give: an admin (null

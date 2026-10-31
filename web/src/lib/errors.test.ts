@@ -25,6 +25,7 @@ describe("describeError", () => {
     expect(describeError({ message: "unit has users" })).toBe(t.errUnitHasUsers);
     expect(describeError({ message: "unit is used by events" })).toBe(t.errUnitInUse);
     expect(describeError({ message: "wrong join code" })).toBe(t.errWrongJoinCode);
+    expect(describeError({ message: "email already has a user" })).toBe(t.errEmailHasUser);
     expect(describeError({ message: "daily limit of new items reached" })).toBe(t.errDailyItemLimit);
     expect(describeError({ code: "23514", message: 'new row for relation "items" violates check constraint "items_name_length"' }))
       .toBe(t.errTooLong);

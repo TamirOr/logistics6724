@@ -177,6 +177,13 @@ export const t = {
   deleteUser: "מחיקה",
   confirmDeleteUser: (name: string) => `למחוק את ${name} לצמיתות? הפרטים האישיים יימחקו, ובכניסה הבאה יצטרכו להירשם ולחכות לאישור מחדש.`,
   activate: "הפעלה",
+  newUser: "משתמש חדש",
+  newUserHint: "המשתמש ייכנס עם קוד שיישלח למייל הזה, בלי קוד הצטרפות ובלי לחכות לאישור.",
+  createUser: "יצירת משתמש",
+  userCreated: (name: string) => `נוצר משתמש ל${name}. אפשר להיכנס איתו כבר עכשיו.`,
+  userInvited: (name: string) => `נוצר משתמש ל${name}. הוא יופעל בכניסה הראשונה.`,
+  userInvites: "נוספו וטרם נכנסו",
+  cancelInvite: "ביטול",
   moveToUnit: "העברה לפלוגה או למחלקה",
   // Super users: "מפקד אחראי" to admins; to the super user, the soldiers of
   // their company or of their supplier unit ("מחלקה").
@@ -233,6 +240,7 @@ export const t = {
   errUnitHasUsers: "ביחידה יש חיילים ולכן אי אפשר למחוק אותה. העבירו אותם ליחידה אחרת, מחקו אותם או השביתו את היחידה.",
   errUnitInUse: "היחידה מופיעה באירועים ולכן אי אפשר למחוק אותה. אפשר להשבית אותה.",
   errItemInUse: "הפריט מופיע בבקשות ולכן אי אפשר למחוק אותו. אפשר להסתיר אותו או למזג אותו לפריט אחר.",
+  errEmailHasUser: "למייל הזה כבר יש משתמש. אם הוא ממתין לאישור, אשרו אותו מבקשות ההצטרפות.",
   errWrongJoinCode: "קוד ההצטרפות שגוי. בדקו אותו מול מנהל המערכת.",
   errDailyItemLimit: "הפלוגה הוסיפה היום את מספר הפריטים החדשים המרבי. בחרו פריט קיים או נסו מחר.",
   errTooLong: "הטקסט ארוך מדי. קצרו אותו ונסו שוב.",
