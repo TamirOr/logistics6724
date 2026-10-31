@@ -172,6 +172,19 @@ select id, role, unit_id, approval, active, created_at from users where email = 
 - No row: they never finished the sign-up form. Ask them to sign in again and fill it.
 - `approval = 'approved'` but still waiting: the app checks again every 30 seconds and when it comes to the front. Ask them to close and reopen it. `active = false` means they were deactivated (the screen then says "החשבון אינו פעיל"), by an admin or by a super user who removed them from the unit; an admin reactivates them on the users screen.
 
+### "An admin added me, but I see the sign-up form"
+
+An admin created the user (משתמשים → משתמש חדש). Until their first sign-in they are listed under "נוספו וטרם נכנסו", and their first code request turns that into an approved profile. Check both sides, by the email the admin typed:
+
+```sql
+select email, role, unit_id, created_at from user_invites where email = lower('<their email>');
+select id, approval, active from users where lower(email) = lower('<their email>');
+```
+
+- An invite and no profile: they signed in with another address than the admin typed. The admin cancels the invite and creates the user again with the address they actually use.
+- The invite is still there although they have signed in: turning it into a profile failed. The sign-in went through without it, and the database log has a warning `invite not claimed for sign-in <id>` with the SQL state. Since the sign-in exists now, the admin cancels the invite and creates the user again: the profile is made at once.
+- A profile with `approval = 'pending'`: they filled the sign-up form themselves before the admin added them. Approve them from בקשות הצטרפות.
+
 ### Supplier doesn't see a supplier unit's requests
 
 A supplier in several supplier units (picked at sign-up) sees one unit at a time: the buttons on top of the home screen and the catalog switch between them. If the unit has no button, they are not in it:
