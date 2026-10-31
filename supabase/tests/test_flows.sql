@@ -112,8 +112,8 @@ insert into requests (id, list_id, item_id, quantity) values
 update requests set urgent = true where id = '20000000-0000-0000-0000-000000000003';
 select tst.fails($$update requests set supplier_note = 'x' where id = '20000000-0000-0000-0000-000000000001'$$,
   'customer cannot write supplier note');
-select tst.fails($$update requests set status = 'ready' where id = '20000000-0000-0000-0000-000000000001'$$,
-  'customer cannot mark ready');
+select tst.fails($$update requests set supplied_quantity = 3 where id = '20000000-0000-0000-0000-000000000001'$$,
+  'customer cannot set a supplied quantity without partial');
 select tst.ok((select quantity from default_quantities where item_id = (select id from items where name = 'סוללה AA')) = 40,
   'default quantity remembered');
 

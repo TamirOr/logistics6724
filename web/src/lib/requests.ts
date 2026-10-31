@@ -12,6 +12,9 @@ export const isClosed = (r: Request) => r.status === "collected" || r.status ===
 export const isCollectable = (r: Request) => r.status === "ready" || r.status === "partial";
 /** Blank text is stored as null, as the server does. */
 const cleanText = (text: string) => text.trim() || null;
+/** The fields an open status writes: only partial keeps a supplied quantity. */
+const statusPatch = (status: RequestStatus, suppliedQuantity: number | null) =>
+  ({ status, supplied_quantity: status === "partial" ? suppliedQuantity : null });
 
 function update(r: Request, patch: Partial<Request>) {
   enqueue({ kind: "update", table: "requests", id: r.id, patch }, [{ table: "requests", id: r.id, patch }]);
@@ -76,6 +79,19 @@ export function collectSection(listId: string, supplierId: string, rows: Request
   );
 }
 
+/**
+ * The company marks a status itself, as the supplier would, or collects one
+ * request from any open status. Unlike the supplier's mark, it leaves
+ * changed_after_handling alone, as the server does.
+ */
+export function markStatus(r: Request, status: RequestStatus, suppliedQuantity: number | null = null) {
+  if (status !== "collected") return update(r, statusPatch(status, suppliedQuantity));
+  enqueue(
+    { kind: "update", table: "requests", id: r.id, patch: { status } },
+    [{ table: "requests", id: r.id, patch: { status, previous_status: r.status } }],
+  );
+}
+
 /** Undoes a pickup or a cancel: back to the status before it. */
 export function restoreRequest(r: Request) {
   if (!r.previous_status) return;
@@ -88,7 +104,7 @@ export function restoreRequest(r: Request) {
 // Supplier ------------------------------------------------------------------
 
 export function setStatus(r: Request, status: RequestStatus, suppliedQuantity: number | null = null) {
-  const patch = { status, supplied_quantity: status === "partial" ? suppliedQuantity : null };
+  const patch = statusPatch(status, suppliedQuantity);
   enqueue(
     { kind: "update", table: "requests", id: r.id, patch },
     [{ table: "requests", id: r.id, patch: { ...patch, changed_after_handling: false } }],
