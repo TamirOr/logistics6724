@@ -17,6 +17,14 @@ export const workUnitsOf = (user: Profile): string[] =>
 /** Every unit of the user, a supplier's units still to approve them included. */
 export const unitsOf = (user: Profile): string[] => [...workUnitsOf(user), ...pendingOf(user)];
 
+/** The supplier units the user works in, in the units list's order. */
+export const supplierUnitsOf = (user: Profile, units: Unit[]): Unit[] =>
+  units.filter((u) => user.supplier_ids?.includes(u.id));
+
+/** Where the user may move catalog items from one of their units: their other active units. */
+export const moveTargetsOf = (user: Profile, units: Unit[], from: string): Unit[] =>
+  supplierUnitsOf(user, units).filter((u) => u.id !== from && u.active);
+
 export const unitNamesOf = (user: Profile, units: Unit[]): string =>
   unitsOf(user).map((id) => {
     const name = units.find((u) => u.id === id)?.name ?? "";
