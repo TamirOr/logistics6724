@@ -3,12 +3,13 @@
 import { setActiveSupplier, useActiveSupplier } from "../lib/activeSupplier";
 import { useUnits } from "../lib/live";
 import { useProfile } from "../lib/session";
+import { supplierUnitsOf } from "../lib/userUnits";
 import { t } from "../strings";
 
 export function SupplierSwitcher() {
   const profile = useProfile();
   const active = useActiveSupplier();
-  const mine = useUnits().filter((u) => profile.supplier_ids?.includes(u.id));
+  const mine = supplierUnitsOf(profile, useUnits());
   if (mine.length < 2) return null;
 
   return (

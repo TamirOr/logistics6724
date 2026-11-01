@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeProfile } from "../test/fixtures";
-import { awaitsApprovalFrom, unitKindOf, unitNamesOf, unitsOf, workUnitsOf } from "./userUnits";
+import { awaitsApprovalFrom, moveTargetsOf, supplierUnitsOf, unitKindOf, unitNamesOf, unitsOf, workUnitsOf } from "./userUnits";
 
 const cook = makeProfile({ role: "supplier", unit_id: "kitchen", supplier_ids: ["kitchen"], pending_supplier_ids: ["closing"] });
 
@@ -48,5 +48,22 @@ describe("awaitsApprovalFrom", () => {
 
   it("never shows a rejected user", () => {
     expect(awaitsApprovalFrom({ ...recruit, approval: "rejected" }, null)).toBe(false);
+  });
+});
+
+describe("supplierUnitsOf and moveTargetsOf", () => {
+  const units = [
+    { id: "store", name: "אפסנאות", active: true }, { id: "kitchen", name: "מטבח", active: true },
+    { id: "old", name: "ישנה", active: false }, { id: "medic", name: "רפואה", active: true },
+  ].map((u) => ({ ...u, kind: "supplier" as const, headcount: null }));
+  const both = makeProfile({ role: "supplier", unit_id: "store", supplier_ids: ["kitchen", "store", "old"] });
+
+  it("lists the units the supplier works in, in the units list's order", () => {
+    expect(supplierUnitsOf(both, units).map((u) => u.id)).toEqual(["store", "kitchen", "old"]);
+  });
+
+  it("moves items only to another active unit of the supplier", () => {
+    expect(moveTargetsOf(both, units, "store").map((u) => u.id)).toEqual(["kitchen"]);
+    expect(moveTargetsOf(makeProfile({ role: "supplier", unit_id: "store", supplier_ids: ["store"] }), units, "store")).toEqual([]);
   });
 });

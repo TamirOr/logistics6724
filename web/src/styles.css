@@ -190,6 +190,7 @@ h2 { font-size: 1.15rem; margin: 0; }
 .section { margin: 20px 0; }
 .section-title { padding-bottom: 6px; border-bottom: 2px solid var(--border); margin-bottom: 8px; }
 .company-title { font-size: 1rem; margin: 12px 0 4px; color: var(--muted); }
+.category-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .category-title { font-size: 0.85rem; font-weight: 600; margin: 8px 0 2px; color: var(--muted); }
 .req-list { list-style: none; margin: 0; padding: 0; }
 .req {

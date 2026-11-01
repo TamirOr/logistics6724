@@ -138,6 +138,10 @@ export const supplierCategories = (supplierId: string) =>
 export const mergeItem = (sourceId: string, targetId: string) =>
   rpc<void>("merge_item", { p_source: sourceId, p_target: targetId });
 
+/** Moves items, with their requests, to another of the supplier's units. A same-name item there absorbs its twin. */
+export const moveItems = (itemIds: string[], supplierId: string) =>
+  rpc<void>("move_items", { p_items: itemIds, p_supplier: supplierId });
+
 /** Refused while any request uses the item: hide or merge it instead. */
 export const deleteItem = (id: string) => rpc<void>("delete_item", { p_item: id });
 
