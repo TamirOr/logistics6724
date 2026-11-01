@@ -7,6 +7,7 @@ import { EventCard } from "../../components/EventCard";
 import { Layout } from "../../components/Layout";
 import { useAction } from "../../components/Toast";
 import { fetchEvents, fetchListOverviews, fetchTuning } from "../../lib/api";
+import { isRear } from "../../lib/echelon";
 import { exportHistory } from "../../lib/exportExcel";
 import { useProfile } from "../../lib/session";
 import { daysAgo } from "../../lib/time";
@@ -32,7 +33,7 @@ export function History({ pick = false }: { pick?: boolean }) {
   }, [profile.role]);
 
   const canDuplicate = (e: LogisticsEvent) =>
-    profile.role === "customer" || (profile.role === "admin" && e.scope === "battalion");
+    (profile.role === "customer" && !isRear(profile)) || (profile.role === "admin" && e.scope === "battalion");
 
   const exportRange = async () => {
     const until = new Date(to);

@@ -1,7 +1,8 @@
 // "What is the state of my requests": who is signed in and for which
-// company, then open events, newest first, each with its list status and
+// company, the switch to the rear echelon, then open events, newest first, each with its list status and
 // counts. Battalion events not filled yet go on top.
 import { useNavigate } from "react-router-dom";
+import { EchelonSwitcher } from "../../components/EchelonSwitcher";
 import { EventCard } from "../../components/EventCard";
 import { Layout } from "../../components/Layout";
 import { ProfileCard } from "../../components/ProfileCard";
@@ -40,6 +41,7 @@ export function CustomerHome() {
     >
       <PushPrompt />
       <ProfileCard profile={profile} units={units} activeUnitId={profile.unit_id!} />
+      <EchelonSwitcher />
       {events === null && <p className="muted">{t.loading}</p>}
       {events?.length === 0 && <p className="muted empty">{t.noOpenEvents}</p>}
       {sorted.map((e) => (

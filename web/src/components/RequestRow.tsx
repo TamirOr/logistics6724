@@ -12,10 +12,11 @@ interface Props {
   request: Request;
   item: Item | undefined;
   editable: boolean;
+  commentCount?: number;
   onOpen?: () => void;
 }
 
-export function RequestRow({ request: r, item, editable, onOpen }: Props) {
+export function RequestRow({ request: r, item, editable, commentCount, onOpen }: Props) {
   const canFlag = editable && !isClosed(r);
   return (
     <li className={`req req-${r.status} ${r.urgent ? "req-urgent" : ""}`}>
@@ -33,7 +34,7 @@ export function RequestRow({ request: r, item, editable, onOpen }: Props) {
       {r.status === "partial" && r.supplied_quantity != null && (
         <div className="req-sub">{t.suppliedOf(r.supplied_quantity, r.quantity)}</div>
       )}
-      <RequestNotes request={r} />
+      <RequestNotes request={r} commentCount={commentCount} />
     </li>
   );
 }

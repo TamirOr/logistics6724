@@ -92,6 +92,12 @@ export function markStatus(r: Request, status: RequestStatus, suppliedQuantity: 
   );
 }
 
+/** Undoes markStatus(before, marked), as the toast after a mark offers. */
+export function undoMark(before: Request, marked: RequestStatus) {
+  if (marked === "collected") restoreRequest({ ...before, status: "collected", previous_status: before.status });
+  else markStatus(before, before.status, before.supplied_quantity);
+}
+
 /** Undoes a pickup or a cancel: back to the status before it. */
 export function restoreRequest(r: Request) {
   if (!r.previous_status) return;

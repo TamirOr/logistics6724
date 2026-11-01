@@ -1,4 +1,5 @@
-// Gate by sign-in and approval, then route by role.
+// Gate by sign-in and approval, then route by role, and for a company user
+// by echelon.
 import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Crash } from "./components/Crash";
@@ -27,16 +28,25 @@ import { Waiting } from "./screens/shared/Waiting";
 import { Catalog } from "./screens/supplier/Catalog";
 import { SupplierEvent } from "./screens/supplier/SupplierEvent";
 import { SupplierHome } from "./screens/supplier/SupplierHome";
-import type { UserRole } from "./lib/types";
+import { screensOf, type Screens } from "./lib/echelon";
+import { RearEvent } from "./screens/rear/RearEvent";
+import { RearHome } from "./screens/rear/RearHome";
 import { t } from "./strings";
 
-const ROUTES: Record<UserRole, { path: string; element: JSX.Element }[]> = {
+const ROUTES: Record<Screens, { path: string; element: JSX.Element }[]> = {
   customer: [
     { path: "/", element: <CustomerHome /> },
     { path: "/events/new", element: <NewEvent /> },
     { path: "/duplicate", element: <History pick /> },
     { path: "/events/:id/duplicate", element: <NewEvent /> },
     { path: "/events/:id", element: <CustomerEvent /> },
+    { path: "/history", element: <History /> },
+    { path: UNIT_USERS_PATH, element: <UnitUsers /> },
+    { path: "/diagnostics", element: <Diagnostics /> },
+  ],
+  rear: [
+    { path: "/", element: <RearHome /> },
+    { path: "/events/:id", element: <RearEvent /> },
     { path: "/history", element: <History /> },
     { path: UNIT_USERS_PATH, element: <UnitUsers /> },
     { path: "/diagnostics", element: <Diagnostics /> },
@@ -83,7 +93,7 @@ function Gate() {
 
   return (
     <Routes>
-      {ROUTES[profile.role].map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
+      {ROUTES[screensOf(profile)].map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

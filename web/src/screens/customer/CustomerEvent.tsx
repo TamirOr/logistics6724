@@ -12,15 +12,15 @@ import { ItemAdder } from "../../components/ItemAdder";
 import { RequestFilters } from "../../components/RequestFilters";
 import { EventEndButtons } from "../../components/EventEndButtons";
 import { Layout } from "../../components/Layout";
-import { useToast } from "../../components/Toast";
+import { useCollectSection } from "../../hooks/useCollectSection";
 import { useEvent } from "../../hooks/useEvent";
 import { fetchCompanyList } from "../../lib/api";
 import { readCache, writeCache } from "../../lib/cache";
-import { addComment, commentsWith } from "../../lib/comments";
+import { addComment, commentsOn, commentsWith, commentWriter } from "../../lib/comments";
 import { exportEvent } from "../../lib/exportExcel";
 import { itemCache, useCached, useLiveRows, useUnits } from "../../lib/live";
 import { categoryOptions, filterRequests, isFiltering, NO_FILTER } from "../../lib/requestFilter";
-import { addRequest, collectSection, isCollectable, restoreRequest } from "../../lib/requests";
+import { addRequest, isCollectable } from "../../lib/requests";
 import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
 import type { List, ListComment, Request, RequestStatus } from "../../lib/types";
@@ -33,7 +33,7 @@ const FILTER_STATUSES: RequestStatus[] = ["pending", "ready", "partial", "missin
 export function CustomerEvent() {
   const { id } = useParams();
   const profile = useProfile();
-  const showToast = useToast();
+  const collect = useCollectSection();
   const { event } = useEvent(id);
   // undefined while loading; null when the company has no list here.
   const [list, setList] = useState<List | null | undefined>(undefined);
@@ -71,23 +71,12 @@ export function CustomerEvent() {
   const filtering = isFiltering(filter);
   const shown = filterRequests(rows, filter, categoryOf);
   const side = editable ? "customer" as const : null;
-  const writerName = (c: ListComment) => units.find((u) => u.id === (c.side === "customer" ? c.company_id : c.supplier_id))?.name ?? "";
+  const writerName = commentWriter(units);
   const comment = (supplierId: string | null) => (body: string) => addComment({
     listId: list.id, eventId: event.id, companyId: list.company_id, supplierId, side: "customer", body,
   });
   const generalComments = commentsWith(comments, null);
   const neededBy = formatNeededBy(event);
-
-  const collect = (supplierId: string, sectionRows: Request[]) => {
-    const ready = sectionRows.filter(isCollectable);
-    collectSection(list.id, supplierId, sectionRows);
-    showToast({
-      message: `${t.collected} ✓`,
-      // Undo uses the rows as they were before the pickup.
-      onAction: () => ready.forEach((r) => restoreRequest({ ...r, status: "collected", previous_status: r.status })),
-    });
-  };
-
 
   return (
     <Layout
@@ -126,7 +115,7 @@ export function CustomerEvent() {
             <h2 className="section-title">{s.name}</h2>
             <CategorizedList rows={shownRows} categoryOf={categoryOf} renderRow={(r) => (
               <RequestRow key={r.id} request={r} item={itemOf(r.item_id)} editable={editable}
-                onOpen={() => setEditing(r)} />
+                commentCount={commentsOn(comments, r.id).length} onOpen={() => setEditing(r)} />
             )} />
             <CommentThread comments={commentsWith(comments, s.id)} writerName={writerName} side={side}
               onAdd={comment(s.id)} placeholder={t.commentTo(s.name)} />
@@ -136,7 +125,7 @@ export function CustomerEvent() {
               })} />
             )}
             {editable && canCollect && (
-              <button className="btn btn-success btn-block" onClick={() => collect(s.id, sectionRows)}>{t.collected}</button>
+              <button className="btn btn-success btn-block" onClick={() => collect(list.id, s.id, sectionRows)}>{t.collected}</button>
             )}
           </section>
         );

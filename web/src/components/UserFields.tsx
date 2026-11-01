@@ -1,5 +1,6 @@
 // A user's sign-up details: for admins on a pending sign-up and on the
 // user's page, for a supplier on their own home screen.
+import { echelonOf } from "../lib/echelon";
 import type { Profile, Unit } from "../lib/types";
 import { unitKindOf, unitNamesOf } from "../lib/userUnits";
 import { t } from "../strings";
@@ -15,6 +16,7 @@ export function UserFields({ user, units }: { user: Profile; units: Unit[] }) {
       <dt>{t.emailLabel}</dt><dd><bdi dir="ltr">{user.email}</bdi></dd>
       <dt>{t.role}</dt><dd>{roleOf(user)}</dd>
       {user.role !== "admin" && <><dt>{t.unitOf[unitKindOf(user.role)]}</dt><dd>{unitNamesOf(user, units)}</dd></>}
+      {user.role === "customer" && <><dt>{t.echelon}</dt><dd>{t.echelonLabels[echelonOf(user)]}</dd></>}
     </dl>
   );
 }

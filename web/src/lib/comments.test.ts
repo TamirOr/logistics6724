@@ -5,7 +5,7 @@ const enqueue = vi.fn((..._args: unknown[]) => "entry-id");
 const cancel = vi.fn();
 vi.mock("./queue", () => ({ enqueue: (...a: unknown[]) => enqueue(...a), cancel: (id: string) => cancel(id) }));
 
-const { addComment, commentsForSupplier, commentsWith, deleteComment } = await import("./comments");
+const { addComment, commentsForSupplier, commentsOn, commentsWith, commentWriter, deleteComment } = await import("./comments");
 const { UNDO_DELAY_MS } = await import("./requests");
 
 const comment = (overrides: Partial<ListComment>): ListComment => ({
@@ -27,6 +27,13 @@ describe("addComment", () => {
     expect(Object.keys(mutation.row).sort()).toEqual(["body", "id", "list_id", "supplier_id"]);
     expect(mutation.row).toMatchObject({ list_id: "l", supplier_id: "s", body: "נגיע ב-14:00" });
     expect(effects[0].insert).toMatchObject({ side: "customer", company_id: "c", event_id: "e", body: "נגיע ב-14:00" });
+  });
+
+  it("sends a comment on a request with the request, and lets the server set its supplier", () => {
+    addComment({ ...comment, requestId: "r", body: "לא מצאתי" });
+    const [mutation, effects] = enqueue.mock.calls.at(-1)! as [{ row: Record<string, unknown> }, { insert: ListComment }[]];
+    expect(Object.keys(mutation.row).sort()).toEqual(["body", "id", "list_id", "request_id"]);
+    expect(effects[0].insert).toMatchObject({ request_id: "r", supplier_id: "s" });
   });
 
   it("skips a blank comment", () => {
@@ -55,6 +62,9 @@ describe("which comments a thread shows", () => {
     comment({ body: "מהאפסנאות", supplier_id: "store", side: "supplier", created_at: "2026-10-29T08:30:00Z" }),
     comment({ body: "למטבח", supplier_id: "kitchen" }),
     comment({ body: "לכולם, מוקדם", created_at: "2026-10-29T07:00:00Z" }),
+    comment({ body: "על הפריט", supplier_id: "store", request_id: "r1" }),
+    comment({ body: "על הפריט, תשובה", supplier_id: "store", side: "supplier", request_id: "r1", created_at: "2026-10-29T08:10:00Z" }),
+    comment({ body: "על פריט אחר", supplier_id: "store", request_id: "r2" }),
   ];
   const bodies = (list: ListComment[]) => list.map((c) => c.body);
 
@@ -68,5 +78,25 @@ describe("which comments a thread shows", () => {
 
   it("a supplier's: general and its own, not another supplier's", () => {
     expect(bodies(commentsForSupplier(comments, "store"))).toEqual(["לכולם, מוקדם", "לאפסנאות", "מהאפסנאות", "לכולם, מאוחר"]);
+  });
+
+  it("one request's, both sides, oldest first, and no other thread's", () => {
+    expect(bodies(commentsOn(comments, "r1"))).toEqual(["על הפריט", "על הפריט, תשובה"]);
+  });
+});
+
+describe("commentWriter", () => {
+  const writer = commentWriter([{ id: "company", name: "פלוגה א" }, { id: "store", name: "אפסנאות" }]);
+
+  it("names the company with the writer's echelon", () => {
+    expect(writer(comment({ echelon: "rear" }))).toBe("פלוגה א · מפלג אחורי");
+  });
+
+  it("names the company alone in a comment cached before echelons", () => {
+    expect(writer(comment({}))).toBe("פלוגה א");
+  });
+
+  it("names the supplier unit on the supplier side", () => {
+    expect(writer(comment({ side: "supplier", supplier_id: "store" }))).toBe("אפסנאות");
   });
 });

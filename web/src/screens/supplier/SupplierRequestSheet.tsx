@@ -1,10 +1,13 @@
 // The row menu: partial (asks how much), missing, back to pending, note,
-// and the item's category, so a new item can be sorted while working.
+// and the item's category, so a new item can be sorted while working. Below,
+// the comments on the request and who set its status.
 import { useState } from "react";
 import { CategoryInput } from "../../components/CategoryInput";
+import { RequestComments } from "../../components/RequestComments";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { Sheet } from "../../components/Sheet";
 import { StatusPicker } from "../../components/StatusPicker";
+import { StatusSetBy } from "../../components/StatusSetBy";
 import { useAction } from "../../components/Toast";
 import { updateItem } from "../../lib/api";
 import { itemCache } from "../../lib/live";
@@ -60,6 +63,8 @@ export function SupplierRequestSheet({ request: r, item, onClose, onStatusChange
           </label>
         )}
         <button className="btn btn-secondary btn-block" onClick={save}>{t.save}</button>
+        <RequestComments request={r} side="supplier" />
+        <StatusSetBy request={r} />
       </div>
     </Sheet>
   );
