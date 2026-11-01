@@ -2,6 +2,7 @@
 // several supplier units. Also shown again after a rejection, with the
 // reason. An admin approves every sign-up before the app opens.
 import { useEffect, useState, type FormEvent } from "react";
+import { UpdateBanner } from "../../components/UpdateBanner";
 import { fetchSignupUnits, registerProfile } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import type { Unit, UserRole } from "../../lib/types";
@@ -48,6 +49,7 @@ export function Onboarding() {
   return (
     <div className="page">
       <header className="header"><h1 className="header-title">{t.profileTitle}</h1></header>
+      <UpdateBanner />
       <main className="content narrow">
         {profile?.approval === "rejected" && (
           <div className="notice notice-error">
