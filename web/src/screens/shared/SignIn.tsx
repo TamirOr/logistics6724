@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { sendCode, verifyCode } from "../../lib/api";
 import { describeError } from "../../lib/errors";
+import { UpdateBanner } from "../../components/UpdateBanner";
 import { t } from "../../strings";
 
 export function SignIn() {
@@ -34,6 +35,7 @@ export function SignIn() {
 
   return (
     <div className="page center">
+      <UpdateBanner />
       <main className="content narrow">
         <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" className="logo" />
         <h1>{t.appName}</h1>
