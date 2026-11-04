@@ -8,6 +8,8 @@ export type UserRole = "customer" | "supplier" | "admin";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type EventScope = "company" | "battalion";
 export type EventStatus = "open" | "closed" | "cancelled";
+/** A company user's part: the front fills the lists, the rear picks the items up and marks them. */
+export type Echelon = "front" | "rear";
 export type ListStatus = "empty" | "open" | "in_progress" | "ready_for_pickup" | "collected";
 
 export interface Unit {
@@ -34,6 +36,8 @@ export interface Profile {
   approval: ApprovalStatus;
   rejection_reason: string | null;
   active: boolean;
+  /** Read only for customers. A profile cached by an earlier build has none: read it with echelonOf. */
+  echelon?: Echelon;
   /** Approves sign-ups to their units and removes users from them. Set by admins. */
   super_user: boolean;
   /** Admins: the unit they work in as its customer or supplier (act_as_unit); null while they work as admin. */
@@ -107,12 +111,18 @@ export interface Request {
   changed_after_handling: boolean;
   created_at: string;
   updated_at: string;
+  /** Who set the status last, for when it is unclear: null until someone does, or when a server job did. */
+  status_set_at?: string | null;
+  /** The company or supplier unit of the user who set it. */
+  status_set_by_unit?: string | null;
+  /** The company echelon that set it; null for a supplier. */
+  status_set_by_echelon?: Echelon | null;
 }
 
 /** The side a comment was written from. */
 export type CommentSide = Extract<UserRole, "customer" | "supplier">;
 
-/** A general remark on a company's list, from the company or from one supplier. */
+/** A remark on a company's list, from the company or from one supplier: on the list, a supplier's section or one request. */
 export interface ListComment {
   id: string;
   list_id: string;
@@ -121,6 +131,10 @@ export interface ListComment {
   /** The supplier it is between the company and; null for a company comment to every supplier. */
   supplier_id: string | null;
   side: CommentSide;
+  /** The company echelon that wrote it; null on the supplier side. Missing in rows cached by an earlier build. */
+  echelon?: Echelon | null;
+  /** The request it is on; null for a comment on the list or a supplier's section. */
+  request_id?: string | null;
   body: string;
   created_by: string | null;
   created_at: string;

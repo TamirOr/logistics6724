@@ -3,13 +3,15 @@
 // Each user can be deactivated, deleted or moved to another unit, company or
 // supplier (the server changes the role to match), and a supplier's
 // supplier units can be edited. Customers and suppliers can be made super
-// users. A name opens the user's page: profile and support.
+// users, and a company user moved between the front and rear echelons. A
+// name opens the user's page: profile and support.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { Sheet } from "../../components/Sheet";
 import { useAction } from "../../components/Toast";
-import { deleteUser, moveUser, setSuperUser, setUserActive, setUserSuppliers } from "../../lib/api";
+import { deleteUser, moveUser, setEchelon, setSuperUser, setUserActive, setUserSuppliers } from "../../lib/api";
+import { isRear, otherEchelon } from "../../lib/echelon";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile, Unit, UnitKind, UserRole } from "../../lib/types";
@@ -34,7 +36,8 @@ export function AdminUsers() {
   };
   const approved = (role: UserRole) => users?.filter((u) => u.approval === "approved" && u.role === role) ?? [];
   const table = { units, onMove: setMoving, onEditUnits: setEditingUnits, onSetActive: (u: Profile) => act(() => setUserActive(u.id, !u.active)),
-    onSetSuperUser: (u: Profile) => act(() => setSuperUser(u.id, !u.super_user)), onDelete: remove };
+    onSetSuperUser: (u: Profile) => act(() => setSuperUser(u.id, !u.super_user)),
+    onSetEchelon: (u: Profile) => act(() => setEchelon(u.id, otherEchelon(u))), onDelete: remove };
 
   return (
     <Layout title={t.users} back actions={<Link className="btn btn-ghost btn-small" to="/access">{t.accessReview}</Link>}>
@@ -107,10 +110,13 @@ interface UserTableProps {
   onEditUnits: (user: Profile) => void;
   onSetActive: (user: Profile) => void;
   onSetSuperUser: (user: Profile) => void;
+  onSetEchelon: (user: Profile) => void;
   onDelete: (user: Profile) => void;
 }
 
-function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSetActive, onSetSuperUser, onDelete }: UserTableProps) {
+function UserTable({
+  title, users, units, filterKind, onMove, onEditUnits, onSetActive, onSetSuperUser, onSetEchelon, onDelete,
+}: UserTableProps) {
   const me = useProfile();
   const [filter, setFilter] = useState<UserFilter>(filterKind ? DEFAULT_FILTER : NO_FILTER);
   const shown = filterUsers(users, filter);
@@ -149,12 +155,16 @@ function UserTable({ title, users, units, filterKind, onMove, onEditUnits, onSet
                     <Link dir="auto" to={`/users/${u.id}`}>{u.first_name} {u.last_name}</Link>
                     {u.id === me.id && <> <span className="tag">{t.me}</span></>}
                     {u.super_user && <> <span className="tag">{t.superUser}</span></>}
+                    {isRear(u) && <> <span className="tag">{t.echelonLabels.rear}</span></>}
                   </td>
                   <td>{unitNamesOf(u, units)}</td>
                   <td>{u.active ? t.active : <span className="tag">{t.inactive}</span>}</td>
                   <td className="table-actions">
                     {u.role === "supplier" && (
                       <button className="btn btn-ghost btn-small" onClick={() => onEditUnits(u)}>{t.supplierUnits}</button>
+                    )}
+                    {u.role === "customer" && (
+                      <button className="btn btn-ghost btn-small" onClick={() => onSetEchelon(u)}>{t.moveToEchelon[otherEchelon(u)]}</button>
                     )}
                     {u.role !== "admin" && (
                       <>

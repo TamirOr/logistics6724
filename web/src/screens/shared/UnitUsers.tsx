@@ -1,10 +1,12 @@
 // A super user's screen: users waiting for their unit's approval, then the
-// active soldiers of their units, each removable from them.
+// active soldiers of their units, each removable from them. A company's
+// super user also moves its soldiers between the front and rear echelons.
 import { Layout } from "../../components/Layout";
 import { PendingSignups } from "../../components/PendingSignups";
 import { useAction } from "../../components/Toast";
 import { useUsers } from "../../hooks/useUsers";
-import { removeFromUnit } from "../../lib/api";
+import { removeFromUnit, setEchelon } from "../../lib/api";
+import { isRear, otherEchelon } from "../../lib/echelon";
 import { useUnits } from "../../lib/live";
 import { useProfile } from "../../lib/session";
 import type { Profile } from "../../lib/types";
@@ -37,9 +39,15 @@ export function UnitUsers() {
               {u.first_name} {u.last_name}
               {u.id === me.id && <> <span className="tag">{t.me}</span></>}
               {u.super_user && <> <span className="tag">{t.superUser}</span></>}
+              {isRear(u) && <> <span className="tag">{t.echelonLabels.rear}</span></>}
             </div>
             <div className="muted">{unitNamesOf(u, units)}</div>
           </div>
+          {u.role === "customer" && u.id !== me.id && (
+            <button className="btn btn-ghost btn-small" onClick={() => act(() => setEchelon(u.id, otherEchelon(u)))}>
+              {t.moveToEchelon[otherEchelon(u)]}
+            </button>
+          )}
           {u.id !== me.id && (
             <button className="btn btn-ghost btn-small" onClick={() => remove(u)}>{t.removeFromUnit[me.role]}</button>
           )}

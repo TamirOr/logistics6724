@@ -1,18 +1,20 @@
-// Edit, note, mark, delete or unmark one request, and give its item a
-// category if it has none.
+// Edit, note, mark, delete or unmark one request, give its item a category
+// if it has none, and comment on it.
 import { useState } from "react";
 import { CategoryInput } from "../../components/CategoryInput";
 import { Sheet } from "../../components/Sheet";
 import { QuantityInput } from "../../components/QuantityInput";
+import { RequestComments } from "../../components/RequestComments";
 import { RequestQuantity } from "../../components/RequestQuantity";
 import { StatusBadge } from "../../components/StatusBadge";
 import { StatusPicker } from "../../components/StatusPicker";
+import { StatusSetBy } from "../../components/StatusSetBy";
 import { useAction, useToast } from "../../components/Toast";
 import { addItemCategory } from "../../lib/api";
 import { categoryToAdd } from "../../lib/categories";
 import { itemCache } from "../../lib/live";
 import {
-  deleteRequest, isClosed, markStatus, restoreRequest, setCustomerNote, setQuantity, setUrgent,
+  deleteRequest, isClosed, markStatus, restoreRequest, setCustomerNote, setQuantity, setUrgent, undoMark,
 } from "../../lib/requests";
 import type { Item, Request, RequestStatus } from "../../lib/types";
 import { t } from "../../strings";
@@ -44,12 +46,7 @@ export function RequestSheet({ request: r, item, onClose }: { request: Request; 
     setCustomerNote(r, note);
     saveCategory();
     markStatus(r, status, suppliedQuantity);
-    showToast({
-      message: t.statusChanged,
-      onAction: () => (status === "collected"
-        ? restoreRequest({ ...r, status, previous_status: r.status })
-        : markStatus(r, r.status, r.supplied_quantity)),
-    });
+    showToast({ message: t.statusChanged, onAction: () => undoMark(r, status) });
     onClose();
   };
   const remove = () => {
@@ -91,6 +88,8 @@ export function RequestSheet({ request: r, item, onClose }: { request: Request; 
             <button className="btn btn-danger btn-block" onClick={remove}>{t.delete}</button>
           </>
         )}
+        <RequestComments request={r} side="customer" />
+        <StatusSetBy request={r} />
       </div>
     </Sheet>
   );

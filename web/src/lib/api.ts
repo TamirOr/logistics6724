@@ -3,7 +3,7 @@
 // edits go through lib/requests.ts instead, so they work offline.
 import { supabase } from "./supabase";
 import type {
-  AccessReviewRow, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
+  AccessReviewRow, Echelon, EventScope, HealthReport, Item, ItemSearchResult, List, ListOverview, LogisticsEvent, MergeSuggestion,
   Profile, Unit, UnitKind, UserRole,
 } from "./types";
 
@@ -164,6 +164,8 @@ export const fetchUsers = async () =>
 export const approveUser = (id: string) => rpc<void>("approve_user", { p_user: id });
 export const rejectUser = (id: string, reason: string) => rpc<void>("reject_user", { p_user: id, p_reason: reason });
 export const setUserActive = (id: string, active: boolean) => rpc<void>("set_user_active", { p_user: id, p_active: active });
+/** A company user's echelon: their own, or as an admin or the company's super user. */
+export const setEchelon = (id: string, echelon: Echelon) => rpc<void>("set_echelon", { p_user: id, p_echelon: echelon });
 export const setSuperUser = (id: string, superUser: boolean) =>
   rpc<void>("set_super_user", { p_user: id, p_super_user: superUser });
 /** Super users: deactivates the user, or takes only the caller's units from a supplier in other units too. */

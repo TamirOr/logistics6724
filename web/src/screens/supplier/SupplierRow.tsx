@@ -9,6 +9,7 @@ interface Props {
   request: Request;
   item: Item | undefined;
   suggestion: MergeSuggestion | undefined;
+  commentCount: number;
   onTap: () => void;
   onMenu: () => void;
   onAcknowledge: () => void;
@@ -16,7 +17,7 @@ interface Props {
   onVerify: () => void;
 }
 
-export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAcknowledge, onMerge, onVerify }: Props) {
+export function SupplierRow({ request: r, item, suggestion, commentCount, onTap, onMenu, onAcknowledge, onMerge, onVerify }: Props) {
   const cancelled = r.status === "cancelled";
   return (
     <li className={`req req-${r.status} ${r.urgent ? "req-urgent" : ""}`}>
@@ -35,7 +36,7 @@ export function SupplierRow({ request: r, item, suggestion, onTap, onMenu, onAck
       {r.status === "partial" && r.supplied_quantity != null && (
         <div className="req-sub">{t.suppliedOf(r.supplied_quantity, r.quantity)}</div>
       )}
-      <RequestNotes request={r} />
+      <RequestNotes request={r} commentCount={commentCount} />
       {item && !item.verified && (
         <div className="req-sub merge-hint">
           <span className="tag tag-new">{t.newTag}</span>

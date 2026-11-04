@@ -2,7 +2,7 @@
 // every supplier and those between the company and this supplier unit,
 // with a field to answer while the event is open.
 import { CommentThread } from "../../components/CommentThread";
-import { addComment, commentsForSupplier } from "../../lib/comments";
+import { addComment, commentsForSupplier, commentWriter } from "../../lib/comments";
 import { useLiveRows } from "../../lib/live";
 import type { ListComment, Unit } from "../../lib/types";
 import { t } from "../../strings";
@@ -23,7 +23,7 @@ export function CompanyComments({ listId, eventId, companyId, supplierId, units,
   const nameOf = (id: string | null) => units.find((u) => u.id === id)?.name ?? "";
   return (
     <CommentThread comments={commentsForSupplier(rows, supplierId)} markGeneral
-      writerName={(c) => nameOf(c.side === "customer" ? c.company_id : c.supplier_id)}
+      writerName={commentWriter(units)}
       side={editable ? "supplier" : null} placeholder={t.commentToCompany(nameOf(companyId))}
       onAdd={(body) => addComment({ listId, eventId, companyId, supplierId, side: "supplier", body })} />
   );

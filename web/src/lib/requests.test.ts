@@ -6,7 +6,7 @@ const cancel = vi.fn();
 vi.mock("./queue", () => ({ enqueue: (...a: unknown[]) => enqueue(...a), cancel: (id: string) => cancel(id) }));
 
 const {
-  addRequest, collectSection, deleteRequest, markStatus, setCustomerNote, setQuantity, setStatus, UNDO_DELAY_MS,
+  addRequest, collectSection, deleteRequest, markStatus, setCustomerNote, setQuantity, setStatus, undoMark, UNDO_DELAY_MS,
 } = await import("./requests");
 const lastEffects = () => enqueue.mock.calls.at(-1)![1] as { patch?: Record<string, unknown>; remove?: true }[];
 
@@ -111,6 +111,19 @@ describe("markStatus", () => {
     markStatus(makeRequest({ status: "pending" }), "collected");
     expect(sent()).toEqual({ status: "collected" });
     expect(lastEffects()[0].patch).toEqual({ status: "collected", previous_status: "pending" });
+  });
+});
+
+describe("undoMark", () => {
+  it("unmarks a pickup back to the status before it", () => {
+    undoMark(makeRequest({ id: "r", status: "ready" }), "collected");
+    expect(enqueue.mock.calls.at(-1)![0]).toMatchObject({ kind: "rpc", fn: "restore_request", args: { p_request: "r" } });
+    expect(lastEffects()[0].patch).toEqual({ status: "ready", previous_status: null });
+  });
+
+  it("puts back the status and supplied quantity before another mark", () => {
+    undoMark(makeRequest({ status: "partial", supplied_quantity: 3 }), "missing");
+    expect(lastEffects()[0].patch).toEqual({ status: "partial", supplied_quantity: 3 });
   });
 });
 

@@ -50,6 +50,10 @@ export const t = {
   returnToAdmin: "חזרה לניהול",
   switchUnsynced: (n: number) => `${n} שינויים עוד לא נשלחו לשרת ויימחקו במעבר. לעבור בכל זאת?`,
 
+  // Echelons of a company
+  echelon: "מפלג",
+  echelonLabels: { front: "מפלג קדמי", rear: "מפלג אחורי" } as Record<string, string>,
+  moveToEchelon: { front: "העברה למפלג קדמי", rear: "העברה למפלג אחורי" } as Record<string, string>,
   // Install and notifications
   installTitle: "הוספה למסך הבית",
   installSteps: [
@@ -156,6 +160,9 @@ export const t = {
   commentToAll: "הערה לכל המחלקות",
   commentToCompany: (company: string) => `הערה ל${company}`,
   toAllSuppliers: "לכל המחלקות",
+  itemComments: "הערות על הפריט",
+  commentOnItem: "הערה על הפריט",
+  commentCount: (n: number) => (n === 1 ? "הערה אחת" : `${n} הערות`),
   deleteComment: "מחיקת הערה",
   commentDeleted: "ההערה נמחקה",
 
@@ -171,6 +178,11 @@ export const t = {
   acknowledgeCancel: "הוחזר למלאי",
   markedReady: "סומן מוכן לאיסוף",
   statusChanged: "הסטטוס עודכן",
+  statusSetBy: (who: string, at: string) => `הסטטוס עודכן ע״י ${who} · ${at}`,
+  // Rear echelon
+  toCollect: "לאיסוף",
+  nothingToCollect: "אין דרישות פתוחות לאיסוף",
+  markedCollected: "סומן כנאסף",
 
   // Catalog
   rename: "שינוי שם",

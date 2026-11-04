@@ -12,6 +12,7 @@ import { RequestFilters } from "../../components/RequestFilters";
 import { SupplierSwitcher } from "../../components/SupplierSwitcher";
 import { useAction, useToast } from "../../components/Toast";
 import { mergeItem, mergeSuggestions, updateItem } from "../../lib/api";
+import { commentsOn } from "../../lib/comments";
 import { exportOpenRequests, exportTotals } from "../../lib/exportExcel";
 import { eventCache, itemCache, useCached, useLiveRows, useRealtime, useUnits } from "../../lib/live";
 import { categoryOptions, filterRequests, NO_FILTER } from "../../lib/requestFilter";
@@ -19,7 +20,7 @@ import { acknowledgeCancel, setStatus } from "../../lib/requests";
 import { useActiveSupplier } from "../../lib/activeSupplier";
 import { useProfile } from "../../lib/session";
 import { formatNeededBy } from "../../lib/time";
-import type { LogisticsEvent, MergeSuggestion, Request, RequestStatus } from "../../lib/types";
+import type { ListComment, LogisticsEvent, MergeSuggestion, Request, RequestStatus } from "../../lib/types";
 import { PushPrompt } from "../shared/PushPrompt";
 import { unitUsersNav } from "../shared/unitUsers";
 import { AggregateView, aggregateTotals } from "./AggregateView";
@@ -63,6 +64,10 @@ export function SupplierHome() {
     cacheKey: `requests:supplier:${supplierId}`,
   });
   const itemOf = useCached(itemCache, rows.map((r) => r.item_id));
+  // Comments between companies and this supplier unit, to count those on each request.
+  const { rows: comments } = useLiveRows<ListComment>("list_comments", {
+    column: "supplier_id", value: supplierId, cacheKey: `comments:supplier:${supplierId}`,
+  });
   const eventOf = useCached(eventCache, rows.map((r) => r.event_id));
   useRealtime<LogisticsEvent>("events", "", (c) => {
     if (c.eventType === "UPDATE") eventCache.put([c.new as LogisticsEvent]);
@@ -163,6 +168,7 @@ export function SupplierHome() {
                     categoryOf={categoryOf} renderRow={(r) => (
                       <SupplierRow key={r.id} request={r} item={itemOf(r.item_id)}
                         suggestion={suggestions.find((s) => s.item_id === r.item_id)}
+                        commentCount={commentsOn(comments, r.id).length}
                         onTap={() => markReady(r)} onMenu={() => setMenuFor(r)}
                         onAcknowledge={() => acknowledgeCancel(r)} onMerge={merge} onVerify={() => verify(r.item_id)} />
                     )} />
