@@ -8,7 +8,7 @@
 //   node scripts/drive.mjs prune                 deletes copies outside the retention
 //
 // Environment: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN,
-// DRIVE_FOLDER_ID, BACKUP_TARGET (production or staging).
+// DRIVE_FOLDER_ID, BACKUP_TARGET (production).
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 

@@ -23,10 +23,10 @@ The product spec is the source of truth for behavior: https://claude.ai/artifact
 - `supabase/migrations/`: schema, RLS, business rules, notifications. Migrations are append-only once deployed: add a new file, don't edit an applied one.
 - `supabase/functions/`: Deno Edge Functions (`push-dispatch`, `archive`). `_shared/` holds code shared with the web app.
 - `supabase/tests/`: SQL tests that run against plain Postgres with a stub of the Supabase auth schema.
-- `supabase/restore/`, `supabase/seed/`: restore-drill SQL and the staging seed.
+- `supabase/restore/`: restore-drill SQL.
 - `web/`: Vite + React + TypeScript PWA.
 - `scripts/`: Node tools the workflows run (`supabase-admin.mjs`, `drive.mjs`, ...), tested with `node --test scripts/*.test.mjs`.
-- `.github/workflows/`: CI, deploy (main → staging → your approval → production), health, backup, restore drill.
+- `.github/workflows/`: CI, deploy (main → your approval → production), health, backup, restore drill.
 - `docs/runbook.md`: one entry per alert and support complaint. Add one with every new health check or alert.
 
 ## Commands

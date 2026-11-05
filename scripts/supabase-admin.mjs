@@ -9,7 +9,6 @@
 //   node scripts/supabase-admin.mjs health         fails when health_report() is red (counts only, logs are public)
 //   node scripts/supabase-admin.mjs record-backup  records a successful backup in job_runs
 //   node scripts/supabase-admin.mjs rotate-cron-secret   replaces the secret pg_cron and the functions share
-//   node scripts/supabase-admin.mjs seed-staging   loads fake units and catalog (staging only)
 //   node scripts/supabase-admin.mjs pg -- <tool> <args>  runs pg_dump or psql against the project
 //   node scripts/supabase-admin.mjs backup-manifest       prints what a backup holds (no data)
 //   node scripts/supabase-admin.mjs restore-scaffold <dump> auth tables the drill database needs for a dump
@@ -310,13 +309,6 @@ async function rotateCronSecret(env) {
   console.log("cron secret rotated");
 }
 
-async function seedStaging(env) {
-  if (env.DEPLOY_TARGET !== "staging") throw new Error("seed-staging runs only with DEPLOY_TARGET=staging");
-  const seed = await readFile(new URL("../supabase/seed/staging.sql", import.meta.url), "utf8");
-  await client(env).sql(seed);
-  console.log("staging seeded");
-}
-
 /**
  * libpq settings for the project's session pooler. GitHub runners have no
  * IPv6, and the direct database host is IPv6-only on the free plan.
@@ -418,7 +410,7 @@ async function verifyRestore() {
 
 const commands = {
   configure, "anon-key": anonKey, "make-admin": makeAdmin, status, health,
-  "record-backup": recordBackup, "rotate-cron-secret": rotateCronSecret, "seed-staging": seedStaging,
+  "record-backup": recordBackup, "rotate-cron-secret": rotateCronSecret,
   pg, "backup-manifest": backupManifest, "restore-scaffold": restoreScaffold, "verify-restore": verifyRestore,
 };
 
