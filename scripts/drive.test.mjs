@@ -20,9 +20,9 @@ test("keeps the newest 14 daily copies and 8 weekly Sunday copies", () => {
 });
 
 test("never touches other targets or other files", () => {
-  const names = [...Array.from({ length: 30 }, (_, i) => daysBack(i)), "backup-staging-2020-01-01.tar.gz.age", "logistics-2026-01.xlsx"];
+  const names = [...Array.from({ length: 30 }, (_, i) => daysBack(i)), "backup-other-2020-01-01.tar.gz.age", "logistics-2026-01.xlsx"];
   const deleted = backupsToDelete("production", names);
-  assert.ok(!deleted.includes("backup-staging-2020-01-01.tar.gz.age"));
+  assert.ok(!deleted.includes("backup-other-2020-01-01.tar.gz.age"));
   assert.ok(!deleted.includes("logistics-2026-01.xlsx"));
 });
 

@@ -1,6 +1,6 @@
 # Runbook
 
-One entry per alert and per common complaint: what it means, what to look at, how to fix it. SQL runs in the Supabase dashboard → SQL Editor of the project in question (production unless it says staging).
+One entry per alert and per common complaint: what it means, what to look at, how to fix it. SQL runs in the Supabase dashboard → SQL Editor of the production project.
 
 Alerts arrive by email from three places:
 
@@ -125,7 +125,7 @@ Open the Supabase dashboard. A paused project shows "Restore project". Restoring
 ## Sentry
 
 - **New issue from `web`**: the stack trace names the screen. The issue's tags show the release (git SHA), role and environment. A crash shows users the "משהו השתבש" screen with a reload button.
-- **`write rejected: <kind> <table or rpc> (<code>)`**: the server refused a write the UI allowed. Most likely a database rule and the UI disagree. The code says which: `42501` row-level security, `P0001` a rule in a trigger or RPC (the message on the user's phone says which), `23514` a check constraint, `0ROWS` an update that matched no row (refused by RLS or the row is gone). Reproduce on staging with the same role.
+- **`write rejected: <kind> <table or rpc> (<code>)`**: the server refused a write the UI allowed. Most likely a database rule and the UI disagree. The code says which: `42501` row-level security, `P0001` a rule in a trigger or RPC (the message on the user's phone says which), `23514` a check constraint, `0ROWS` an update that matched no row (refused by RLS or the row is gone). Reproduce with an account of the same role.
 - **`push-dispatch` or `archive`**: see the matching health check above.
 
 ## Common complaints
@@ -227,8 +227,7 @@ Phones run the old build until their service worker updates, which waits for the
 When a change cannot be made compatible:
 
 1. Label the PR `db-breaking` (CI requires it for drops, renames, type changes and truncates).
-2. Deploy to staging and rehearse with an old build open on a phone.
-3. After the production deploy, set the minimum build to the new build's commit time. The production Deploy run shows it in its **Build** notice as `built_at` (Unix seconds):
+2. After the production deploy, set the minimum build to the new build's commit time. The production Deploy run shows it in its **Build** notice as `built_at` (Unix seconds):
 
 ```sql
 update app_config set value = '<commit time>' where key = 'min_client_version';
@@ -238,7 +237,7 @@ Older builds then stop sending writes (they stay on the phone) and show "נדר�
 
 ### Rolling back
 
-- **Web or functions**: revert the PR on GitHub (the PR page has a **Revert** button), merge the revert, check staging and approve production. Re-running an older Deploy run does not work once newer migrations are applied: its checkout lacks them, and `db push` refuses.
+- **Web or functions**: revert the PR on GitHub (the PR page has a **Revert** button), merge the revert and approve production. Re-running an older Deploy run does not work once newer migrations are applied: its checkout lacks them, and `db push` refuses.
 - **Database**: never edit or revert an applied migration. Write a forward fix migration. Restore from a backup only after data loss.
 
 ### Deleting a user on request
@@ -260,7 +259,7 @@ Nightly at 01:37 UTC and before every production deploy, the **Backup** workflow
 ### Restore drill (before launch, then every quarter)
 
 1. Add your private key as the GitHub secret `BACKUP_AGE_KEY` (the whole content of the key file).
-2. Actions → Restore drill → Run workflow. It restores the newest backup into a throwaway Postgres inside the runner, built from the migrations, and checks each table's row count against the dump. No Supabase project is touched: staging never holds real users' data, and the copy is gone when the job ends. Auth tables load as text columns (the runner has no Supabase Auth); the public schema loads into its real tables.
+2. Actions → Restore drill → Run workflow. It restores the newest backup into a throwaway Postgres inside the runner, built from the migrations, and checks each table's row count against the dump. No Supabase project is touched, and the copy is gone when the job ends. Auth tables load as text columns (the runner has no Supabase Auth); the public schema loads into its real tables.
 3. Delete the `BACKUP_AGE_KEY` secret.
 4. Log it below.
 
@@ -289,11 +288,11 @@ psql "$SESSION_POOLER_URL" --single-transaction -v ON_ERROR_STOP=1 -f supabase/r
 | Secret | Where | Rotate | If it changes |
 | --- | --- | --- | --- |
 | `SUPABASE_ACCESS_TOKEN` | GitHub secret | Supabase → Account → Access tokens (organization-wide, not one project); replace the secret | Nothing else |
-| `SUPABASE_DB_PASSWORD` / `STAGING_…` | GitHub secret | Supabase → Project Settings → Database → Reset password; replace the secret | Nothing else |
+| `SUPABASE_DB_PASSWORD` | GitHub secret | Supabase → Project Settings → Database → Reset password; replace the secret | Nothing else |
 | `cron_secret` | `app_config`, copied to the functions' `CRON_SECRET` secret | Deploy → "Replace the cron secret" | Nothing else |
 | `vapid_private_key` / `vapid_public_key` | `app_config` | Only if leaked: delete both rows, run Deploy | Every device must re-subscribe (see VAPID mismatch) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` | Edge Function secrets **and** GitHub secrets | Google Cloud console → new client secret or token; update both places | Archive and backups fail until both are updated |
-| `SMTP_PASS` / `STAGING_SMTP_PASS` | GitHub secret | New app password at the provider; replace the secret; run Deploy | Sign-in emails fail until deployed |
+| `SMTP_PASS` | GitHub secret | New app password at the provider; replace the secret; run Deploy | Sign-in emails fail until deployed |
 | `SENTRY_DSN` | GitHub secret, copied into the build and Edge Function secrets | Sentry → Client Keys; replace; run Deploy for both targets | Old builds report to the old key until they update |
 | `SENTRY_AUTH_TOKEN` | GitHub secret | Sentry → Auth Tokens (scope: project:releases) | Source maps not uploaded |
 | Backup private key | Offline, owner and deputy | New pair; replace the public key in `ops/backup-recipients.txt` | Old backups still need the old key until they age out |

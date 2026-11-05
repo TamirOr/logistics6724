@@ -9,11 +9,7 @@ declare const self: ServiceWorkerGlobalScope;
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-// Staging lives under the production app's path (/<repo>/staging/) with its
-// own worker; the production worker must not answer for it.
-registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`), {
-  denylist: [new RegExp(`^${import.meta.env.BASE_URL}staging/`)],
-}));
+registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`)));
 
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 

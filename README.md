@@ -41,49 +41,46 @@ With Docker you can also run the full stack locally with `supabase start` (uses 
 
 Everything deploys from GitHub Actions. No terminal or CLI is needed: you set things up once in the browser. All the links below are web pages; open them in the browser you use for GitHub and Supabase.
 
-### Environments
+### Environment
 
-There are two Supabase projects, which is what the free plan allows:
+There is one Supabase project, production:
 
-| | Staging | Production |
-| --- | --- | --- |
-| Supabase project | a second free project | the original project |
-| Web app | `https://<owner>.github.io/<repo>/staging/` | `https://<owner>.github.io/<repo>/` |
-| Deploys on | every push to `main` | the same run, after you approve it |
-| Before deploying | the full CI suite | the full CI suite |
-| Before migrations | nothing | a fresh encrypted backup |
-| After deploy | nothing | health check 2 minutes later |
-| Data | fake units and catalog (Deploy → "Seed staging") | real |
-| Sentry environment | `staging` | `production` |
-| Push keys, email | its own VAPID keys; `STAGING_SMTP_*` (a test inbox) | its own; `SMTP_*` |
+| | Production |
+| --- | --- |
+| Web app | `https://<owner>.github.io/<repo>/` |
+| Deploys on | every push to `main`, after you approve it |
+| Before deploying | the full CI suite |
+| Before migrations | a fresh encrypted backup |
+| After deploy | health check 2 minutes later |
+| Sentry environment | `production` |
+| Push keys, email | its own VAPID keys; `SMTP_*` |
 
-Both builds live on the `site` branch, which GitHub Pages serves. Source maps go to Sentry and are never published. First load of a deep link under `/staging/` opens production's 404 page; open the staging root instead (after that, staging's own service worker serves its pages).
+The build lives on the `site` branch, which GitHub Pages serves. Source maps go to Sentry and are never published.
 
 ### One-time setup
 
-1. **Supabase access token.** Open https://supabase.com/dashboard/account/tokens, choose "Generate new token", name it `github-deploy`, and copy the token. Give it access to the whole organization, not to one project: the same token deploys both staging and production. A token limited to one project gets "Your account does not have the necessary privileges" for the other.
-2. **Projects.** For each project (create the staging one at https://supabase.com/dashboard/new; choose the same region), open Project Settings → General and copy the **Project ID** (the ref). Under Project Settings → Database, use "Reset database password" if you don't have it, and copy the new password.
+1. **Supabase access token.** Open https://supabase.com/dashboard/account/tokens, choose "Generate new token", name it `github-deploy`, and copy the token.
+2. **Project.** Open Project Settings → General and copy the **Project ID** (the ref). Under Project Settings → Database, use "Reset database password" if you don't have it, and copy the new password.
 3. **GitHub secrets.** In the repository, open Settings → Secrets and variables → Actions → "New repository secret" and add:
    - `SUPABASE_ACCESS_TOKEN`: the token from step 1
    - `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`: production
-   - `STAGING_SUPABASE_PROJECT_REF`, `STAGING_SUPABASE_DB_PASSWORD`: staging (until they exist, pushes to `main` only run the tests)
 4. **GitHub Pages.** Settings → Pages → Build and deployment → Source: **Deploy from a branch**, branch `site`, folder `/ (root)`. The branch appears after the first deploy; until then, run a deploy first and come back.
-5. **Production approval.** Settings → Environments → `production` (it appears after the first deploy; or "New environment") → tick **Required reviewers**, add yourself; under Deployment branches and tags choose "Selected branches and tags" and add `main`. Save. Without reviewers, production deploys right after staging with no pause; without the branch rule, a run started from another branch could be approved.
+5. **Production approval.** Settings → Environments → `production` (it appears after the first deploy; or "New environment") → tick **Required reviewers**, add yourself; under Deployment branches and tags choose "Selected branches and tags" and add `main`. Save. Without reviewers, production deploys right after the tests with no pause; without the branch rule, a run started from another branch could be approved.
 6. **Security.** Settings → Code security: turn on **Dependabot alerts**, **Secret scanning**, **Push protection** and **CodeQL analysis** (Default setup). CI also runs zizmor (workflow security), gitleaks (secrets in history) and `npm audit`; the Scorecard workflow reports repository hygiene under Security → Code scanning.
 7. **Two-factor sign-in** on every account that can reach production: GitHub, Supabase, the Google account(s) for Drive and the SMTP sender, every admin's mailbox (an admin signs in to the app with the email code alone), Sentry and the uptime monitor. A passkey or an authenticator app; keep the recovery codes offline.
 8. **Bot protection for sign-in** (optional but recommended): create a free Cloudflare Turnstile widget for the site's host, then Supabase → Authentication → Attack Protection → Enable CAPTCHA protection → Turnstile, with its secret key. The app does not send a CAPTCHA token yet, so turn this on only together with that app change.
-9. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow" and pick a target.
+9. **Deploy.** Merge to `main`, or open Actions → Deploy → "Run workflow".
 
 ### Deploying to production
 
-Every merge to `main` starts one Deploy run: it runs every test suite, deploys staging, then **waits for your approval**. GitHub emails you, and the run shows **Review deployments** under Actions. Check the change on staging, then approve, and the same run takes a backup (once backups are set up), migrates and deploys production, and checks health 2 minutes later. If you merge again before approving, the waiting run is cancelled and the newer one waits instead, so an approval always ships the latest `main`. To ship nothing, just don't approve: the request expires after 30 days. To undo a change, revert its PR and merge (see docs/runbook.md).
+Every merge to `main` starts one Deploy run: it runs every test suite, then **waits for your approval**. GitHub emails you, and the run shows **Review deployments** under Actions. Approve it, and the same run takes a backup (once backups are set up), migrates and deploys production, and checks health 2 minutes later. If you merge again before approving, the waiting run is cancelled and the newer one waits instead, so an approval always ships the latest `main`. To ship nothing, just don't approve: the request expires after 30 days. To undo a change, revert its PR and merge (see docs/runbook.md).
 
 Migrations must keep working with the previous web build for one release (expand, then contract), because phones update only when the user taps the update banner. CI asks for the `db-breaking` label on a PR whose new migration drops, renames or changes a column type; see the runbook for `min_client_version`.
 
 ### First admin and units
 
 1. Open the app and sign in once with the admin's email. The app shows the sign-up form; you can ignore it.
-2. In GitHub, open Actions → Deploy → "Run workflow", choose the target, fill in **admin_email**, and run it. The address is masked in the log.
+2. In GitHub, open Actions → Deploy → "Run workflow", fill in **admin_email**, and run it. The address is masked in the log.
 3. Reload the app. The battalion's companies and logistic platoons come from the seed migration; as admin, check them under "פלוגות ומחלקות" and set each company's headcount (סד״כ). Supplier sections on the event screen appear in alphabetical order.
 4. Send the app's address to the people who should sign up. Anyone who signs in can fill in the sign-up form; nobody gets in until an admin approves them.
 5. The initial catalog comes from the same seed migration (`20261028000016_battalion_units_and_catalog.sql`, with food and kitchen supplies moved to מטבח in `20261028000019_kitchen_catalog.sql`). Suppliers edit it in the app.
@@ -92,7 +89,7 @@ Migrations must keep working with the previous web build for one release (expand
 
 On the free plan, Supabase sends sign-in emails with its default template, which contains a **link**, not the 6-digit code. The app accepts the link, which works in a browser and on Android. But an app installed on an iPhone home screen cannot use it. To send codes, give the project its own email sender. The next deploy then installs the code template.
 
-**Gmail (simplest).** Use a Gmail account that has 2-Step Verification on. Open https://myaccount.google.com/apppasswords, create an app password named `logistics`, and copy the 16 characters. Then add these GitHub secrets (Settings → Secrets and variables → Actions). For staging, add the same with a `STAGING_` prefix (a test inbox is fine):
+**Gmail (simplest).** Use a Gmail account that has 2-Step Verification on. Open https://myaccount.google.com/apppasswords, create an app password named `logistics`, and copy the 16 characters. Then add these GitHub secrets (Settings → Secrets and variables → Actions):
 
 | Secret | Value |
 | --- | --- |
@@ -128,27 +125,27 @@ What each alert means and how to fix it: [docs/runbook.md](docs/runbook.md). Sup
 
 ## Configuration
 
-Every setting, where it lives, and its value per environment ("secret" means: never written down here).
+Every setting, where it lives, and its value ("secret" means: never written down here).
 
-| Setting | Where | Staging | Production |
-| --- | --- | --- | --- |
-| `SUPABASE_ACCESS_TOKEN` | GitHub secret | secret (shared) | secret (shared) |
-| `SUPABASE_PROJECT_REF` / `STAGING_SUPABASE_PROJECT_REF` | GitHub secret | staging ref | production ref |
-| `SUPABASE_DB_PASSWORD` / `STAGING_SUPABASE_DB_PASSWORD` | GitHub secret | secret | secret |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SENDER` (`STAGING_` prefix for staging) | GitHub secret, optional | test inbox | real sender |
-| `SENTRY_DSN` | GitHub secret, optional; copied into the build (`VITE_SENTRY_DSN`) and Edge Function secrets | shared | shared |
-| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | GitHub secret, optional | shared | shared |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` | Edge Function secrets (archive) and GitHub secrets (backups) | optional | secret |
-| `BACKUP_AGE_KEY` | GitHub secret, only during a restore drill | — | — |
-| `APP_VERSION`, `SENTRY_ENVIRONMENT` | Edge Function secrets, set by Deploy | git SHA, `staging` | git SHA, `production` |
-| `CRON_SECRET` | Edge Function secret, copied from `app_config.cron_secret` by Deploy | secret | secret |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | build, set by Deploy (the build fails without them) | staging | production |
-| `VITE_APP_VERSION`, `VITE_APP_BUILT_AT`, `VITE_SENTRY_ENVIRONMENT` | build, set by Deploy | git SHA, commit time, `staging` | same, `production` |
-| `functions_url`, `site_url` | `app_config`, set by Deploy | staging URLs | production URLs |
-| `cron_secret`, `vapid_private_key` | `app_config`, server-only, generated | secret | secret |
-| `vapid_public_key` | `app_config`, readable by the app | generated | generated |
-| `ops/backup-recipients.txt` | repository | — | age public keys |
-| Tuning values and health thresholds | `app_config` (below) | defaults | defaults |
+| Setting | Where | Value |
+| --- | --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | GitHub secret | secret |
+| `SUPABASE_PROJECT_REF` | GitHub secret | production ref |
+| `SUPABASE_DB_PASSWORD` | GitHub secret | secret |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SENDER` | GitHub secret, optional | real sender |
+| `SENTRY_DSN` | GitHub secret, optional; copied into the build (`VITE_SENTRY_DSN`) and Edge Function secrets | shared |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | GitHub secret, optional | shared |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_FOLDER_ID` | Edge Function secrets (archive) and GitHub secrets (backups) | secret |
+| `BACKUP_AGE_KEY` | GitHub secret, only during a restore drill | — |
+| `APP_VERSION`, `SENTRY_ENVIRONMENT` | Edge Function secrets, set by Deploy | git SHA, `production` |
+| `CRON_SECRET` | Edge Function secret, copied from `app_config.cron_secret` by Deploy | secret |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | build, set by Deploy (the build fails without them) | production |
+| `VITE_APP_VERSION`, `VITE_APP_BUILT_AT`, `VITE_SENTRY_ENVIRONMENT` | build, set by Deploy | git SHA, commit time, `production` |
+| `functions_url`, `site_url` | `app_config`, set by Deploy | production URLs |
+| `cron_secret`, `vapid_private_key` | `app_config`, server-only, generated | secret |
+| `vapid_public_key` | `app_config`, readable by the app | generated |
+| `ops/backup-recipients.txt` | repository | age public keys |
+| Tuning values and health thresholds | `app_config` (below) | defaults |
 
 ## Tuning values
 

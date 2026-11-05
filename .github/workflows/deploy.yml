@@ -1,18 +1,18 @@
 # Deploys everything from GitHub, with no local terminal.
 #
-#   Merge to main -> tests -> staging -> waits for your approval -> production
-#                    (production: a backup before migrations, a health check
-#                    2 minutes after)
-#   Run workflow  -> one target, with optional admin, cron-secret and seed
-#                    actions (production still waits for approval)
+#   Merge to main -> tests -> waits for your approval -> backup -> database
+#                    migrations, Edge Functions, project settings -> web app
+#                    -> health check 2 minutes later
+#   Run workflow  -> the same, with optional admin and cron-secret actions
 #
-# To approve: open the run under Actions and press "Review deployments".
-# The steps for each target are in deploy-target.yml.
+# The "approve" job carries the production GitHub environment, which
+# requires your approval (Settings, Environments, production, Required
+# reviewers). To approve: open the run under Actions and press "Review
+# deployments".
 #
-# Secrets: SUPABASE_ACCESS_TOKEN (organization-wide), SUPABASE_PROJECT_REF
-# and SUPABASE_DB_PASSWORD (production), STAGING_SUPABASE_PROJECT_REF and
-# STAGING_SUPABASE_DB_PASSWORD (staging). Optional: SMTP_* / STAGING_SMTP_*,
-# SENTRY_DSN, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT. See README.
+# Secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD.
+# Optional: SMTP_*, SENTRY_DSN, SENTRY_AUTH_TOKEN, SENTRY_ORG,
+# SENTRY_PROJECT. See README.
 name: Deploy
 
 on:
@@ -20,11 +20,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      target:
-        description: "Project to deploy"
-        type: choice
-        options: [staging, production]
-        default: staging
       admin_email:
         description: "Make this user an admin (they must have signed in to the app once)"
         required: false
@@ -32,54 +27,285 @@ on:
         description: "Replace the cron secret (see runbook)"
         type: boolean
         default: false
-      seed_staging:
-        description: "Staging only: load fake units and catalog"
-        type: boolean
-        default: false
       skip_backup:
-        description: "Production only: skip the backup before migrations (emergencies)"
+        description: "Skip the backup before migrations (emergencies)"
         type: boolean
         default: false
 
 permissions:
   contents: read
 
+# The account token can reach every project in the organization. It is set
+# only on the jobs that call the Management API, never on a job that
+# installs npm packages.
 jobs:
   # The whole CI suite on the commit being deployed. Nothing deploys unless
   # it passes. On pushes to main this is the only CI run.
   test:
     uses: ./.github/workflows/ci.yml
 
-  staging:
+  target:
     needs: test
-    if: github.event_name == 'push' || inputs.target == 'staging'
-    uses: ./.github/workflows/deploy-target.yml
-    # Only the publish job inside uses it, to push to the site branch.
-    permissions:
-      contents: write
-    # deploy-target.yml reads each secret by its full name.
-    secrets: inherit # zizmor: ignore[secrets-inherit]
-    with:
-      target: staging
-      admin_email: ${{ inputs.admin_email || '' }}
-      rotate_cron_secret: ${{ inputs.rotate_cron_secret == true }}
-      seed_staging: ${{ inputs.seed_staging == true }}
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.target.outputs.configured }}
+    steps:
+      - id: target
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          configured=false
+          if [ -n "$SUPABASE_PROJECT_REF" ]; then configured=true
+          else echo "::notice title=Deploy skipped::The production project is not configured yet (README, One-time setup)."; fi
+          echo "configured=$configured" >> "$GITHUB_OUTPUT"
 
-  production:
-    needs: [test, staging]
-    # After a merge: once staging deployed. By hand: only when production was picked.
+  approve:
+    needs: target
+    if: needs.target.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    # A newer run supersedes one still waiting for approval, so approving
+    # always deploys the latest main.
+    concurrency:
+      group: approve-production
+      cancel-in-progress: true
+    steps:
+      - run: echo "Deploying $GITHUB_SHA to production"
+
+  backup:
+    needs: approve
+    if: ${{ !inputs.skip_backup }}
+    uses: ./.github/workflows/backup.yml
+    # The backup reads its secrets by fixed names.
+    secrets: inherit # zizmor: ignore[secrets-inherit]
+
+  backend:
+    needs: [approve, backup]
+    # Runs once approved, when the backup succeeded or was skipped (skip_backup).
     if: >-
-      always() && needs.test.result == 'success'
-      && ((github.event_name == 'push' && needs.staging.result == 'success')
-          || inputs.target == 'production')
-    uses: ./.github/workflows/deploy-target.yml
-    # Only the publish job inside uses it, to push to the site branch.
+      always() && needs.approve.result == 'success'
+      && (needs.backup.result == 'success' || needs.backup.result == 'skipped')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: backend-production
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      DEPLOY_TARGET: production
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          # An exact release: "latest" would run whatever was published last
+          # with the account token. Also pinned in ci.yml.
+          version: 2.120.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Apply database migrations
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push
+
+      - name: Deploy Edge Functions
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+          # Release tag and Sentry settings the functions report with.
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" \
+            APP_VERSION="$(git rev-parse --short HEAD)" SENTRY_ENVIRONMENT="$DEPLOY_TARGET" \
+            ${SENTRY_DSN:+SENTRY_DSN="$SENTRY_DSN"}
+
+      - name: Configure the project
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_SENDER: ${{ secrets.SMTP_SENDER }}
+        run: node scripts/supabase-admin.mjs configure
+
+      - name: Rotate the cron secret
+        if: inputs.rotate_cron_secret
+        run: node scripts/supabase-admin.mjs rotate-cron-secret
+
+      - name: Report project status
+        # Counts and errors only: the repository is public.
+        if: always()
+        continue-on-error: true
+        run: node scripts/supabase-admin.mjs status
+
+      - name: Make admin
+        if: inputs.admin_email != ''
+        env:
+          ADMIN_EMAIL: ${{ inputs.admin_email }}
+        run: |
+          # The run page is public: keep the address out of the log.
+          echo "::add-mask::$ADMIN_EMAIL"
+          node scripts/supabase-admin.mjs make-admin
+
+  anon-key:
+    # Public anyway (it ships in the bundle); read in its own job so the web
+    # build needs no token and can run while the backup and migrations do.
+    # As a file, not a job output: GitHub drops an output equal to a value
+    # hidden from the logs ("Skip output ... may contain secret"), which once
+    # left the build without a key.
+    needs: approve
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Read the anon key
+        run: |
+          mkdir -p "$RUNNER_TEMP/anon-key"
+          node scripts/supabase-admin.mjs anon-key > "$RUNNER_TEMP/anon-key/key"
+          [ -s "$RUNNER_TEMP/anon-key/key" ] || { echo "::error::Could not read the anon key"; exit 1; }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: anon-key
+          path: ${{ runner.temp }}/anon-key/key
+          retention-days: 1
+
+  web:
+    # Installs and runs npm packages, so it holds no Supabase token and
+    # cannot write to the repository; install scripts never run.
+    # Builds alongside the backup and migrations; only publish waits for them.
+    needs: anon-key
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          # No cache: a deploy installs from the registry, never from a
+          # cache another workflow run could have written.
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: anon-key
+          path: ${{ runner.temp }}/anon-key
+
+      - name: Build
+        working-directory: web
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          VITE_SENTRY_ENVIRONMENT: production
+        run: |
+          npm ci --ignore-scripts
+          VITE_SUPABASE_ANON_KEY="$(cat "$RUNNER_TEMP/anon-key/key")"
+          [ -n "$VITE_SUPABASE_ANON_KEY" ] || { echo "::error::The anon-key job passed no anon key"; exit 1; }
+          export VITE_SUPABASE_ANON_KEY
+          export VITE_SUPABASE_URL="https://$SUPABASE_PROJECT_REF.supabase.co"
+          export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
+          export VITE_APP_BUILT_AT="$(git log -1 --format=%ct)"
+          npm run build
+          # built_at is the value for min_client_version (docs/runbook.md).
+          echo "::notice title=Build::version $VITE_APP_VERSION built_at $VITE_APP_BUILT_AT"
+
+      - name: Upload source maps to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        # Run from outside web/ so npx cannot pick up a binary from the
+        # build's node_modules.
+        working-directory: ${{ runner.temp }}
+        run: |
+          [ -n "$SENTRY_AUTH_TOKEN" ] || { echo "no Sentry token; skipped"; exit 0; }
+          dist="$GITHUB_WORKSPACE/web/dist"
+          npx --yes @sentry/cli@3.8.2 sourcemaps inject "$dist"
+          npx --yes @sentry/cli@3.8.2 sourcemaps upload --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
+            --release "$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)" "$dist"
+
+      - name: Drop source maps
+        # They never reach the site branch or the public artifact.
+        run: |
+          find web/dist -name '*.map' -delete
+          # Pages has no rewrites: unknown paths load the app via 404.html.
+          cp web/dist/index.html web/dist/404.html
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: site
+          path: web/dist
+          retention-days: 1
+
+  publish:
+    # The only job that can push, and it runs no npm code: it copies the
+    # built files onto the site branch. Waits for the backend too, so the new
+    # build never goes live before its migrations and functions.
+    needs: [web, backend]
+    if: always() && needs.web.result == 'success' && needs.backend.result == 'success'
+    runs-on: ubuntu-latest
+    # One publish at a time onto the site branch.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       contents: write
-    # deploy-target.yml reads each secret by its full name.
-    secrets: inherit # zizmor: ignore[secrets-inherit]
-    with:
-      target: production
-      admin_email: ${{ inputs.admin_email || '' }}
-      rotate_cron_secret: ${{ inputs.rotate_cron_secret == true }}
-      skip_backup: ${{ inputs.skip_backup == true }}
+    steps:
+      # Keeps the token: this job pushes to the site branch, and runs no npm code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 # zizmor: ignore[artipacked]
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: site
+          path: dist
+
+      - name: Publish to the site branch
+        # GitHub Pages serves the site branch.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin site >/dev/null; then
+            git fetch --depth 1 origin site
+            git worktree add -B site site origin/site
+          else
+            git worktree add --orphan -b site site
+          fi
+          rsync -a --delete --exclude .git --exclude .nojekyll dist/ site/
+          touch site/.nojekyll
+          cd site
+          git add -A
+          git diff --cached --quiet && { echo "nothing changed"; exit 0; }
+          git commit -q -m "deploy production $(git -C .. rev-parse --short HEAD)"
+          git push origin site
+
+  verify:
+    # The project must still be healthy once the new build has run for a while.
+    # Two minutes catches a broken API or RPC; slower signals (a stuck
+    # dispatcher, a backlog) are left to the half-hourly Health workflow.
+    needs: publish
+    if: always() && needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      HEALTH_TARGET: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: sleep 120
+      - run: node scripts/supabase-admin.mjs health
