@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { addItem, matchItem, searchItems } from "../lib/api";
 import { itemCache, useCached } from "../lib/live";
+import { MEASURE_MAX_LENGTH } from "../lib/requests";
 import type { ItemSearchResult } from "../lib/types";
 import { CategoryInput } from "./CategoryInput";
 import { QuantityInput } from "./QuantityInput";
@@ -32,7 +33,6 @@ export function resolveAddition(entered: Entered, defaults: Defaults = NO_DEFAUL
 }
 
 const SEARCH_DEBOUNCE_MS = 150;
-const MEASURE_MAX_LENGTH = 30;
 // The dropdown's "new measure" option. Stored measures are trimmed, so none equals it.
 const NEW_MEASURE = "\n";
 
