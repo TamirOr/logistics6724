@@ -28,6 +28,13 @@ describe("addRequest", () => {
     addRequest({ ...request, measure: "  " });
     expect(sent().measure).toBeNull();
   });
+
+  it("sends the company's trimmed note, or none", () => {
+    addRequest({ ...request, measure: "", customerNote: " בסמטי " });
+    expect(sent().customer_note).toBe("בסמטי");
+    addRequest({ ...request, measure: "" });
+    expect(sent().customer_note).toBeNull();
+  });
 });
 
 describe("setQuantity", () => {

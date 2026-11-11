@@ -164,6 +164,19 @@ select tst.act('10000000-0000-0000-0000-000000000002');
 update requests set customer_note = ' ' where id = '20000000-0000-0000-0000-000000000001';
 select tst.ok(customer_note is null, 'a blank customer note clears it')
 from requests where id = '20000000-0000-0000-0000-000000000001';
+-- An import from WhatsApp adds a request with its note already on it. Rolled
+-- back, so the list's counts below stay as they are.
+begin;
+insert into requests (id, list_id, item_id, quantity, customer_note)
+values ('20000000-0000-0000-0000-0000000000f1', (select v from tst.t where k = 'list1'),
+        (select id from items where name = 'סוללה AA'), 2, 'אם אין, AAA');
+select tst.ok(customer_note = 'אם אין, AAA', 'customer adds a request with a note')
+from requests where id = '20000000-0000-0000-0000-0000000000f1';
+rollback;
+select tst.act('10000000-0000-0000-0000-000000000004');
+select tst.fails($$insert into requests (list_id, item_id, quantity, customer_note) values ((select v from tst.t where k = 'list1'), (select id from items where name = 'סוללה AA'), 2, 'x')$$,
+  'supplier cannot add a request with a customer note');
+select tst.act('10000000-0000-0000-0000-000000000002');
 
 -- Kitchen marks its request ready.
 select tst.act('10000000-0000-0000-0000-000000000005');

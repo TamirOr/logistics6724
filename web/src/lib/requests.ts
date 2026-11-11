@@ -5,6 +5,8 @@ import { cancel, enqueue } from "./queue";
 import type { Request, RequestStatus } from "./types";
 
 export const UNDO_DELAY_MS = 5000;
+/** The longest measure a request takes ("קרטון"). */
+export const MEASURE_MAX_LENGTH = 30;
 const HANDLED: RequestStatus[] = ["ready", "partial", "missing"];
 
 export const isClosed = (r: Request) => r.status === "collected" || r.status === "cancelled";
@@ -24,17 +26,19 @@ function update(r: Request, patch: Partial<Request>) {
 
 export function addRequest(p: {
   listId: string; eventId: string; companyId: string; supplierId: string; itemId: string; quantity: number; measure: string;
+  customerNote?: string;
 }) {
   const id = crypto.randomUUID();
   const measure = cleanText(p.measure);
+  const customer_note = cleanText(p.customerNote ?? "");
   const now = new Date().toISOString();
   const row: Request = {
     id, list_id: p.listId, event_id: p.eventId, company_id: p.companyId, supplier_id: p.supplierId,
     item_id: p.itemId, quantity: p.quantity, measure, urgent: false, status: "pending", previous_status: null,
-    supplied_quantity: null, supplier_note: null, customer_note: null, changed_after_handling: false, created_at: now, updated_at: now,
+    supplied_quantity: null, supplier_note: null, customer_note, changed_after_handling: false, created_at: now, updated_at: now,
   };
   enqueue(
-    { kind: "insert", table: "requests", row: { id, list_id: p.listId, item_id: p.itemId, quantity: p.quantity, measure } },
+    { kind: "insert", table: "requests", row: { id, list_id: p.listId, item_id: p.itemId, quantity: p.quantity, measure, customer_note } },
     [{ table: "requests", id, insert: { ...row } }],
   );
 }

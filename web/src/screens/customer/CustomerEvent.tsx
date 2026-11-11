@@ -26,6 +26,7 @@ import { formatNeededBy } from "../../lib/time";
 import type { List, ListComment, Request, RequestStatus } from "../../lib/types";
 import { RequestRow } from "../../components/RequestRow";
 import { RequestSheet } from "./RequestSheet";
+import { WhatsAppImportSheet } from "./WhatsAppImportSheet";
 import { WhatsAppSheet } from "./WhatsAppSheet";
 import { t } from "../../strings";
 
@@ -41,6 +42,7 @@ export function CustomerEvent() {
   const [editing, setEditing] = useState<Request | null>(null);
   const [filter, setFilter] = useState(NO_FILTER);
   const [sharing, setSharing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const units = useUnits();
   const suppliers = units.filter((u) => u.kind === "supplier" && u.active);
 
@@ -100,6 +102,10 @@ export function CustomerEvent() {
         </section>
       )}
 
+      {editable && (
+        <button className="btn btn-secondary btn-block" onClick={() => setImporting(true)}>{t.whatsAppImport}</button>
+      )}
+
       {rows.length > 0 && (
         <div className="toolbar">
           <RequestFilters filter={filter} onChange={setFilter} categories={categoryOptions(rows, categoryOf)}
@@ -149,6 +155,10 @@ export function CustomerEvent() {
           eventName: event.name, companyName: units.find((u) => u.id === list.company_id)?.name ?? "",
           rows, suppliers, itemOf,
         }} />
+      )}
+      {importing && (
+        <WhatsAppImportSheet listId={list.id} eventId={event.id} companyId={list.company_id} suppliers={suppliers}
+          rows={rows} onClose={() => setImporting(false)} />
       )}
     </Layout>
   );
