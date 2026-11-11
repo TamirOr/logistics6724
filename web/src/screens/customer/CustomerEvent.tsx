@@ -26,6 +26,7 @@ import { formatNeededBy } from "../../lib/time";
 import type { List, ListComment, Request, RequestStatus } from "../../lib/types";
 import { RequestRow } from "../../components/RequestRow";
 import { RequestSheet } from "./RequestSheet";
+import { WhatsAppSheet } from "./WhatsAppSheet";
 import { t } from "../../strings";
 
 const FILTER_STATUSES: RequestStatus[] = ["pending", "ready", "partial", "missing", "collected", "cancelled"];
@@ -39,6 +40,7 @@ export function CustomerEvent() {
   const [list, setList] = useState<List | null | undefined>(undefined);
   const [editing, setEditing] = useState<Request | null>(null);
   const [filter, setFilter] = useState(NO_FILTER);
+  const [sharing, setSharing] = useState(false);
   const units = useUnits();
   const suppliers = units.filter((u) => u.kind === "supplier" && u.active);
 
@@ -82,7 +84,10 @@ export function CustomerEvent() {
     <Layout
       title={event.name}
       back
-      actions={<button className="btn btn-ghost btn-small" onClick={() => exportEvent(event.id, event.name)}>{t.exportExcel}</button>}
+      actions={<>
+        {rows.length > 0 && <button className="btn btn-ghost btn-small" onClick={() => setSharing(true)}>{t.whatsApp}</button>}
+        <button className="btn btn-ghost btn-small" onClick={() => exportEvent(event.id, event.name)}>{t.exportExcel}</button>
+      </>}
     >
       {neededBy && <p className="muted">{t.neededBy} {neededBy}</p>}
       {!editable && <p className="notice">{event.status === "cancelled" ? t.eventCancelled : t.readOnly}</p>}
@@ -138,6 +143,12 @@ export function CustomerEvent() {
       {editing && (
         <RequestSheet request={rows.find((r) => r.id === editing.id) ?? editing} item={itemOf(editing.item_id)}
           onClose={() => setEditing(null)} />
+      )}
+      {sharing && (
+        <WhatsAppSheet onClose={() => setSharing(false)} list={{
+          eventName: event.name, companyName: units.find((u) => u.id === list.company_id)?.name ?? "",
+          rows, suppliers, itemOf,
+        }} />
       )}
     </Layout>
   );

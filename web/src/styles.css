@@ -327,3 +327,6 @@ h2 { font-size: 1.15rem; margin: 0; }
 /* Super user: one card per member of the unit, the remove button at the end. */
 .member { align-items: center; flex-wrap: nowrap; }
 .member-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* "העתקה לוואטסאפ": the message as it will be pasted */
+.whatsapp-text { min-height: 40dvh; white-space: pre-wrap; resize: vertical; }

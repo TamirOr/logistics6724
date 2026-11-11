@@ -255,6 +255,16 @@ export const t = {
 
   // Export
   exportExcel: "ייצוא לאקסל",
+  // A company's list as one WhatsApp message.
+  whatsApp: "העתקה לוואטסאפ",
+  whatsAppTitle: "דרישות מבצע לוגיסטי",
+  whatsAppBySupplier: "לפי מחלקות",
+  whatsAppByCategory: "לפי קטגוריות בלבד",
+  whatsAppSplit: "חלוקה",
+  copyText: "העתקת הטקסט",
+  textCopied: "הטקסט הועתק. אפשר להדביק בוואטסאפ.",
+  copyByHand: "לא הצלחנו להעתיק. סמנו את הטקסט והעתיקו ידנית.",
+  close: "סגירה",
   from: "מתאריך",
   to: "עד תאריך",
 
